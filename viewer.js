@@ -160,6 +160,7 @@
     ui.zReadout.textContent = 'из ' + (state.tiff.depth - 1) + ' · глобальная Z ' + globalZ + ' · ' + (globalZ * state.volume.resolution_nm[2]) + ' нм';
     resizeView();
     renderOrthos();
+    window.dispatchEvent(new CustomEvent('review:position'));
   }
   function resizeView() {
     if (!state.tiff) return;
@@ -227,7 +228,9 @@
   ui.volumeSelect.addEventListener('change',()=>loadVolume());
   byId('retryLoad').addEventListener('click',()=>state.metadata?loadVolume():start());
   byId('surfaceRetry').addEventListener('click',()=>{if(state.tiff){surface.setVolume(state.volume,state.currentCase.case_id);render();}});
-  ui.zSlider.addEventListener('input',e=>setZ(e.target.value));ui.zInput.addEventListener('change',e=>setZ(e.target.value));
+  ui.zSlider.addEventListener('input',e=>setZ(e.target.value));
+  ui.zInput.addEventListener('input',e=>{if(e.target.value!=='')setZ(e.target.value);});
+  ui.zInput.addEventListener('change',e=>setZ(e.target.value));
   ui.prevButton.addEventListener('click',()=>setZ(state.z-1));ui.nextButton.addEventListener('click',()=>setZ(state.z+1));
   ui.zoomSelect.addEventListener('change',e=>{state.zoom=Number(e.target.value);resizeView();});
   ui.fitButton.addEventListener('click',()=>{
@@ -288,6 +291,7 @@
   window.addEventListener('resize',()=>{if(state.tiff){if(state.needsFit&&!byId('page-viewer').hidden){ui.fitButton.click();state.needsFit=false;}drawScale();renderOrthos();}});
   window.ReviewViewer={
     get metadata(){return state.metadata;},get currentCase(){return state.currentCase;},get volume(){return state.volume;},
+    get ready(){return Boolean(state.tiff);},get z(){return state.z;},get target(){return state.target;},
     select(id){if(!state.metadata?.cases.some(c=>c.case_id===id))return;ui.caseSelect.value=id;selectCase();}
   };
   if(document.readyState!=='complete')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
