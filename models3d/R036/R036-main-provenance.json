@@ -1,0 +1,45 @@
+{
+  "volume_id": "R036-main",
+  "source_url": "https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300",
+  "source_version": 1300,
+  "source_kind": "Official MICrONS static uint64 segmentation voxels; locally derived surfaces, not downloaded precomputed meshes.",
+  "source_array_sha256": "393c4466e5f88d2a347a6becd3422b9054535585b9c007c936520d910f0c57b5",
+  "source_axes": "XYZ",
+  "source_shape_xyz": [
+    384,
+    384,
+    96
+  ],
+  "source_begin_vox_xyz": [
+    158837,
+    55436,
+    19911
+  ],
+  "source_end_vox_xyz_exclusive": [
+    159221,
+    55820,
+    20007
+  ],
+  "resolution_nm": [
+    8,
+    8,
+    40
+  ],
+  "origin_global_nm": [
+    1270696,
+    443488,
+    796440
+  ],
+  "all_requested_source_voxels_covered": true,
+  "source_info_sha256": "11a8b787e54012bac2dfbb77ffcebecb217764a234506a07500e472382caca7b",
+  "acquisition_utc_range": [
+    "2026-09-10T06:09:29.008452+00:00",
+    "2026-09-11T15:03:06.237094+00:00"
+  ],
+  "surface_method": "Exact native voxel-boundary surfaces; adjacent coplanar faces merged without changing geometry. No smoothing, downsampling, gap healing or component removal. Artificial crop faces omitted.",
+  "source_components_retained": "All 6-connected components of each selected label; no welding between different components.",
+  "coordinate_convention": "Voxel cells span [i*resolution,(i+1)*resolution] relative to crop begin; image section plane is (local_z+0.5)*resolution_z. Global nm = local nm + origin_global_nm.",
+  "crop_faces_omitted": true,
+  "attribution": "MICrONS Consortium (2025), Functional connectomics spanning multiple areas of mouse visual cortex. Nature. https://doi.org/10.1038/s41586-025-08790-w",
+  "license_url": "https://www.microns-explorer.org/terms-and-conditions"
+}

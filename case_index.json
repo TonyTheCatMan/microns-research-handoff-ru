@@ -1,0 +1,2757 @@
+{
+  "package_id": "MICRONS-HUMAN-REVIEW-20260915-v2-3D",
+  "created_date": "2026-09-14",
+  "resolution_nm": [
+    8,
+    8,
+    40
+  ],
+  "coordinate_convention": "Global coordinates are physical nm; voxel=floor(nm/resolution_nm), local=voxel-begin_vox_xyz; indices zero-based.",
+  "source": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em",
+  "attribution": "MICrONS Consortium (2025), Functional connectomics spanning multiple areas of mouse visual cortex. Nature. https://doi.org/10.1038/s41586-025-08790-w",
+  "cases": [
+    {
+      "case_id": "R001",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            762768,
+            660224,
+            823400
+          ],
+          "pre_nm": [
+            762592,
+            660112,
+            823480
+          ],
+          "post_nm": [
+            762672,
+            660336,
+            823200
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R001-main",
+          "path": "cases/R001/R001-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            95143,
+            82336,
+            20535
+          ],
+          "end_vox_xyz_exclusive": [
+            95527,
+            82720,
+            20631
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "e16449e94d9e49449d698341e64ccbf883f9c4aa9be89aa0b5238a6cfa2bec1e"
+        }
+      ]
+    },
+    {
+      "case_id": "R002",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            701696,
+            668720,
+            849320
+          ],
+          "pre_nm": [
+            701416,
+            668896,
+            849640
+          ],
+          "post_nm": [
+            701504,
+            668512,
+            849320
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            701664,
+            668632,
+            849000
+          ],
+          "pre_nm": [
+            701736,
+            668776,
+            849040
+          ],
+          "post_nm": [
+            701560,
+            668384,
+            849240
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R002-main",
+          "path": "cases/R002/R002-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            87505,
+            83388,
+            21185
+          ],
+          "end_vox_xyz_exclusive": [
+            87889,
+            83772,
+            21281
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "7ab9c67ce571499016940324f421470bd35c6d9d28b57fee48b5f5851b18a6b5"
+        }
+      ]
+    },
+    {
+      "case_id": "R003",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            1247384,
+            417072,
+            805280
+          ],
+          "pre_nm": [
+            1247152,
+            417216,
+            805480
+          ],
+          "post_nm": [
+            1247496,
+            416976,
+            805120
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R003-main",
+          "path": "cases/R003/R003-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            155723,
+            51945,
+            20084
+          ],
+          "end_vox_xyz_exclusive": [
+            156107,
+            52329,
+            20180
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "8cd9491e572a73c37ea3fa3f0e41f581406028214abbb59afed2e7f9f52ea82e"
+        }
+      ]
+    },
+    {
+      "case_id": "R004",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            756464,
+            732464,
+            774800
+          ],
+          "pre_nm": [
+            756384,
+            732448,
+            774560
+          ],
+          "post_nm": [
+            756536,
+            732232,
+            774880
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            756384,
+            732152,
+            774720
+          ],
+          "pre_nm": [
+            756328,
+            732144,
+            774760
+          ],
+          "post_nm": [
+            756424,
+            732384,
+            774760
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R004-main",
+          "path": "cases/R004/R004-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            94362,
+            91346,
+            19320
+          ],
+          "end_vox_xyz_exclusive": [
+            94746,
+            91730,
+            19416
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "bb4e55a68aca94f2251431d0742b14cc33edccd0026fc93e9554410292423e7b"
+        }
+      ]
+    },
+    {
+      "case_id": "R005",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            778160,
+            422488,
+            925080
+          ],
+          "pre_nm": [
+            778232,
+            422688,
+            925040
+          ],
+          "post_nm": [
+            778152,
+            422392,
+            925200
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R005-main",
+          "path": "cases/R005/R005-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            97082,
+            52625,
+            23080
+          ],
+          "end_vox_xyz_exclusive": [
+            97466,
+            53009,
+            23176
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "259312c2e6abc02870fec11e21cd62f1be0f499f3b01b257c133ca801d730d9c"
+        }
+      ]
+    },
+    {
+      "case_id": "R006",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            1173636,
+            513344,
+            760880
+          ],
+          "pre_nm": [
+            1173448,
+            513296,
+            760280
+          ],
+          "post_nm": [
+            1173808,
+            513096,
+            760400
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R006-main",
+          "path": "cases/R006/R006-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            146511,
+            63960,
+            18966
+          ],
+          "end_vox_xyz_exclusive": [
+            146895,
+            64344,
+            19062
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "44cbe1b26b8ce664bda63b6488e199c7dfd0b86d408227b40ece7ddd1ebff840"
+        }
+      ]
+    },
+    {
+      "case_id": "R007",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            664000,
+            571784,
+            897480
+          ],
+          "pre_nm": [
+            664024,
+            571560,
+            897440
+          ],
+          "post_nm": [
+            664032,
+            571976,
+            897400
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R007-main",
+          "path": "cases/R007/R007-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            82810,
+            71279,
+            22388
+          ],
+          "end_vox_xyz_exclusive": [
+            83194,
+            71663,
+            22484
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "404abc8a1d02381de5dd5bc27b4fabba6a90e88cdd579cf4acfa929aec64516e"
+        }
+      ]
+    },
+    {
+      "case_id": "R008",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            1119000,
+            535216,
+            728920
+          ],
+          "pre_nm": [
+            1118720,
+            535032,
+            729080
+          ],
+          "post_nm": [
+            1119176,
+            535192,
+            729080
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R008-main",
+          "path": "cases/R008/R008-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            139676,
+            66698,
+            18177
+          ],
+          "end_vox_xyz_exclusive": [
+            140060,
+            67082,
+            18273
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "b43f1aa4321d591021e4857f76dd2793b7d172d20e374d12bf48b97b22df5e3e"
+        }
+      ]
+    },
+    {
+      "case_id": "R009",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            702480,
+            576696,
+            977320
+          ],
+          "pre_nm": [
+            702520,
+            576656,
+            977240
+          ],
+          "post_nm": [
+            702480,
+            576856,
+            977520
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            702712,
+            575944,
+            977200
+          ],
+          "pre_nm": [
+            702656,
+            575920,
+            976960
+          ],
+          "post_nm": [
+            702856,
+            576128,
+            977120
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R009-main",
+          "path": "cases/R009/R009-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            87641,
+            71856,
+            24383
+          ],
+          "end_vox_xyz_exclusive": [
+            88025,
+            72240,
+            24479
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "7e07904191369554e339de77cf133991c2ee3e6afc9bea9585a6eb11c8678859"
+        },
+        {
+          "volume_id": "R009-extension-01",
+          "path": "cases/R009/R009-extension-01.tif",
+          "shape_xyz": [
+            544,
+            576,
+            40
+          ],
+          "begin_vox_xyz": [
+            87737,
+            71600,
+            24415
+          ],
+          "end_vox_xyz_exclusive": [
+            88281,
+            72176,
+            24455
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "d1a560888ec5d183885490846ff40144b774626ff863d3f4ed9bb370f5946d33"
+        }
+      ]
+    },
+    {
+      "case_id": "R010",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            728040,
+            764184,
+            863040
+          ],
+          "pre_nm": [
+            727744,
+            764168,
+            863040
+          ],
+          "post_nm": [
+            728200,
+            764040,
+            863240
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R010-main",
+          "path": "cases/R010/R010-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            90804,
+            95322,
+            21530
+          ],
+          "end_vox_xyz_exclusive": [
+            91188,
+            95706,
+            21626
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "22f59dec24a2acb88a76a1a682b76f378f4e1115c5b9e6b9b3576ba70aff730c"
+        }
+      ]
+    },
+    {
+      "case_id": "R011",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            752256,
+            737296,
+            838640
+          ],
+          "pre_nm": [
+            752304,
+            737288,
+            838400
+          ],
+          "post_nm": [
+            752096,
+            737120,
+            838640
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R011-main",
+          "path": "cases/R011/R011-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            93833,
+            91959,
+            20915
+          ],
+          "end_vox_xyz_exclusive": [
+            94217,
+            92343,
+            21011
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "0e33e7ac30481073e8eef1a794b43000c95ff8074006f9c8a53c362085e0c401"
+        },
+        {
+          "volume_id": "R011-extension-01",
+          "path": "cases/R011/R011-extension-01.tif",
+          "shape_xyz": [
+            384,
+            490,
+            44
+          ],
+          "begin_vox_xyz": [
+            93833,
+            92109,
+            20957
+          ],
+          "end_vox_xyz_exclusive": [
+            94217,
+            92599,
+            21001
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "09305fd4904838b2bd734ff985c7092f5c896cf7815d34eb84740d9b14ed5f51"
+        }
+      ]
+    },
+    {
+      "case_id": "R012",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            684304,
+            628064,
+            820040
+          ],
+          "pre_nm": [
+            684392,
+            628224,
+            819880
+          ],
+          "post_nm": [
+            684312,
+            628104,
+            820120
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R012-main",
+          "path": "cases/R012/R012-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            85351,
+            78326,
+            20452
+          ],
+          "end_vox_xyz_exclusive": [
+            85735,
+            78710,
+            20548
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "0ae5902d2df65383389883f51d2ef6b5bf11ba2cb45661e01bc450485148e6ce"
+        }
+      ]
+    },
+    {
+      "case_id": "R013",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            669648,
+            569640,
+            881480
+          ],
+          "pre_nm": [
+            669360,
+            569536,
+            881400
+          ],
+          "post_nm": [
+            669672,
+            569608,
+            881400
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R013-main",
+          "path": "cases/R013/R013-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            83497,
+            71006,
+            21988
+          ],
+          "end_vox_xyz_exclusive": [
+            83881,
+            71390,
+            22084
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "fdebc6c75955ebc956342df245d5a4a6acea3265e376074ec4309020e2bce5a2"
+        }
+      ]
+    },
+    {
+      "case_id": "R014",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            710680,
+            746616,
+            831240
+          ],
+          "pre_nm": [
+            710760,
+            746792,
+            831280
+          ],
+          "post_nm": [
+            710968,
+            746496,
+            831320
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R014-main",
+          "path": "cases/R014/R014-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            88661,
+            93138,
+            20734
+          ],
+          "end_vox_xyz_exclusive": [
+            89045,
+            93522,
+            20830
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "8a200e2e6bb77c17318c7a8c83ef4d89c7a06a6f75353ef8dbde6c2e0e3d27fd"
+        }
+      ]
+    },
+    {
+      "case_id": "R015",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            731352,
+            644040,
+            892080
+          ],
+          "pre_nm": [
+            731304,
+            644296,
+            892200
+          ],
+          "post_nm": [
+            731360,
+            643976,
+            892080
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R015-main",
+          "path": "cases/R015/R015-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            91224,
+            80325,
+            22255
+          ],
+          "end_vox_xyz_exclusive": [
+            91608,
+            80709,
+            22351
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "1afbbef6ff6667a34e9e04b38e3ca693f38f1e8cc704b145a41771988ad752ec"
+        }
+      ]
+    },
+    {
+      "case_id": "R016",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            807672,
+            630440,
+            995800
+          ],
+          "pre_nm": [
+            807600,
+            630224,
+            995720
+          ],
+          "post_nm": [
+            807624,
+            630432,
+            995760
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R016-main",
+          "path": "cases/R016/R016-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            100762,
+            78599,
+            24846
+          ],
+          "end_vox_xyz_exclusive": [
+            101146,
+            78983,
+            24942
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "a9efc2dd906040323f2e6de109586c96631e3d8b47a82c151a1a6aa41c8beb2a"
+        },
+        {
+          "volume_id": "R016-extension-01",
+          "path": "cases/R016/R016-extension-01.tif",
+          "shape_xyz": [
+            392,
+            480,
+            36
+          ],
+          "begin_vox_xyz": [
+            100634,
+            78759,
+            24878
+          ],
+          "end_vox_xyz_exclusive": [
+            101026,
+            79239,
+            24914
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "591892fdb9b8801930803d91bfb878cc6b44c2756abcbab7e882868537266ffa"
+        }
+      ]
+    },
+    {
+      "case_id": "R017",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            740192,
+            515736,
+            933560
+          ],
+          "pre_nm": [
+            740024,
+            515416,
+            933240
+          ],
+          "post_nm": [
+            740344,
+            515928,
+            933560
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            740440,
+            515912,
+            933600
+          ],
+          "pre_nm": [
+            740664,
+            516080,
+            933280
+          ],
+          "post_nm": [
+            740432,
+            515816,
+            933600
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R017-main",
+          "path": "cases/R017/R017-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            92351,
+            64276,
+            23287
+          ],
+          "end_vox_xyz_exclusive": [
+            92735,
+            64660,
+            23383
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "14e00d71f06dc38eee814955bf828412e35a127bfba9eb0edeea06b8fa658e78"
+        }
+      ]
+    },
+    {
+      "case_id": "R018",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            1215760,
+            501392,
+            900480
+          ],
+          "pre_nm": [
+            1215720,
+            501616,
+            900400
+          ],
+          "post_nm": [
+            1215752,
+            501328,
+            900560
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            1216624,
+            501580,
+            899360
+          ],
+          "pre_nm": [
+            1216320,
+            501608,
+            899280
+          ],
+          "post_nm": [
+            1216544,
+            501584,
+            899440
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R018-main",
+          "path": "cases/R018/R018-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            151829,
+            62492,
+            22450
+          ],
+          "end_vox_xyz_exclusive": [
+            152213,
+            62876,
+            22546
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "3561ae3f2624e36c3791985074f6c1232946e36540724647d1e51900ea22182d"
+        }
+      ]
+    },
+    {
+      "case_id": "R019",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            658512,
+            492600,
+            913640
+          ],
+          "pre_nm": [
+            658728,
+            492536,
+            913840
+          ],
+          "post_nm": [
+            658448,
+            492472,
+            913600
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R019-main",
+          "path": "cases/R019/R019-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            82131,
+            61375,
+            22795
+          ],
+          "end_vox_xyz_exclusive": [
+            82515,
+            61759,
+            22891
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "5f633e3250c2807788ea96fdeea67a98bd2b32833b615235fdbc570db8220d06"
+        }
+      ]
+    },
+    {
+      "case_id": "R020",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            619416,
+            692408,
+            831320
+          ],
+          "pre_nm": [
+            619456,
+            692720,
+            831400
+          ],
+          "post_nm": [
+            619376,
+            692280,
+            831320
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R020-main",
+          "path": "cases/R020/R020-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            77235,
+            86370,
+            20736
+          ],
+          "end_vox_xyz_exclusive": [
+            77619,
+            86754,
+            20832
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "463826c66a33e3d1e61d7288824eb62d5b7f77776d6ceaf96155155268db8303"
+        }
+      ]
+    },
+    {
+      "case_id": "R021",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            733560,
+            525656,
+            815520
+          ],
+          "pre_nm": [
+            733872,
+            525536,
+            815360
+          ],
+          "post_nm": [
+            733800,
+            525704,
+            815680
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R021-main",
+          "path": "cases/R021/R021-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            91522,
+            65510,
+            20340
+          ],
+          "end_vox_xyz_exclusive": [
+            91906,
+            65894,
+            20436
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "1972a7bcd983e34e471fd9d7e8a714ad28d63ef9307e0e8e4175609b7289ce0e"
+        }
+      ]
+    },
+    {
+      "case_id": "R022",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            722504,
+            786804,
+            860280
+          ],
+          "pre_nm": [
+            722664,
+            786712,
+            859960
+          ],
+          "post_nm": [
+            722368,
+            786840,
+            860360
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R022-main",
+          "path": "cases/R022/R022-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            90122,
+            98155,
+            21456
+          ],
+          "end_vox_xyz_exclusive": [
+            90506,
+            98539,
+            21552
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "a02159489587bb1eeaf60b6affe3f74d5ceb397aafee026827d319be68ca442b"
+        }
+      ]
+    },
+    {
+      "case_id": "R023",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            748728,
+            576712,
+            854960
+          ],
+          "pre_nm": [
+            748600,
+            576720,
+            854720
+          ],
+          "post_nm": [
+            748816,
+            576592,
+            854800
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R023-main",
+          "path": "cases/R023/R023-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            93396,
+            71890,
+            21323
+          ],
+          "end_vox_xyz_exclusive": [
+            93780,
+            72274,
+            21419
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "d6225a1bc47af0cb8e433ec2554e95ccfe7b4c621fae2709b9ad47a8b99e203c"
+        }
+      ]
+    },
+    {
+      "case_id": "R024",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            747880,
+            616120,
+            844000
+          ],
+          "pre_nm": [
+            747952,
+            616096,
+            843720
+          ],
+          "post_nm": [
+            747608,
+            616224,
+            844000
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            747944,
+            615796,
+            844200
+          ],
+          "pre_nm": [
+            748088,
+            616168,
+            844600
+          ],
+          "post_nm": [
+            747768,
+            615800,
+            844040
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R024-main",
+          "path": "cases/R024/R024-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            93289,
+            76809,
+            21056
+          ],
+          "end_vox_xyz_exclusive": [
+            93673,
+            77193,
+            21152
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "16a281c96b0d63cccac858a906ffcdf3b0b0cc4dbce5827d46f3afbfb71fe57b"
+        },
+        {
+          "volume_id": "R024-extension-01",
+          "path": "cases/R024/R024-extension-01.tif",
+          "shape_xyz": [
+            190,
+            170,
+            42
+          ],
+          "begin_vox_xyz": [
+            93319,
+            76889,
+            21032
+          ],
+          "end_vox_xyz_exclusive": [
+            93509,
+            77059,
+            21074
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "0d784a8b70fd00b28d156700767ba62885932e173b9afc854bcfb057ab948400"
+        }
+      ]
+    },
+    {
+      "case_id": "R025",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            735408,
+            541808,
+            917040
+          ],
+          "pre_nm": [
+            735136,
+            541872,
+            917200
+          ],
+          "post_nm": [
+            735440,
+            541968,
+            917080
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R025-main",
+          "path": "cases/R025/R025-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            91719,
+            67544,
+            22880
+          ],
+          "end_vox_xyz_exclusive": [
+            92103,
+            67928,
+            22976
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "25da4b34a9048345722b568ace4091392e41e23425a6da26432ef97ff1fc2629"
+        },
+        {
+          "volume_id": "R025-extension-01",
+          "path": "cases/R025/R025-extension-01.tif",
+          "shape_xyz": [
+            520,
+            240,
+            27
+          ],
+          "begin_vox_xyz": [
+            91889,
+            67644,
+            22914
+          ],
+          "end_vox_xyz_exclusive": [
+            92409,
+            67884,
+            22941
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "4a84affebe5eacc68a6836c1159405e9d377e689aada90fa0bc8dbd27dac18cf"
+        }
+      ]
+    },
+    {
+      "case_id": "R026",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            1270208,
+            443832,
+            793040
+          ],
+          "pre_nm": [
+            1270344,
+            443920,
+            792920
+          ],
+          "post_nm": [
+            1270056,
+            443936,
+            793040
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R026-main",
+          "path": "cases/R026/R026-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            158583,
+            55293,
+            19776
+          ],
+          "end_vox_xyz_exclusive": [
+            158967,
+            55677,
+            19872
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "32b10cf85cdb192d9b48a3ef24d7fe6be4723f9f4a9d66b6a8daab29c34652e0"
+        }
+      ]
+    },
+    {
+      "case_id": "R027",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            758624,
+            429352,
+            843000
+          ],
+          "pre_nm": [
+            758896,
+            429224,
+            843120
+          ],
+          "post_nm": [
+            758576,
+            429304,
+            842920
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R027-main",
+          "path": "cases/R027/R027-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            94650,
+            53469,
+            21027
+          ],
+          "end_vox_xyz_exclusive": [
+            95034,
+            53853,
+            21123
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "88dce63a59b4198e0f266e6e44fe6d358789d1fabc63ce50c80a4dec46a25391"
+        },
+        {
+          "volume_id": "R027-extension-01",
+          "path": "cases/R027/R027-extension-01.tif",
+          "shape_xyz": [
+            330,
+            310,
+            45
+          ],
+          "begin_vox_xyz": [
+            94530,
+            53719,
+            20997
+          ],
+          "end_vox_xyz_exclusive": [
+            94860,
+            54029,
+            21042
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "265b84b94815d2dc12ff3ef761d2698afd3cfc92811ec354eb20983b680945d6"
+        }
+      ]
+    },
+    {
+      "case_id": "R028",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            749064,
+            614064,
+            874920
+          ],
+          "pre_nm": [
+            748928,
+            614296,
+            875040
+          ],
+          "post_nm": [
+            749232,
+            614224,
+            874880
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            749240,
+            613584,
+            874920
+          ],
+          "pre_nm": [
+            749384,
+            613896,
+            875240
+          ],
+          "post_nm": [
+            749160,
+            613896,
+            874920
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R028-main",
+          "path": "cases/R028/R028-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            93452,
+            76550,
+            21828
+          ],
+          "end_vox_xyz_exclusive": [
+            93836,
+            76934,
+            21924
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "dd3178c0f9519913dadf8f65c9b572cb023fe315b1442577adddeb3ca3a5ae67"
+        }
+      ]
+    },
+    {
+      "case_id": "R029",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            738764,
+            751092,
+            879600
+          ],
+          "pre_nm": [
+            738624,
+            751440,
+            879720
+          ],
+          "post_nm": [
+            738664,
+            751232,
+            879320
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R029-main",
+          "path": "cases/R029/R029-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            92144,
+            93716,
+            21940
+          ],
+          "end_vox_xyz_exclusive": [
+            92528,
+            94100,
+            22036
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "ee3470bc5284a69238f35b5c393d9cd6474a11ecfce6afb741fe0f83846c061e"
+        }
+      ]
+    },
+    {
+      "case_id": "R030",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            765368,
+            847636,
+            859400
+          ],
+          "pre_nm": [
+            765600,
+            847632,
+            859640
+          ],
+          "post_nm": [
+            765288,
+            847528,
+            859360
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R030-main",
+          "path": "cases/R030/R030-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            95488,
+            105755,
+            21439
+          ],
+          "end_vox_xyz_exclusive": [
+            95872,
+            106139,
+            21535
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "1e4f70ecf3651c0af8fef86877ab1d0e5e59353f5c17c003af4c3242472819bf"
+        },
+        {
+          "volume_id": "R030-extension-01",
+          "path": "cases/R030/R030-extension-01.tif",
+          "shape_xyz": [
+            480,
+            280,
+            34
+          ],
+          "begin_vox_xyz": [
+            95232,
+            105835,
+            21469
+          ],
+          "end_vox_xyz_exclusive": [
+            95712,
+            106115,
+            21503
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "de62bb2e724662a1fb68974b2568a0638dcbb580c7ad33da0c776bc136e3181a"
+        }
+      ]
+    },
+    {
+      "case_id": "R031",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            703968,
+            671472,
+            811080
+          ],
+          "pre_nm": [
+            703720,
+            671456,
+            810960
+          ],
+          "post_nm": [
+            704000,
+            671416,
+            811080
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R031-main",
+          "path": "cases/R031/R031-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            87790,
+            83738,
+            20227
+          ],
+          "end_vox_xyz_exclusive": [
+            88174,
+            84122,
+            20323
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "3070591835958bf1dcf77e8805d0796f005b65d8bff459be0d50f72e37e089ef"
+        }
+      ]
+    },
+    {
+      "case_id": "R032",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            658292,
+            470128,
+            864120
+          ],
+          "pre_nm": [
+            658544,
+            469888,
+            863960
+          ],
+          "post_nm": [
+            658560,
+            469840,
+            864080
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            659044,
+            469972,
+            864280
+          ],
+          "pre_nm": [
+            659208,
+            470080,
+            864720
+          ],
+          "post_nm": [
+            658936,
+            469736,
+            864440
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R032-main",
+          "path": "cases/R032/R032-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            82151,
+            58549,
+            21560
+          ],
+          "end_vox_xyz_exclusive": [
+            82535,
+            58933,
+            21656
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "1a9ef87b3180715fa00420634f5e6fbeb5e85aafb8242847905df91090f49db6"
+        }
+      ]
+    },
+    {
+      "case_id": "R033",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            747728,
+            722400,
+            785560
+          ],
+          "pre_nm": [
+            747680,
+            722184,
+            785520
+          ],
+          "post_nm": [
+            747888,
+            722456,
+            785520
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R033-main",
+          "path": "cases/R033/R033-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            93281,
+            90098,
+            19590
+          ],
+          "end_vox_xyz_exclusive": [
+            93665,
+            90482,
+            19686
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "9744bca1cddb4dc863b12e165c161925b6f0fda89a58b2d9bc7211b82e2a69bf"
+        }
+      ]
+    },
+    {
+      "case_id": "R034",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            733344,
+            742528,
+            885280
+          ],
+          "pre_nm": [
+            733520,
+            742824,
+            885040
+          ],
+          "post_nm": [
+            733512,
+            742512,
+            885360
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R034-main",
+          "path": "cases/R034/R034-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            91487,
+            92641,
+            22082
+          ],
+          "end_vox_xyz_exclusive": [
+            91871,
+            93025,
+            22178
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "f296c701d46db30dc8b6b0ffffc58c118062539fca3229550e459527128d01f4"
+        }
+      ]
+    },
+    {
+      "case_id": "R035",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            673024,
+            643624,
+            885320
+          ],
+          "pre_nm": [
+            673224,
+            643888,
+            885440
+          ],
+          "post_nm": [
+            673024,
+            643728,
+            885240
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R035-main",
+          "path": "cases/R035/R035-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            83948,
+            80277,
+            22085
+          ],
+          "end_vox_xyz_exclusive": [
+            84332,
+            80661,
+            22181
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "fa9873c0ab58e5fe22db763dc29a014e36e18608579fbef6541378996b24d0d1"
+        }
+      ]
+    },
+    {
+      "case_id": "R036",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            1272244,
+            445120,
+            798600
+          ],
+          "pre_nm": [
+            1272080,
+            445120,
+            798720
+          ],
+          "post_nm": [
+            1272368,
+            445000,
+            798320
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            1272320,
+            444976,
+            798360
+          ],
+          "pre_nm": [
+            1272048,
+            444816,
+            798000
+          ],
+          "post_nm": [
+            1272424,
+            445232,
+            798560
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R036-main",
+          "path": "cases/R036/R036-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            158837,
+            55436,
+            19911
+          ],
+          "end_vox_xyz_exclusive": [
+            159221,
+            55820,
+            20007
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "702b61c36272e1b388a1e953cd800b040099c56587cc90e285ed4dc5c9faf080"
+        }
+      ]
+    },
+    {
+      "case_id": "R037",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            672608,
+            635592,
+            887920
+          ],
+          "pre_nm": [
+            672824,
+            635408,
+            888160
+          ],
+          "post_nm": [
+            672640,
+            635712,
+            887960
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            672560,
+            635880,
+            887560
+          ],
+          "pre_nm": [
+            672696,
+            636024,
+            887560
+          ],
+          "post_nm": [
+            672584,
+            635800,
+            887280
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R037-main",
+          "path": "cases/R037/R037-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            83894,
+            79272,
+            22145
+          ],
+          "end_vox_xyz_exclusive": [
+            84278,
+            79656,
+            22241
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "b7d4c3bb7a7122d9dcc16c19b1f315741e418675f09874ba4c638e2191fa0c84"
+        }
+      ]
+    },
+    {
+      "case_id": "R038",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            736840,
+            585680,
+            850080
+          ],
+          "pre_nm": [
+            736984,
+            585688,
+            850120
+          ],
+          "post_nm": [
+            736576,
+            585376,
+            850200
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R038-main",
+          "path": "cases/R038/R038-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            91905,
+            72999,
+            21205
+          ],
+          "end_vox_xyz_exclusive": [
+            92289,
+            73383,
+            21301
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "c923dc7f3d3d58914da4fafbb937ed38b7955098b40b91d25338a084843b4309"
+        }
+      ]
+    },
+    {
+      "case_id": "R039",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            773284,
+            843600,
+            853080
+          ],
+          "pre_nm": [
+            773272,
+            843752,
+            852840
+          ],
+          "post_nm": [
+            773264,
+            843616,
+            853400
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            773332,
+            843744,
+            853520
+          ],
+          "pre_nm": [
+            773184,
+            843776,
+            853600
+          ],
+          "post_nm": [
+            773200,
+            843592,
+            853760
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R039-main",
+          "path": "cases/R039/R039-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            96465,
+            105268,
+            21284
+          ],
+          "end_vox_xyz_exclusive": [
+            96849,
+            105652,
+            21380
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "f508dda9d08b2cf75ca9e12a726354e7322b2458c1ec239bb00e7c6e3c317bd5"
+        }
+      ]
+    },
+    {
+      "case_id": "R040",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            766536,
+            737136,
+            866760
+          ],
+          "pre_nm": [
+            766296,
+            736832,
+            866720
+          ],
+          "post_nm": [
+            766520,
+            737064,
+            866880
+          ]
+        },
+        {
+          "contact_id": "T2",
+          "ctr_nm": [
+            767512,
+            736792,
+            867320
+          ],
+          "pre_nm": [
+            767560,
+            737024,
+            867440
+          ],
+          "post_nm": [
+            767840,
+            736928,
+            867560
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R040-main",
+          "path": "cases/R040/R040-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            95691,
+            91928,
+            21630
+          ],
+          "end_vox_xyz_exclusive": [
+            96075,
+            92312,
+            21726
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "86e8225db7ae142ac6f3536a8776d39498e9a6fd0c9202858f9fac1f295f5d34"
+        }
+      ]
+    },
+    {
+      "case_id": "R041",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            1270328,
+            446936,
+            807240
+          ],
+          "pre_nm": [
+            1270536,
+            446944,
+            807480
+          ],
+          "post_nm": [
+            1270408,
+            447072,
+            807040
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R041-main",
+          "path": "cases/R041/R041-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            158612,
+            55683,
+            20133
+          ],
+          "end_vox_xyz_exclusive": [
+            158996,
+            56067,
+            20229
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "6f748c5d36f54971659f97eba27924858923a1082dc3c8ad07bd5f9e924ce7b5"
+        }
+      ]
+    },
+    {
+      "case_id": "R042",
+      "contacts": [
+        {
+          "contact_id": "T1",
+          "ctr_nm": [
+            830144,
+            690856,
+            900160
+          ],
+          "pre_nm": [
+            829920,
+            690896,
+            900080
+          ],
+          "post_nm": [
+            830288,
+            690896,
+            900160
+          ]
+        }
+      ],
+      "volumes": [
+        {
+          "volume_id": "R042-main",
+          "path": "cases/R042/R042-main.tif",
+          "shape_xyz": [
+            384,
+            384,
+            96
+          ],
+          "begin_vox_xyz": [
+            103571,
+            86167,
+            22455
+          ],
+          "end_vox_xyz_exclusive": [
+            103955,
+            86551,
+            22551
+          ],
+          "resolution_nm": [
+            8,
+            8,
+            40
+          ],
+          "dtype": "uint8",
+          "tiff_axes": "ZYX",
+          "tiff_page_order": "increasing global Z, page 1 = local z 0",
+          "source_requested_voxels_covered": true,
+          "anatomical_coverage": "Not yet independently assessed",
+          "tiff_sha256": "83ac746a2b7029e87847d28152173a4ddf480b0b801210e25e964571b99e245a"
+        }
+      ]
+    }
+  ],
+  "base_package_id": "MICRONS-HUMAN-REVIEW-20260914-v1",
+  "updated_date": "2026-09-15",
+  "navigation_models": {
+    "index": "model_index.json",
+    "source_version": "seg_m1300",
+    "purpose": "Unverified local navigation surfaces; assess anatomy in serial EM."
+  }
+}

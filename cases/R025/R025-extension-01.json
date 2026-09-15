@@ -1,0 +1,400 @@
+{
+  "volume_id": "R025-extension-01",
+  "path": "cases/R025/R025-extension-01.tif",
+  "shape_xyz": [
+    520,
+    240,
+    27
+  ],
+  "begin_vox_xyz": [
+    91889,
+    67644,
+    22914
+  ],
+  "end_vox_xyz_exclusive": [
+    92409,
+    67884,
+    22941
+  ],
+  "resolution_nm": [
+    8,
+    8,
+    40
+  ],
+  "dtype": "uint8",
+  "tiff_axes": "ZYX",
+  "tiff_page_order": "increasing global Z, page 1 = local z 0",
+  "source_requested_voxels_covered": true,
+  "anatomical_coverage": "Not yet independently assessed",
+  "tiff_sha256": "4a84affebe5eacc68a6836c1159405e9d377e689aada90fa0bc8dbd27dac18cf",
+  "source": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em",
+  "source_axes": "XYZ",
+  "source_array_sha256": "444fcff37230bbfcc95ea14e1e1a0f5e3f58ec7b0b87fe5145883b38911c1000",
+  "source_provenance_sha256": "9d861ea583fb56bec981807e9ffde09362e7a3aac4e94e0f03d850740ab81d86",
+  "conversion": "TIFF page z stores source_array[:,:,z].T. Pixel x increases right; y increases down. Exact uint8 values retained.",
+  "acquisition_requests": [
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/info",
+      "range_start": null,
+      "range_end_exclusive": null,
+      "status": 200,
+      "content_range": null,
+      "etag": "\"431519e1cf233898a0c04f5c61ae7f3b\"",
+      "bytes": 5970,
+      "utc": "2026-09-10T06:15:02.069374+00:00",
+      "sha256": "95413c657ff900c114757b149b327fb410d465197093d8bcfb0fc97a8133e140"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 0,
+      "range_end_exclusive": 1024,
+      "status": 206,
+      "content_range": "bytes 0-1023/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 1024,
+      "utc": "2026-09-11T15:26:21.681617+00:00",
+      "sha256": "bec8c8db266d6b02213e5209cb09b957292a1492619916d5388e4c2bfedce70d"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 5394615679,
+      "range_end_exclusive": 5394617175,
+      "status": 206,
+      "content_range": "bytes 5394615679-5394617174/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 1496,
+      "utc": "2026-09-11T15:26:22.019581+00:00",
+      "sha256": "9db6cc9bd97e0cbc491cef8e9b68fa23fa3bbb22e0345b3855ae88352042da0a"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4064927745,
+      "range_end_exclusive": 4065096535,
+      "status": 206,
+      "content_range": "bytes 4064927745-4065096534/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 168790,
+      "utc": "2026-09-11T15:26:31.939546+00:00",
+      "sha256": "24df8b3bd936fc52537cf9835e621c268c6cc6dd7251f67ff36e84559980b0de"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4065604292,
+      "range_end_exclusive": 4065768595,
+      "status": 206,
+      "content_range": "bytes 4065604292-4065768594/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 164303,
+      "utc": "2026-09-11T15:26:32.210494+00:00",
+      "sha256": "eff18054345aa4cd34abe90c104a6e53137c886026eb0921230c97ee958a57e5"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4065269935,
+      "range_end_exclusive": 4065436212,
+      "status": 206,
+      "content_range": "bytes 4065269935-4065436211/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 166277,
+      "utc": "2026-09-11T15:26:33.549405+00:00",
+      "sha256": "1fa00d810333e62ed41e1d5e2b4c1883ad2b53ceab09d3c2b02ffb7edf549bd1"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4065936127,
+      "range_end_exclusive": 4066105009,
+      "status": 206,
+      "content_range": "bytes 4065936127-4066105008/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 168882,
+      "utc": "2026-09-11T15:26:33.882195+00:00",
+      "sha256": "973eed3cb79330e5c773fad3ef4101e00bb801fbb591b9bf613c9e196e37fd6e"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4067593309,
+      "range_end_exclusive": 4067759593,
+      "status": 206,
+      "content_range": "bytes 4067593309-4067759592/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 166284,
+      "utc": "2026-09-11T15:26:35.201532+00:00",
+      "sha256": "b7bd679ef4440c0795c693dec8e5e2c5a81162219c6b2e0fed35de3e6af0329f"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4068258024,
+      "range_end_exclusive": 4068421952,
+      "status": 206,
+      "content_range": "bytes 4068258024-4068421951/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 163928,
+      "utc": "2026-09-11T15:26:35.459525+00:00",
+      "sha256": "cc250b8ad2e0ce99911874b0e44b21b632d151b1dfdb5cf32a5e27b55f7129e2"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4066105009,
+      "range_end_exclusive": 4066271411,
+      "status": 206,
+      "content_range": "bytes 4066105009-4066271410/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 166402,
+      "utc": "2026-09-11T15:26:38.411027+00:00",
+      "sha256": "b00a7056e7eb9e28d882ba1c927b8e2139cc17af2e23d77c55a0aa476d08755b"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4066765694,
+      "range_end_exclusive": 4066929348,
+      "status": 206,
+      "content_range": "bytes 4066765694-4066929347/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 163654,
+      "utc": "2026-09-11T15:26:38.677478+00:00",
+      "sha256": "e11ae5d7e3f52a2930b6a59d0cbde58eefc218f383ad4aa7c3ea830674f4f951"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4066437304,
+      "range_end_exclusive": 4066601511,
+      "status": 206,
+      "content_range": "bytes 4066437304-4066601510/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 164207,
+      "utc": "2026-09-11T15:26:40.034360+00:00",
+      "sha256": "d66b94dfa4bb1796b576cee990c0d444ca3b617aec34433d17854c393313da45"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4067093464,
+      "range_end_exclusive": 4067255903,
+      "status": 206,
+      "content_range": "bytes 4067093464-4067255902/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 162439,
+      "utc": "2026-09-11T15:26:40.299434+00:00",
+      "sha256": "a104964773584d467cb4ac7f0d1b07be4222eb1a7112d43845db85fe35c6b916"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4068753917,
+      "range_end_exclusive": 4068920093,
+      "status": 206,
+      "content_range": "bytes 4068753917-4068920092/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 166176,
+      "utc": "2026-09-11T15:26:41.614074+00:00",
+      "sha256": "393503e403791a7e367bab40fb4660e176f2d4dea9d6c447a7cd17542a7e45a8"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4069420918,
+      "range_end_exclusive": 4069582820,
+      "status": 206,
+      "content_range": "bytes 4069420918-4069582819/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 161902,
+      "utc": "2026-09-11T15:26:41.869474+00:00",
+      "sha256": "37a0dd638b9f484f11c295ad9dc84caa380cdb8e730971374c5e281d4a3c328d"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4066271411,
+      "range_end_exclusive": 4066437304,
+      "status": 206,
+      "content_range": "bytes 4066271411-4066437303/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 165893,
+      "utc": "2026-09-11T15:26:44.698558+00:00",
+      "sha256": "668cb46179e0ad0c870376e79a207bf093e6e07c4501e2c70f24d89fab70a71e"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4066929348,
+      "range_end_exclusive": 4067093464,
+      "status": 206,
+      "content_range": "bytes 4066929348-4067093463/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 164116,
+      "utc": "2026-09-11T15:26:45.001952+00:00",
+      "sha256": "35e2b2cf96e42066fb0cd40a69780e7942593dbb6933dbaed5f1914ae2ac9bc6"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4066601511,
+      "range_end_exclusive": 4066765694,
+      "status": 206,
+      "content_range": "bytes 4066601511-4066765693/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 164183,
+      "utc": "2026-09-11T15:26:46.307445+00:00",
+      "sha256": "96578443c0a3b7c1d248734c3990d92128d5c61ef9ce20f0a35201ff75fd8d3f"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4067255903,
+      "range_end_exclusive": 4067424722,
+      "status": 206,
+      "content_range": "bytes 4067255903-4067424721/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 168819,
+      "utc": "2026-09-11T15:26:46.564659+00:00",
+      "sha256": "b9504993a055fd619c45f597eeb98fd45543adfa184f4fa9a96f7d0539637eae"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4068920093,
+      "range_end_exclusive": 4069086783,
+      "status": 206,
+      "content_range": "bytes 4068920093-4069086782/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 166690,
+      "utc": "2026-09-11T15:26:47.899538+00:00",
+      "sha256": "a86642a024171840aecd375b814b909e2377c37f3e12faa38fd154b5eb940fbd"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4069582820,
+      "range_end_exclusive": 4069748047,
+      "status": 206,
+      "content_range": "bytes 4069582820-4069748046/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 165227,
+      "utc": "2026-09-11T15:26:48.166898+00:00",
+      "sha256": "54a251032258e968e7453c945cbbed016a692d6c84ea1d0395615af518184045"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4075421371,
+      "range_end_exclusive": 4075586007,
+      "status": 206,
+      "content_range": "bytes 4075421371-4075586006/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 164636,
+      "utc": "2026-09-11T22:08:53.114561+00:00",
+      "sha256": "7662ae1faf90da5d621b10418d12556da867fe6d6b027de72c94688b95ed7446"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4076086126,
+      "range_end_exclusive": 4076251505,
+      "status": 206,
+      "content_range": "bytes 4076086126-4076251504/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 165379,
+      "utc": "2026-09-11T22:08:53.450919+00:00",
+      "sha256": "ad891b7625fed90c3034d9aadaf494a61b6d38eae7e5d811c61529eafb6ba2a9"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4075752274,
+      "range_end_exclusive": 4075918753,
+      "status": 206,
+      "content_range": "bytes 4075752274-4075918752/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 166479,
+      "utc": "2026-09-11T22:08:53.706555+00:00",
+      "sha256": "65024046ccaf17ce17ab9b337a3ebb3b29a4ff61fddd480bd0d5f9116db91613"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4076414390,
+      "range_end_exclusive": 4076579206,
+      "status": 206,
+      "content_range": "bytes 4076414390-4076579205/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 164816,
+      "utc": "2026-09-11T22:08:53.970217+00:00",
+      "sha256": "7d21f4dad290199d50139f46216bbdf06bc58a442607567254dd5a467c9bcb24"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4078077397,
+      "range_end_exclusive": 4078243327,
+      "status": 206,
+      "content_range": "bytes 4078077397-4078243326/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 165930,
+      "utc": "2026-09-11T22:08:54.230791+00:00",
+      "sha256": "40a6715af0d825bbefa51e640b1eff543ab6b7cffbc14e4c93dccad4661ad60f"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4078749832,
+      "range_end_exclusive": 4078912950,
+      "status": 206,
+      "content_range": "bytes 4078749832-4078912949/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 163118,
+      "utc": "2026-09-11T22:08:54.487019+00:00",
+      "sha256": "0f63d7d5bada6fc72f2c0de5de78d1d39e14d0cbcb0a15b1fc7b6a55359e703e"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4075586007,
+      "range_end_exclusive": 4075752274,
+      "status": 206,
+      "content_range": "bytes 4075586007-4075752273/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 166267,
+      "utc": "2026-09-11T22:08:54.848846+00:00",
+      "sha256": "17d4e4de6d02e7d65c022d7d9d33fa6a6e037a17408218a7793e5b244955d379"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4076251505,
+      "range_end_exclusive": 4076414390,
+      "status": 206,
+      "content_range": "bytes 4076251505-4076414389/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 162885,
+      "utc": "2026-09-11T22:08:55.107003+00:00",
+      "sha256": "7bd5a2919235aa296ff4ee970f171fb335bc1b4caee7d0963a0525692b92ef0a"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4075918753,
+      "range_end_exclusive": 4076086126,
+      "status": 206,
+      "content_range": "bytes 4075918753-4076086125/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 167373,
+      "utc": "2026-09-11T22:08:55.370288+00:00",
+      "sha256": "5fca2e17e18b87cbb58ce272535df07fa2919f034a5dcea8603ac208d2d32403"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4076579206,
+      "range_end_exclusive": 4076741076,
+      "status": 206,
+      "content_range": "bytes 4076579206-4076741075/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 161870,
+      "utc": "2026-09-11T22:08:55.605387+00:00",
+      "sha256": "f635843b7c1e914e186dd92d04a7f821fddd8b877d18cbcd71f65085f1298c9d"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4078243327,
+      "range_end_exclusive": 4078412261,
+      "status": 206,
+      "content_range": "bytes 4078243327-4078412260/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 168934,
+      "utc": "2026-09-11T22:08:55.863326+00:00",
+      "sha256": "ef7c15eca82324173fa24c35ceb1378614bd0767e4e36db0df3293fb06942868"
+    },
+    {
+      "url": "https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em/8_8_40/01daf.shard",
+      "range_start": 4078912950,
+      "range_end_exclusive": 4079076596,
+      "status": 206,
+      "content_range": "bytes 4078912950-4079076595/5394639530",
+      "etag": "\"671bef5897934767011cc4638a177704-2\"",
+      "bytes": 163646,
+      "utc": "2026-09-11T22:08:56.122696+00:00",
+      "sha256": "e49acca16de758445d76382e6038f7a752173ff17b9cd52a87b80c805335c6a0"
+    }
+  ]
+}
