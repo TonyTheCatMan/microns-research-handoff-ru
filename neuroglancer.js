@@ -5,14 +5,14 @@
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
 
-  function buildState(currentCase, volume, localZ, target, objects) {
+  function buildState(currentCase, volume, localZ, target, objects, focus = null) {
     if (!currentCase.volumes.some(v => v.volume_id === volume.volume_id)) throw new Error('Случай и объём не совпадают.');
     if (!Number.isInteger(localZ) || localZ < 0 || localZ >= volume.shape_xyz[2]) throw new Error('Срез вне выбранного объёма.');
     const resolution = volume.resolution_nm;
     const dimensions = Object.fromEntries(['x', 'y', 'z'].map((axis, i) => [axis, [resolution[i] * 1e-9, 'm']]));
     const begin = volume.begin_vox_xyz;
     // Match the local TIFF/3D voxel center. Contact annotations retain their exact supplied coordinates.
-    const position = begin.map((n, i) => n + (i === 2 ? localZ + 0.5 : target ? target.local[i] + 0.5 : volume.shape_xyz[i] / 2));
+    const position = begin.map((n, i) => n + (i === 2 ? localZ + 0.5 : focus ? focus[i] / resolution[i] : target ? target.local[i] + 0.5 : volume.shape_xyz[i] / 2));
     const annotations = [];
     for (const contact of currentCase.contacts) {
       for (const [key, label] of [['ctr_nm', 'центр'], ['pre_nm', 'пре'], ['post_nm', 'пост']]) {
@@ -70,13 +70,19 @@
     }
     if (!segmentIndex) return;
     try {
-      const objects = segmentIndex.volumes[v.volume_id];
-      if (!Array.isArray(objects) || !objects.length) throw new Error('Нет сопоставления объектов для этого объёма.');
-      const state = buildState(c, v, viewer.z, viewer.target, objects);
+      const fallback = segmentIndex.volumes[v.volume_id];
+      if (!Array.isArray(fallback) || !fallback.length) throw new Error('Нет сопоставления объектов для этого объёма.');
+      const surface=viewer.surface,matches=surface?.caseId===c.case_id&&surface?.volume?.volume_id===v.volume_id;
+      // null means not ready. An empty array means the researcher deliberately hid every object.
+      const visible=matches?surface.visibleSegments(fallback):null,objects=[...new Map((visible??fallback).map(o=>[o.segment,o])).values()];
+      if(objects.some(o=>typeof o.segment!=='string'||!/^[1-9]\d*$/.test(o.segment)))throw new Error('Идентификаторы видимых объектов ещё загружаются.');
+      const focus=matches&&surface.contextFocus?surface.nearbyCenter():null;
+      const state = buildState(c, v, viewer.z, viewer.target, objects, focus);
       currentUrl = urlFor(state);
       external.href = currentUrl; external.removeAttribute('aria-disabled'); reset.disabled = false;
       const target = viewer.target ? ` · ${viewer.target.id}: ${viewer.target.label.toLowerCase()}` : '';
-      $('neuroglancerLocation').textContent = `${v.volume_id} · локальный Z ${viewer.z} · глобальный Z ${v.begin_vox_xyz[2] + viewer.z}${target}`;
+      const nearby=objects.filter(o=>o.context).length;
+      $('neuroglancerLocation').textContent = `${v.volume_id} · локальный Z ${viewer.z}${target} · объектов ${objects.length}${nearby?' (соседних '+nearby+')':''}`;
       if (!active()) $('neuroglancerStatus').textContent = 'Ссылка на текущий срез готова.';
       loadFrame();
     } catch (error) {
@@ -108,6 +114,10 @@
   });
   window.addEventListener('review:volume', update);
   window.addEventListener('review:position', update);
+  window.addEventListener('annotations:surface-ready', update);
+  window.addEventListener('surface:visibility', event => {
+    if(event.detail.volume_id===window.ReviewViewer?.volume?.volume_id&&event.detail.case_id===window.ReviewViewer?.currentCase?.case_id)update();
+  });
   window.addEventListener('hashchange', () => { if (active()) { loadedUrl = ''; update(); } });
   reset.addEventListener('click', async () => { if (!segmentIndex) await loadIndex(); loadedUrl = ''; update(); });
   loadIndex();

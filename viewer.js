@@ -304,10 +304,14 @@
     get ready(){return Boolean(state.tiff);},get z(){return state.z;},get target(){return state.target;},get zoom(){return state.zoom;},get surface(){return surface;},get displayWindow(){return [state.black,state.white];},
     setZ,
     async gotoPoint(caseId,volumeId,pointNm){
-      if(!state.metadata?.cases.some(c=>c.case_id===caseId))return;
-      if(state.currentCase?.case_id!==caseId||state.volume?.volume_id!==volumeId){ui.caseSelect.value=caseId;await selectCase(volumeId);}
-      if(!state.tiff)return;const local=toLocal(pointNm);setZ(local[2]);
+      const requested=state.metadata?.cases.find(c=>c.case_id===caseId),volume=requested?.volumes.find(v=>v.volume_id===volumeId);
+      if(!volume)throw new Error('Не найден объём для этой метки.');
+      if(!state.tiff||state.currentCase?.case_id!==caseId||state.volume?.volume_id!==volumeId)await window.ReviewViewer.select(caseId,volumeId);
+      if(!state.tiff||state.currentCase?.case_id!==caseId||state.volume?.volume_id!==volumeId)throw new Error('Не удалось открыть объём метки. Повторите переход.');
+      const local=toLocal(pointNm);if(!inBounds(local))throw new Error('Метка находится вне выбранного объёма.');
+      state.zoom=Math.max(2,state.zoom);ui.zoomSelect.value=String(state.zoom);setZ(local[2]);resizeView();
       ui.viewport.scrollLeft=Math.max(0,(local[0]+.5)*state.zoom-ui.viewport.clientWidth/2);ui.viewport.scrollTop=Math.max(0,(local[1]+.5)*state.zoom-ui.viewport.clientHeight/2);
+      return local;
     },
     async select(id,volumeId,z){
       const requested=state.metadata?.cases.find(c=>c.case_id===id);if(!requested)return;

@@ -61,7 +61,7 @@
       this.meshes=[];this.volume=null;this.slice=null;this.target=null;this.showMarker=false;this.frame=null;this.pending=false;
       this.annotations=[];this.annotationMode='off';this.annotationsVisible=true;this.selectedAnnotationId=null;this.selectedObjectId=null;this.annotationHits=[];this.targets=[];this.targetsVisible=false;
       this.contextVisible=false;this.contextLoaded=false;this.contextWorker=null;this.contextToken=0;
-      this.contextLimit=5;this.contextRadius=600;this.contextFocus=null;this.contextFocusLabel='центр среза';this.contextShown=new Set();
+      this.contextLimit=5;this.contextFocus=null;this.contextFocusLabel='центр среза';this.contextShown=new Set();this.visibilityPending=false;
       this.modelReady=false;
       this.controls=['surfaceReset','surfaceXY','surfacePlane','surfaceBox','surfaceOpacity','surfaceExport'];
       this.yaw=-.65;this.pitch=.4;this.zoom=1;this.alpha=.8;
@@ -147,7 +147,7 @@
     objectControl(mesh) {
       const label=document.createElement('label');label.className='surface-object';
       const input=document.createElement('input');input.type='checkbox';input.checked=mesh.visible&&!!mesh.geometry;input.disabled=!mesh.geometry;input.dataset.objectId=mesh.id;
-      input.addEventListener('change',()=>{mesh.visible=input.checked;if(mesh.context)this.updateNearby();this.schedule();});
+      input.addEventListener('change',()=>{mesh.visible=input.checked;if(mesh.context)this.updateNearby();this.visibilityChanged();this.schedule();});
       const swatch=document.createElement('span');swatch.className='object-swatch';swatch.style.backgroundColor=/^#[0-9a-f]{6}$/i.test(mesh.cssColor)?mesh.cssColor:'#80b8c4';
       const text=document.createElement('span');text.textContent=mesh.id+' · '+mesh.label+(mesh.geometry?(mesh.clipped.length?' · ограничен границами фрагмента':''):' · отсутствует в этом объёме');
       label.append(input,swatch,text);label.title=mesh.clipped.length?'Касается граней фрагмента: '+mesh.clipped.join(', '):'Нейтральное обозначение объекта; цвет не указывает на класс клетки.';label.dataset.objectId=mesh.id;
@@ -156,6 +156,12 @@
     }
     contextStatus(status,message,count=0) {
       window.dispatchEvent(new CustomEvent('annotations:contextstatus',{detail:{case_id:this.caseId,volume_id:this.volume?.volume_id,status,message,count}}));
+      if(status!=='loading')this.visibilityChanged();
+    }
+    visibilityChanged(){if(this.visibilityPending)return;this.visibilityPending=true;queueMicrotask(()=>{this.visibilityPending=false;window.dispatchEvent(new CustomEvent('surface:visibility',{detail:{case_id:this.caseId,volume_id:this.volume?.volume_id}}));});}
+    visibleSegments(fallback=[]){
+      if(!this.modelReady)return null;
+      return this.meshes.filter(m=>this.visibleMesh(m)).map(m=>({id:m.id,segment:m.segment_id||fallback.find(o=>o.id===m.id)?.segment,color:m.cssColor,context:!!m.context}));
     }
     cancelContext() {
       ++this.contextToken;if(this.contextWorker)this.contextWorker.terminate();this.contextWorker=null;this.contextLoading=false;
@@ -172,7 +178,7 @@
       const origin=this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]);
       if(!equal3(entry.origin_global_nm,origin)||!equal3(entry.shape_xyz,this.volume.shape_xyz)||!equal3(entry.resolution_nm,this.volume.resolution_nm)||!equal3(entry.bounds_local_nm?.[0],[0,0,0])||!equal3(entry.bounds_local_nm?.[1],this.bounds))throw new Error('Координаты окружающей сегментации не совпадают с изображением.');
       if(!Array.isArray(entry.objects)||!Array.isArray(entry.seed_objects)||typeof entry.data_path!=='string'||!/^context-data\/[a-zA-Z0-9_./-]+$/.test(entry.data_path)||entry.data_path.includes('..'))throw new Error('Неверное описание окружающих сегментов.');
-      this.contextEntry=entry;for(const seed of entry.seed_objects){const mesh=this.meshes.find(m=>!m.context&&m.id===seed.id);if(mesh&&typeof seed.segment_id==='string')mesh.segment_id=seed.segment_id;}this.refreshSelectedObject();return entry;
+      this.contextEntry=entry;for(const seed of entry.seed_objects){const mesh=this.meshes.find(m=>!m.context&&m.id===seed.id);if(mesh&&typeof seed.segment_id==='string')mesh.segment_id=seed.segment_id;}this.refreshSelectedObject();this.visibilityChanged();return entry;
     }
     async setContextVisible(visible) {
       this.contextVisible=!!visible;const volumeToken=this.token;
@@ -219,19 +225,19 @@
       this.annotationMode=['point','object'].includes(mode)?mode:'off';this.stage.style.cursor=this.annotationMode==='off'?'grab':'crosshair';this.stage.dataset.annotationMode=this.annotationMode;
     }
     setContextLimit(number){this.contextLimit=[3,5,10].includes(number)?number:5;this.updateNearby();}
-    focusAnnotation(annotation){const point=this.annotationPosition(annotation);if(point)this.setContextFocus(point,'метка '+annotation.number);}
-    forgetAnnotationFocus(number){if(this.contextFocusLabel==='метка '+number){this.contextFocus=null;this.contextFocusLabel='центр среза';this.updateNearby();}}
+    focusAnnotation(annotation,centerView=false){const point=this.annotationPosition(annotation);if(point){this.setContextFocus(point,'метка '+annotation.number);if(centerView){this.center=[...point];this.zoom=Math.min(this.zoom,.55);this.schedule();}}}
+    forgetAnnotationFocus(number){if(this.contextFocusLabel==='метка '+number){this.contextFocus=null;this.contextFocusLabel='центр среза';this.updateNearby();this.visibilityChanged();}}
     nearbyCenter(){return this.contextFocus||[this.bounds[0]/2,this.bounds[1]/2,((this.slice?.z??this.volume.shape_xyz[2]/2)+.5)*this.volume.resolution_nm[2]];}
-    setContextFocus(point,label){if(!finite3(point))return;if(this.contextFocus&&equal3(point,this.contextFocus)&&label===this.contextFocusLabel)return;this.contextFocus=[...point];this.contextFocusLabel=label;this.updateNearby();}
+    setContextFocus(point,label){if(!finite3(point))return;if(this.contextFocus&&equal3(point,this.contextFocus)&&label===this.contextFocusLabel)return;this.contextFocus=[...point];this.contextFocusLabel=label;this.updateNearby();this.visibilityChanged();}
     updateNearby(){
       if(!this.volume||!this.contextVisible||!this.contextLoaded)return;
       const point=this.nearbyCenter();
       // Mesh vertices are measured in physical nanometers; no voxel-aspect approximation.
       const ranked=this.meshes.filter(m=>m.context).map(mesh=>{let distance=Infinity;const a=mesh.vertices;for(let i=0;i<a.length;i+=3){const d=(a[i]-point[0])**2+(a[i+1]-point[1])**2+(a[i+2]-point[2])**2;if(d<distance)distance=d;}return{mesh,distance};}).sort((a,b)=>a.distance-b.distance||a.mesh.id.localeCompare(b.mesh.id));
-      this.contextShown=new Set(ranked.filter(r=>r.distance<=this.contextRadius**2).slice(0,this.contextLimit).map(r=>r.mesh.id));
+      this.contextShown=new Set(ranked.slice(0,this.contextLimit).map(r=>r.mesh.id));
       for(const {mesh}of ranked)if(mesh.control)mesh.control.hidden=!this.contextShown.has(mesh.id);
       const count=this.meshes.filter(m=>m.context&&this.visibleMesh(m)).length;this.canvas.dataset.contextVisibleCount=String(count);
-      this.contextStatus('ready',`Рядом: ${count} · ${this.contextFocusLabel} · в пределах ${this.contextRadius} нм. Выберите другую метку или точку T, чтобы сменить область.`,count);this.schedule();
+      this.contextStatus('ready',`Рядом: ${count} · ${this.contextFocusLabel}. Поверхности показаны целиком в пределах объёма.`,count);this.schedule();
     }
     setAnnotations(items,visible=true,selectedId=null) {
       this.annotations=Array.isArray(items)?items.filter(a=>finite3(a.point_nm)):[];this.annotationsVisible=!!visible;this.selectedAnnotationId=selectedId;
@@ -258,8 +264,7 @@
       for(const mesh of this.meshes){
         if(!this.visibleMesh(mesh)||!mesh.vertices||!rayBox(origin,direction,mesh.bounds,distance))continue;
         const triangles=mesh.triangles;
-        const nearby=mesh.context?this.nearbyCenter():null;
-        for(let i=0;i<triangles.length;i+=3){const t=rayTriangle(origin,direction,mesh.vertices,triangles[i]*3,triangles[i+1]*3,triangles[i+2]*3);if(t!==null&&t<distance){if(nearby&&nearby.reduce((sum,n,j)=>sum+(origin[j]+direction[j]*t-n)**2,0)>this.contextRadius**2)continue;distance=t;closest=mesh;}}
+        for(let i=0;i<triangles.length;i+=3){const t=rayTriangle(origin,direction,mesh.vertices,triangles[i]*3,triangles[i+1]*3,triangles[i+2]*3);if(t!==null&&t<distance){distance=t;closest=mesh;}}
       }
       if(!closest)return null;
       // The opaque image plane can hide a mesh even if the mesh itself is translucent.
@@ -286,10 +291,9 @@
         void main(){vPosition=aPosition;vUV=aUV;gl_Position=uMVP*vec4(aPosition,1.0);}`;
       const fs=`#version 300 es
         precision highp float;
-        in vec3 vPosition;in vec2 vUV;uniform vec4 uColor;uniform int uMode;uniform sampler2D uTexture;uniform int uClip;uniform vec3 uClipCenter;uniform float uClipRadius;
+        in vec3 vPosition;in vec2 vUV;uniform vec4 uColor;uniform int uMode;uniform sampler2D uTexture;
         out vec4 frag;
         void main(){
-          if(uClip==1&&distance(vPosition,uClipCenter)>uClipRadius)discard;
           if(uMode==2){frag=texture(uTexture,vUV);return;}
           if(uMode==1){frag=uColor;return;}
           vec3 n=normalize(cross(dFdx(vPosition),dFdy(vPosition)));
@@ -300,7 +304,7 @@
       const v=compile(gl.VERTEX_SHADER,vs),f=compile(gl.FRAGMENT_SHADER,fs),p=gl.createProgram();gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
       if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
       this.program=p;this.position=gl.getAttribLocation(p,'aPosition');this.uv=gl.getAttribLocation(p,'aUV');
-      this.uniforms=Object.fromEntries(['uMVP','uColor','uMode','uTexture','uClip','uClipCenter','uClipRadius'].map(n=>[n,gl.getUniformLocation(p,n)]));
+      this.uniforms=Object.fromEntries(['uMVP','uColor','uMode','uTexture'].map(n=>[n,gl.getUniformLocation(p,n)]));
       this.texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       this.planeGeometry=this.geometry(new Float32Array(12),new Uint32Array([0,1,2,0,2,3]),new Float32Array([0,0,1,0,1,1,0,1]));
       this.markerGeometry=this.geometry(new Float32Array(18));
@@ -375,10 +379,9 @@
       const ctx=this.labels.getContext('2d');ctx.clearRect(0,0,this.labels.width,this.labels.height);
       if(!this.gl)return;const gl=this.gl;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       if(!this.volume)return;const camera=this.camera();this.frame=camera;gl.useProgram(this.program);gl.uniformMatrix4fv(this.uniforms.uMVP,false,camera.mvp);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.uniform1i(this.uniforms.uTexture,0);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
-      gl.uniform1i(this.uniforms.uClip,0);gl.uniform3fv(this.uniforms.uClipCenter,this.nearbyCenter());gl.uniform1f(this.uniforms.uClipRadius,this.contextRadius);
       if(this.slice&&$('surfacePlane').checked)this.drawGeometry(this.planeGeometry,[1,1,1,1],2);
       if(this.alpha<1){gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);}else gl.depthMask(true);
-      for(const mesh of this.meshes)if(this.visibleMesh(mesh)){gl.uniform1i(this.uniforms.uClip,mesh.context?1:0);this.drawGeometry(mesh.geometry,[...(mesh.id===this.selectedObjectId?[1,.5,.24]:mesh.color),this.alpha]);}gl.uniform1i(this.uniforms.uClip,0);
+      for(const mesh of this.meshes)if(this.visibleMesh(mesh))this.drawGeometry(mesh.geometry,[...(mesh.id===this.selectedObjectId?[1,.5,.24]:mesh.color),this.alpha]);
       gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.DEPTH_TEST);
       if($('surfaceBox').checked){this.drawGeometry(this.boxGeometry,[.39,.56,.62,1],1,gl.LINES);this.drawGeometry(this.axisGeometry,[.86,.91,.94,1],1,gl.LINES);}
       const targets=this.targetsVisible?[...this.targets]:[];if(this.target&&this.showMarker)targets.push(this.target);
@@ -410,7 +413,7 @@
       return {schema_version:1,source_view:'3d',source:'seg_m1300',case_id:this.caseId,volume_id:this.volume.volume_id,local_z:this.slice?.z??null,
         camera:{yaw:this.yaw,pitch:this.pitch,zoom:this.zoom,center_nm:[...this.center],frame_height_nm:this.frameHeight,radius_nm:this.radius},opacity:this.alpha,
         plane_visible:$('surfacePlane').checked,box_visible:$('surfaceBox').checked,context_visible:this.contextVisible,
-        context_limit:this.contextLimit,context_radius_nm:this.contextRadius,context_focus:this.contextFocus?[...this.contextFocus]:null,context_focus_label:this.contextFocusLabel,context_shown:[...this.contextShown],
+        context_limit:this.contextLimit,context_focus:this.contextFocus?[...this.contextFocus]:null,context_focus_label:this.contextFocusLabel,context_shown:[...this.contextShown],
         objects:this.meshes.map(m=>({object_id:m.id,segment_id:m.segment_id||null,visible:!!m.visible})),annotations_visible:this.annotationsVisible,selected_annotation_id:this.selectedAnnotationId,
         seed_points_visible:this.targetsVisible,seed_filters:{center:!!$('tCenter')?.checked,pre:!!$('tPre')?.checked,post:!!$('tPost')?.checked},
         viewport_css_px:[this.stage.clientWidth,this.stage.clientHeight],annotation_ids:this.annotationsVisible?this.annotations.filter(a=>this.annotationPosition(a)).map(a=>a.id):[],
@@ -436,7 +439,7 @@
       for(const mesh of this.meshes){const setting=view.objects.find(o=>o.segment_id&&mesh.segment_id?o.segment_id===mesh.segment_id:o.object_id===mesh.id);mesh.visible=setting?.visible??false;if(mesh.control){const input=mesh.control.querySelector('input');if(input)input.checked=mesh.visible;}}
       this.yaw=cam.yaw;this.pitch=cam.pitch;this.zoom=cam.zoom;this.center=[...cam.center_nm];this.frameHeight=cam.frame_height_nm;this.radius=cam.radius_nm;this.alpha=view.opacity;
       $('surfaceOpacity').value=String(Math.round(view.opacity*100));$('surfaceOpacityReadout').textContent=Math.round(view.opacity*100)+'%';$('surfacePlane').checked=!!view.plane_visible;$('surfaceBox').checked=!!view.box_visible;
-      this.annotationsVisible=!!view.annotations_visible;this.targetsVisible=!!view.seed_points_visible;this.selectedAnnotationId=view.selected_annotation_id||null;this.refreshSelectedObject();this.draw();return this.getViewState();
+      this.annotationsVisible=!!view.annotations_visible;this.targetsVisible=!!view.seed_points_visible;this.selectedAnnotationId=view.selected_annotation_id||null;this.refreshSelectedObject();this.draw();this.visibilityChanged();return this.getViewState();
     }
     snapshotEvidence() {
       const view=this.getViewState();this.draw();

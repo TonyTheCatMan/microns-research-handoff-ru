@@ -98,8 +98,14 @@
   }
   async function goToSelected() {
     const record=byId(selectedId);if(!record)return;
-    const volume=locationInVolume(record)?viewer().volume.volume_id:record.volume_id;
-    await viewer().gotoPoint(record.case_id,volume,record.point_nm);draw();
+    try{
+      location.hash='viewer';
+      const volume=locationInVolume(record)?viewer().volume.volume_id:record.volume_id;
+      await viewer().gotoPoint(record.case_id,volume,record.point_nm);if(selectedId!==record.id)return;
+      $('annotationsVisible').checked=true;prefsSave();viewer()?.surface?.focusAnnotation(record,true);draw();
+      $('workspace').scrollIntoView({block:'start',behavior:'smooth'});
+      $('annotationModeHelp').textContent=`Метка ${record.number} · ${viewer().volume.volume_id} · срез Z ${viewer().z}`;
+    }catch(error){$('annotationSelection').textContent='Не удалось перейти: '+error.message;}
   }
   for(const [id,key] of Object.entries(fields))$(id).addEventListener('input',()=>{
     const record=byId(selectedId);if(!record||!store)return;
@@ -181,7 +187,7 @@
   channel?.addEventListener('message',async event=>{
     const message=event.data;if(message?.type==='changed')await refresh();
     if(message?.type==='focus'&&notesWindow){if(viewer()?.currentCase?.case_id!==message.case_id)window.HandoffUI.choose(message.case_id);await refresh();select(message.id,false,false);}
-    if(message?.type==='go'&&!notesWindow){await refresh();const r=byId(message.id);if(r){if(currentCase!==r.case_id)window.HandoffUI.choose(r.case_id);select(r.id,false,false);await goToSelected();}}
+    if(message?.type==='go'&&!notesWindow){await refresh();const r=byId(message.id);if(r){select(r.id,false,false);await goToSelected();window.focus();}}
   });
   window.addEventListener('focus',()=>refresh());
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
@@ -207,47 +213,66 @@
     try{
       const v=viewer(),frozenCase=currentCase,isCase=scope!=='all',filter=isCase?{case_id:frozenCase}:{};
       const frozenRecords=structuredClone(records),captured=[];
-      // Capture BOTH views before awaiting storage, so navigating cannot change this case export.
-      if(isCase){
+      // Both main-view exports capture pixels before awaiting storage. The notes-only window exports retained snapshots.
+      if(!notesWindow||isCase){
         if(!v?.ready||!v.surface?.modelReady)throw new Error('Дождитесь загрузки 2D и 3D.');
         const shot=v.surface.snapshotEvidence(),volume=structuredClone(v.volume),time=now(),z=v.z;
-        const base={case_id:frozenCase,volume_id:volume.volume_id,local_z:z,global_z:volume.begin_vox_xyz[2]+z,created_at:time,updated_at:time,display_window:[...v.displayWindow],resolution_nm:[...volume.resolution_nm],linked_to_slice:true,caption:'',annotation_ids:frozenRecords.filter(r=>r.case_id===frozenCase).map(r=>r.id)};
-        captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'2d'},annotated:imageBlob(true),raw:imageBlob(false)});
-        captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'3d',view_settings:shot.view},annotated:shot.blob,raw:Promise.resolve(null)});
+        const base={case_id:frozenCase,volume_id:volume.volume_id,local_z:z,global_z:volume.begin_vox_xyz[2]+z,created_at:time,updated_at:time,display_window:[...v.displayWindow],resolution_nm:[...volume.resolution_nm],linked_to_slice:true,caption:''};
+        if(shot.view.case_id!==frozenCase||shot.view.volume_id!==volume.volume_id||shot.view.local_z!==z)throw new Error('Дождитесь синхронизации 2D и 3D.');
+        const sectionIds=frozenRecords.filter(r=>r.case_id===frozenCase&&r.point_nm.every((n,i)=>n>=volume.begin_vox_xyz[i]*volume.resolution_nm[i]&&n<volume.end_vox_xyz_exclusive[i]*volume.resolution_nm[i])&&Math.floor(r.point_nm[2]/volume.resolution_nm[2])-volume.begin_vox_xyz[2]===z).map(r=>r.id);
+        captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'2d',annotation_ids:sectionIds},annotated:imageBlob(true),raw:imageBlob(false)});
+        captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'3d',annotation_ids:shot.view.annotation_ids,view_settings:shot.view},annotated:shot.blob,raw:Promise.resolve(null)});
       }
-      const settings={preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
+      const pixels=Promise.all(captured.map(async item=>{const [annotated,raw]=await Promise.all([item.annotated,item.raw]);return{...item,annotated,raw};}));pixels.catch(()=>{});
+      const settings=notesWindow?await store.getSettings():{preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
       if(v?.ready){settings.last_view={case_id:frozenCase,volume_id:v.volume.volume_id,z:v.z};settings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)settings.surface_view=v.surface.getViewState();}
-      $('restoreResult').classList.remove('save-failed');$('restoreResult').textContent='Сохраняем результаты'+(isCase?' и оба изображения':'')+'…';
+      $('restoreResult').classList.remove('save-failed');$('restoreResult').textContent='Сохраняем результаты и изображения…';
       try{await store.putSettings(settings);}catch{}
+      const extraEvidence=[];let imagesNotRetained=false;
+      for(const item of await pixels){
+        if(item.meta.source_view==='3d'&&extraEvidence[0])item.meta.linked_evidence_id=extraEvidence[0].id;
+        const {id,created_at,updated_at,...signatureData}=item.meta;
+        const digest=await crypto.subtle.digest('SHA-256',await new Blob([item.annotated,item.raw||'',JSON.stringify(signatureData)]).arrayBuffer());item.meta.capture_signature=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+        try{item.meta=await store.addEvidence(item.meta,{annotated:item.annotated,raw:item.raw});}catch{imagesNotRetained=true;}
+        extraEvidence.push({...item.meta,annotated:item.annotated,raw:item.raw});
+      }
+      if(extraEvidence.length){window.dispatchEvent(new Event('annotations:changed'));broadcast({type:'changed'});}
       const full=await backup();full.settings=settings;full.settings_updated_at=now();
-      const data=AnnotationsCore.makeBackup(metadata,isCase?frozenRecords:full.annotations,full.cases,filter,full),extraEvidence=[];
-      for(const item of captured){const [annotated,raw]=await Promise.all([item.annotated,item.raw]);data.evidence.push(item.meta);extraEvidence.push({...item.meta,annotated,raw});}
+      const data=AnnotationsCore.makeBackup(metadata,full.annotations,full.cases,filter,full),images=new Map(data.evidence.map(e=>[e.id,e]));
+      for(const item of extraEvidence){const {annotated,raw,...meta}=item;images.set(meta.id,meta);}data.evidence=[...images.values()];
       const files=await store.exportFiles(filter,{backup:data,extraEvidence});
       download(AnnotationsCore.zip(files),'MICrONS-'+(isCase?frozenCase:'all-results')+'-'+new Date().toISOString().slice(0,10)+'.zip');
-      $('restoreResult').textContent=isCase?'Случай сохранён: заметки, текущий срез 2D и текущий вид 3D.':'Результаты сохранены. ZIP можно загрузить целиком для продолжения работы.';
+      $('restoreResult').textContent=(isCase?'Случай сохранён':'Все результаты сохранены')+`: снимков ${data.evidence.length}. `+(notesWindow?'Свежие снимки 2D / 3D добавляются при сохранении из основного просмотрщика.':'Включены текущие 2D / 3D и ранее сохранённые снимки.')+(imagesNotRetained?' Снимки включены в ZIP, но их не удалось сохранить в браузере.':'');
     }catch(error){$('restoreResult').textContent='Не удалось сохранить: '+error.message;$('restoreResult').classList.add('save-failed');}
   }
   $('annotationsExportAll').addEventListener('click',()=>exportFindings('all'));
   $('annotationsExportCase').addEventListener('click',()=>exportFindings('case'));
   $('annotationsExportImage').addEventListener('click',()=>exportFindings('image'));
   $('annotationsImport').addEventListener('change',async event=>{
-    const file=event.target.files[0];if(!file||!store)return;
-    async function restore(policy){
-      const target=$('restoreResult');target.classList.remove('save-failed');target.textContent='Восстанавливаем сохранённые результаты…';
-      try{
-        let chain;do{chain=saveChain;await chain;}while(chain!==saveChain);if(failures.length)throw new Error('Сначала повторите сохранение текущих изменений.');
-        const result=/\.zip$/i.test(file.name)?await store.importZIP(file,{policy}):await store.importData(JSON.parse(await file.text()),{policy});
-        await refresh();await window.HandoffAssessment?.refresh();await window.HandoffEvidence?.refresh();broadcast({type:'changed'});
-        target.textContent=`Восстановление завершено: новых меток ${result.added||0}, снимков ${result.evidence_added||0}. Можно продолжать работу.`+(result.missingEvidence?' Для восстановления снимков загрузите исходный ZIP.':'');
-        if(result.settings_updated)try{await applySettings(await store.getSettings());}catch(error){const note=document.createElement('p');note.textContent='Результаты восстановлены. Не удалось открыть сохранённый вид: '+error.message;target.append(note);}
-        if(result.conflicts?.length){const warning=document.createElement('p');warning.textContent=`Сохранено существующих отличающихся записей: ${result.conflicts.length}. Можно применить только более новые записи из этой копии.`;target.append(warning);const button=document.createElement('button');button.textContent='Применить более новые записи из этой копии';button.addEventListener('click',()=>restore('newer'));target.append(button);}
-      }catch(error){target.textContent='Файл не восстановлен: '+error.message;target.classList.add('save-failed');}
-    }
-    await restore('keep-existing');event.target.value='';
+    const input=event.target,file=input.files[0];if(!file||!store)return;
+    const target=$('restoreResult');input.disabled=true;target.classList.remove('save-failed');target.textContent='Загружаем все метки и заметки…';
+    const previousSettings={preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
+    if(viewer()?.ready){const v=viewer();previousSettings.last_view={case_id:currentCase,volume_id:v.volume.volume_id,z:v.z};previousSettings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)previousSettings.surface_view=v.surface.getViewState();}
+    try{
+      let chain;do{chain=saveChain;await chain;}while(chain!==saveChain);if(failures.length)throw new Error('Сначала повторите сохранение текущих изменений.');
+      const result=/\.zip$/i.test(file.name)?await store.importZIP(file,{policy:'restore'}):await store.importData(JSON.parse(await file.text()),{policy:'restore'});
+      selectedId=null;lastEditorId=null;await refresh();await window.HandoffAssessment?.refresh();await window.HandoffEvidence?.refresh();broadcast({type:'changed'});
+      const settings=result.settings||{},first=result.case_ids[0];
+      if(!settings.last_view&&first){const c=metadata.cases.find(c=>c.case_id===first);settings.last_view={case_id:first,volume_id:c.volumes[0].volume_id,z:0};}
+      let viewError='';try{await applySettings(settings);}catch(error){viewError=' Не удалось открыть сохранённый вид: '+error.message;}
+      $('annotationsVisible').checked=true;prefsSave();draw();renderEditor(true);renderCaseNotes(true);
+      const firstPoint=caseRecords().find(r=>r.id===settings.surface_view?.selected_annotation_id)||caseRecords()[0];if(firstPoint)select(firstPoint.id,false);
+      location.hash='viewer';
+      target.textContent=`Восстановление завершено: меток ${result.annotations_total}, с заметками ${result.notes_total}, снимков ${result.evidence_total-result.missingEvidence}. Все точки и заметки из файла загружены.`+(result.missingEvidence?' Для восстановления снимков загрузите исходный ZIP.':'')+viewError;
+      const undo=document.createElement('button');undo.id='annotationsUndoImport';undo.textContent='Отменить загрузку';target.append(document.createTextNode(' '),undo);
+      undo.addEventListener('click',async()=>{undo.disabled=true;try{await saveChain;await store.undoImport();selectedId=null;lastEditorId=null;await refresh();await window.HandoffEvidence?.refresh();await applySettings(previousSettings);renderEditor(true);renderCaseNotes(true);broadcast({type:'changed'});target.textContent='Загрузка отменена. Восстановлены предыдущие точки и заметки.';}catch(error){target.textContent=error.message;target.classList.add('save-failed');}});
+      target.scrollIntoView({block:'center',behavior:'smooth'});
+    }catch(error){target.textContent='Файл не восстановлен: '+error.message;target.classList.add('save-failed');target.scrollIntoView({block:'center',behavior:'smooth'});}
+    finally{input.disabled=false;input.value='';}
   });
   async function applySettings(settings){
     if(settings.preferences){for(const [id,value]of Object.entries(settings.preferences))if($(id)){$(id).checked=value;$(id).dispatchEvent(new Event('change'));}prefsSave();}
-    if(settings.last_view){localStorage.setItem('microns-last-view-v1',JSON.stringify(settings.last_view));if(!notesWindow)await viewer().select(settings.last_view.case_id,settings.last_view.volume_id,settings.last_view.z);}
+    if(settings.last_view){localStorage.setItem('microns-last-view-v1',JSON.stringify(settings.last_view));await viewer().select(settings.last_view.case_id,settings.last_view.volume_id,settings.last_view.z);}
     if(settings.annotation_mode){$('annotationMode').value=settings.annotation_mode;setMode();}
     if(settings.display&&!notesWindow){const zoom=String(settings.display.zoom);if(![...$('zoomSelect').options].some(o=>o.value===zoom))$('zoomSelect').add(new Option('Сохранённый масштаб · '+Math.round(settings.display.zoom*100)+'%',zoom));$('zoomSelect').value=zoom;$('zoomSelect').dispatchEvent(new Event('change'));$('blackInput').value=settings.display.black;$('whiteInput').value=settings.display.white;$('blackInput').dispatchEvent(new Event('change'));}
     if(settings.surface_view&&!notesWindow&&viewer()?.ready&&settings.surface_view.case_id===viewer().currentCase.case_id&&settings.surface_view.volume_id===viewer().volume.volume_id&&settings.surface_view.local_z===viewer().z)await viewer().surface.restoreEvidence(settings.surface_view);

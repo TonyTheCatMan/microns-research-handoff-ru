@@ -117,6 +117,7 @@
     if(value.point_nm!==undefined&&value.point_nm!==null&&(!point(value.point_nm)||value.point_nm.some((n,i)=>n<min[i]||n>=max[i])||source_view==='2d'&&Math.floor(value.point_nm[2]/res[2])-v.begin_vox_xyz[2]!==value.local_z))fail('Точка доказательства не соответствует срезу.');
     const result={id:value.id,case_id:value.case_id,volume_id:value.volume_id,annotation_id:value.annotation_id??null,contact_id:value.contact_id??null,local_z:value.local_z,global_z:value.global_z,point_nm:value.point_nm?[...value.point_nm]:null,caption:plain(value.caption??'','подпись доказательства'),created_at:timestamp(value.created_at),updated_at:timestamp(value.updated_at),source_view,linked_to_slice:source_view==='2d'||value.linked_to_slice===true,annotated_file:'evidence/'+value.id+(source_view==='3d'?'/3d-navigation.png':'/annotated.png'),raw_file:source_view==='3d'?null:'evidence/'+value.id+'/raw.png'};
     if(value.annotated_file?.startsWith('images/')){if(!/^images\/[A-Za-z0-9_.-]+\.png$/.test(value.annotated_file))fail('Неверное имя снимка.');result.annotated_file=value.annotated_file;}
+    if(value.capture_signature!==undefined){if(!/^[0-9a-f]{64}$/.test(value.capture_signature))fail('Неверная подпись снимка.');result.capture_signature=value.capture_signature;}
     if(result.annotation_id!==null&&(typeof result.annotation_id!=='string'||!/^[0-9a-f-]{36}$/i.test(result.annotation_id)))fail('Неверная ссылка на аннотацию.');
     if(result.contact_id!==null&&!ctx.cases.get(value.case_id).contacts.some(r=>r.contact_id===result.contact_id)&&!/^N[1-9]\d*$/.test(result.contact_id))fail('Неверная ссылка на контакт.');
     if(value.display_window!==undefined){if(!Array.isArray(value.display_window)||value.display_window.length!==2||!value.display_window.every(Number.isFinite)||value.display_window[0]>=value.display_window[1])fail('Неверная яркость доказательства.');result.display_window=[...value.display_window];}
@@ -227,6 +228,7 @@
       const created_at=now(),row=validateEvidence({...input,id:input.id||uuid(),created_at,updated_at:created_at},this.context);
       await validatePNG(annotated);if(row.source_view==='2d')await validatePNG(raw);else raw=null;
       return transaction(this.db,['evidence','annotations'],'readwrite',async tx=>{
+        if(row.capture_signature){const existing=(await request(tx.objectStore('evidence').getAll())).find(e=>e.case_id===row.case_id&&e.volume_id===row.volume_id&&e.source_view===row.source_view&&e.capture_signature===row.capture_signature);if(existing)return validateEvidence(existing,this.context);}
         if(row.annotation_id){const a=await request(tx.objectStore('annotations').get(row.annotation_id));if(!a||a.case_id!==row.case_id)fail('Доказательство не связано с существующей аннотацией этого случая.');}
         await request(tx.objectStore('evidence').add({...row,annotated,raw}));return row;
       });
@@ -248,15 +250,17 @@
     }
     async backupJSON(filter={}){return JSON.stringify(await this.exportData(filter),null,2);}
     async importData(input,{policy='keep-existing',evidenceFiles=new Map()}={}){
-      if(!['keep-existing','newer'].includes(policy))fail('Неизвестный режим объединения.');
+      if(!['keep-existing','newer','restore'].includes(policy))fail('Неизвестный режим объединения.');
       const data=validatePackage(typeof input==='string'?JSON.parse(input):input,this.context);
       for(const row of data.evidence){const blobs=evidenceFiles.get(row.id);if(blobs){await validatePNG(blobs.annotated);if(row.source_view==='2d')await validatePNG(blobs.raw);}}
       return transaction(this.db,['annotations','cases','counters','deleted','reviews','evidence','meta'],'readwrite',async tx=>{
         const records=tx.objectStore('annotations'),cases=tx.objectStore('cases'),counterStore=tx.objectStore('counters'),deleted=tx.objectStore('deleted');
+        const snapshot=async()=>{const value={};for(const name of ['annotations','cases','counters','deleted','reviews','evidence','meta'])value[name]=(await request(tx.objectStore(name).getAll())).filter(r=>name!=='meta'||r.key!=='before-restore');return value;};
+        const before=policy==='restore'?await snapshot():null;
         const current=new Map((await request(records.getAll())).map(r=>[r.id,r]));
         const tombstones=new Map((await request(deleted.getAll())).map(r=>[r.id,r]));
         const counts=new Map((await request(counterStore.getAll())).map(r=>[r.case_id,r.last_number]));
-        const report={added:0,updated:0,skipped:0,deleted:0,cases_added:0,cases_updated:0,reviews_added:0,reviews_updated:0,evidence_added:0,evidence_updated:0,settings_updated:0,missingEvidence:0,conflicts:[],renumbered:[]};
+        const report={evidence_total:data.evidence.length,annotations_total:data.annotations.length,notes_total:data.annotations.filter(r=>r.notes||r.properties).length,case_ids:[...new Set([...data.annotations,...data.cases].map(r=>r.case_id))],settings:data.settings,added:0,updated:0,skipped:0,deleted:0,cases_added:0,cases_updated:0,reviews_added:0,reviews_updated:0,evidence_added:0,evidence_updated:0,settings_updated:0,missingEvidence:0,conflicts:[],renumbered:[]};
         for(const c of data.counters)counts.set(c.case_id,Math.max(counts.get(c.case_id)||0,c.last_number));
         for(const row of [...data.annotations,...data.deleted])counts.set(row.case_id,Math.max(counts.get(row.case_id)||0,row.number));
         const identical=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -266,7 +270,7 @@
           if(old&&identical(old,{...incoming,number:old.number})){report.skipped++;continue;}
           if(old||tomb){
             const previous=old?.updated_at||tomb.deleted_at;
-            if(policy!=='newer'||Date.parse(incoming.updated_at)<=Date.parse(previous)){report.skipped++;report.conflicts.push({id:incoming.id,case_id:incoming.case_id,reason:tomb?'previously_deleted':'existing_kept'});continue;}
+            if(policy!=='restore'&&(policy!=='newer'||Date.parse(incoming.updated_at)<=Date.parse(previous))){report.skipped++;report.conflicts.push({id:incoming.id,case_id:incoming.case_id,reason:tomb?'previously_deleted':'existing_kept'});continue;}
           }
           const row=clone(incoming);
           if(old)row.number=old.number;
@@ -275,9 +279,9 @@
             const previous=row.number;row.number=[...current.values()].filter(r=>r.case_id===row.case_id).reduce((n,r)=>Math.max(n,r.number),0)+1;counts.set(row.case_id,row.number);report.renumbered.push({id:row.id,case_id:row.case_id,from:previous,to:row.number});
           }
           await request(records.put(row));await request(deleted.delete(row.id));current.set(row.id,row);tombstones.delete(row.id);
-          if(old){report.updated++;report.conflicts.push({id:row.id,case_id:row.case_id,reason:'newer_import_used'});}else report.added++;
+          if(old){report.updated++;report.conflicts.push({id:row.id,case_id:row.case_id,reason:policy==='restore'?'backup_used':'newer_import_used'});}else report.added++;
         }
-        for(const row of data.deleted){
+        for(const row of (policy==='restore'?[]:data.deleted)){
           const old=current.get(row.id),tomb=tombstones.get(row.id);
           if(old&&old.case_id!==row.case_id||tomb&&tomb.case_id!==row.case_id)fail('ID удаления не соответствует случаю.');
           if(old&&(policy!=='newer'||Date.parse(row.deleted_at)<=Date.parse(old.updated_at))){report.conflicts.push({id:row.id,case_id:row.case_id,reason:'deletion_skipped'});continue;}
@@ -287,7 +291,7 @@
         }
         for(const row of data.cases){
           const old=await request(cases.get(row.case_id));if(old&&identical(old,row))continue;
-          if(old&&(policy!=='newer'||Date.parse(row.updated_at)<=Date.parse(old.updated_at))){report.conflicts.push({case_id:row.case_id,reason:'case_notes_kept'});continue;}
+          if(old&&policy!=='restore'&&(policy!=='newer'||Date.parse(row.updated_at)<=Date.parse(old.updated_at))){report.conflicts.push({case_id:row.case_id,reason:'case_notes_kept'});continue;}
           await request(cases.put(row));if(old){report.cases_updated++;report.conflicts.push({case_id:row.case_id,reason:'newer_case_notes_used'});}else report.cases_added++;
         }
         for(const [case_id,last_number] of counts)await request(counterStore.put({case_id,last_number}));
@@ -296,11 +300,11 @@
           if(row.table==='ADDITIONAL_CONTACTS'){const linked=current.get(row.data.annotation_id);if(linked&&linked.case_id!==row.case_id)fail('Форма дополнительного контакта связана с другим случаем.');}
           const old=await request(reviews.get(row.id));
           if(old&&identical(old,row))continue;
-          if(old&&(policy!=='newer'||Date.parse(old.updated_at)>=Date.parse(row.updated_at))){report.conflicts.push({id:row.id,case_id:row.case_id,reason:'review_kept'});continue;}
+          if(old&&policy!=='restore'&&(policy!=='newer'||Date.parse(old.updated_at)>=Date.parse(row.updated_at))){report.conflicts.push({id:row.id,case_id:row.case_id,reason:'review_kept'});continue;}
           await request(reviews.put(row));if(old)report.reviews_updated++;else report.reviews_added++;
         }
         if(Object.keys(data.reviewer).length){const s=tx.objectStore('meta'),old=await request(s.get('reviewer'));
-          const incomingIsNewer=policy==='newer'&&data.reviewer_updated_at&&(!old?.updated_at||Date.parse(data.reviewer_updated_at)>Date.parse(old.updated_at));
+          const incomingIsNewer=policy==='restore'||policy==='newer'&&data.reviewer_updated_at&&(!old?.updated_at||Date.parse(data.reviewer_updated_at)>Date.parse(old.updated_at));
           const value=incomingIsNewer?{...old?.value,...data.reviewer}:{...data.reviewer,...old?.value};
           await request(s.put({key:'reviewer',value,updated_at:incomingIsNewer?data.reviewer_updated_at:old?.updated_at||data.reviewer_updated_at||now()}));
           if(old&&Object.keys(data.reviewer).some(k=>k in old.value&&old.value[k]!==data.reviewer[k]))report.conflicts.push({reason:incomingIsNewer?'newer_reviewer_used':'reviewer_kept'});
@@ -308,7 +312,7 @@
         if(Object.keys(data.settings).length){const s=tx.objectStore('meta'),old=await request(s.get('settings'));
           if(!old||!Object.keys(old.value||{}).length){await request(s.put({key:'settings',value:data.settings,updated_at:data.settings_updated_at||now()}));report.settings_updated++;}
           else if(!identical(old.value,data.settings)){
-            if(policy==='newer'&&data.settings_updated_at&&Date.parse(data.settings_updated_at)>Date.parse(old.updated_at)){await request(s.put({key:'settings',value:data.settings,updated_at:data.settings_updated_at}));report.settings_updated++;report.conflicts.push({reason:'newer_settings_used'});}
+            if(policy==='restore'||policy==='newer'&&data.settings_updated_at&&Date.parse(data.settings_updated_at)>Date.parse(old.updated_at)){await request(s.put({key:'settings',value:data.settings,updated_at:data.settings_updated_at}));report.settings_updated++;report.conflicts.push({reason:'newer_settings_used'});}
             else report.conflicts.push({reason:'settings_kept'});
           }
         }
@@ -318,11 +322,23 @@
           if(old&&(old.case_id!==row.case_id||old.volume_id!==row.volume_id||old.local_z!==row.local_z||old.source_view!==row.source_view))fail('ID доказательства относится к другому виду или срезу.');
           for(const id of [row.annotation_id,...row.annotation_ids||[]].filter(Boolean)){const linked=current.get(id);if(linked&&linked.case_id!==row.case_id)fail('Доказательство связано с аннотацией другого случая.');}
           if(old&&identical(validateEvidence(old,this.context),row))continue;
-          if(old&&(policy!=='newer'||Date.parse(old.updated_at)>=Date.parse(row.updated_at))){report.conflicts.push({id:row.id,reason:'evidence_kept'});continue;}
+          if(old&&policy!=='restore'&&(policy!=='newer'||Date.parse(old.updated_at)>=Date.parse(row.updated_at))){report.conflicts.push({id:row.id,reason:'evidence_kept'});continue;}
           if(!old&&!blobs){report.missingEvidence++;continue;}
           await request(evidence.put({...row,annotated:blobs?.annotated||old.annotated,raw:row.source_view==='3d'?null:blobs?.raw||old.raw}));if(old)report.evidence_updated++;else report.evidence_added++;
         }
+        if(before)await request(tx.objectStore('meta').put({key:'before-restore',before,after:await snapshot()}));
         return report;
+      });
+    }
+    async undoImport(){
+      return transaction(this.db,['annotations','cases','counters','deleted','reviews','evidence','meta'],'readwrite',async tx=>{
+        const meta=tx.objectStore('meta'),checkpoint=await request(meta.get('before-restore'));
+        if(!checkpoint)fail('Нет загрузки для отмены.');
+        for(const [name,rows] of Object.entries(checkpoint.after)){
+          const current=(await request(tx.objectStore(name).getAll())).filter(r=>name!=='meta'||r.key!=='before-restore');
+          if(JSON.stringify(current)!==JSON.stringify(rows))fail('После загрузки появились новые изменения. Отмена недоступна, чтобы сохранить их.');
+        }
+        for(const [name,rows] of Object.entries(checkpoint.before)){const s=tx.objectStore(name);await request(s.clear());for(const row of rows)await request(s.put(row));}
       });
     }
     async exportFiles(filter={}, {backup,extraEvidence=[]}={}){
