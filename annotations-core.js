@@ -341,11 +341,12 @@
         for(const [name,rows] of Object.entries(checkpoint.before)){const s=tx.objectStore(name);await request(s.clear());for(const row of rows)await request(s.put(row));}
       });
     }
-    async exportFiles(filter={}, {backup,extraEvidence=[]}={}){
+    async exportFiles(filter={}, {backup,extraEvidence=[],includeImages=true}={}){
       const data=backup?validatePackage(backup,this.context):await this.exportData(filter);
       const headers=['Случай','Метка','Тип','Заметка','Объём','Срез Z','X нм','Y нм','Z нм'],types={contact:'Контакт',point:'Особенность',object:'Объект',region:'Область'};
       const rows=data.annotations.map(r=>{const {v,res}=volumeInfo(this.context,r.case_id,r.volume_id);return{'Случай':r.case_id,'Метка':r.number,'Тип':types[r.kind],'Заметка':[r.properties,r.notes].filter(Boolean).join('\n'),'Объём':r.volume_id,'Срез Z':Math.floor(r.point_nm[2]/res[2])-v.begin_vox_xyz[2],'X нм':r.point_nm[0],'Y нм':r.point_nm[1],'Z нм':r.point_nm[2]};});
       const files=[{name:'results.csv',text:makeCSV(headers,rows)}];
+      if(!includeImages){data.evidence=[];delete data.raw_images;files.push({name:'backup.json',text:JSON.stringify(data)});return files;}
       const all=new Map((await this.getEvidence({}, {blobs:true})).map(r=>[r.id,r]));
       for(const item of extraEvidence)all.set(item.id,item);
       data.raw_images={};let index=0;

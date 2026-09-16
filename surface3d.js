@@ -442,15 +442,26 @@
       this.annotationsVisible=!!view.annotations_visible;this.targetsVisible=!!view.seed_points_visible;this.selectedAnnotationId=view.selected_annotation_id||null;this.refreshSelectedObject();this.draw();this.visibilityChanged();return this.getViewState();
     }
     snapshotEvidence() {
-      const view=this.getViewState();this.draw();
-      // Copy WebGL and labels into a separate canvas before any asynchronous encoding.
-      const canvas=document.createElement('canvas'),w=Math.max(1500,this.canvas.width),h=this.canvas.height+190;canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.fillStyle='#17313d';ctx.font='bold 20px system-ui';ctx.fillText(this.caseId+' · '+this.volume.volume_id+' · 3D-вид для навигации',18,30);
-      ctx.font='14px system-ui';ctx.fillText('Статическая сегментация v1300 · анатомия не прошла независимую проверку · цвета — нейтральные метки объектов',18,56);
-      const x=(w-this.canvas.width)/2;ctx.drawImage(this.canvas,x,76);ctx.drawImage(this.labels,x,76);let y=76+this.canvas.height+25;
-      ctx.fillText(this.slice?'XY, локальная Z '+this.slice.z+' · срез через центр соответствующего вокселя · отображение '+this.slice.black+'–'+this.slice.white:'Срез TIFF не загружен',18,y);y+=22;
+      const view=this.getViewState(),cssWidth=this.stage.clientWidth,cssHeight=this.stage.clientHeight;
+      if(!cssWidth||!cssHeight)throw new Error('Откройте просмотр 2D / 3D перед сохранением изображения.');
+      const gl=this.gl,limits=gl.getParameter(gl.MAX_VIEWPORT_DIMS),maximum=gl.getParameter(gl.MAX_RENDERBUFFER_SIZE);
+      const ratio=Math.min(3072/Math.max(cssWidth,cssHeight),maximum/cssWidth,maximum/cssHeight,limits[0]/cssWidth,limits[1]/cssHeight);
+      const width=Math.floor(cssWidth*ratio),height=Math.floor(cssHeight*ratio),canvas=document.createElement('canvas');
+      const old={width:this.canvas.width,height:this.canvas.height,labelWidth:this.labels.width,labelHeight:this.labels.height,ratio:this.ratio};
+      canvas.width=width;canvas.height=height+250;const ctx=canvas.getContext('2d');
+      try{
+        // Re-render geometry and vector labels at export resolution; never stretch a screen capture.
+        this.canvas.width=this.labels.width=width;this.canvas.height=this.labels.height=height;this.ratio=ratio;
+        if(gl.isContextLost()||gl.drawingBufferWidth!==width||gl.drawingBufferHeight!==height)throw new Error('Не удалось создать изображение высокого разрешения.');
+        this.draw();ctx.drawImage(this.canvas,0,0);ctx.drawImage(this.labels,0,0);
+      }finally{
+        this.canvas.width=old.width;this.canvas.height=old.height;this.labels.width=old.labelWidth;this.labels.height=old.labelHeight;this.ratio=old.ratio;this.draw();
+      }
+      ctx.fillStyle='#fff';ctx.fillRect(0,height,width,250);ctx.fillStyle='#17313d';ctx.font='bold 34px system-ui';ctx.fillText(this.caseId+' · '+this.volume.volume_id+' · 3D',28,height+48);
+      ctx.font='26px system-ui';ctx.fillText('Локальный Z '+(this.slice?.z??'—')+' · сегментация v1300 · цвета — метки объектов',28,height+91);
       const seedIds=this.meshes.filter(m=>!m.context&&this.visibleMesh(m)).map(m=>m.id).join(', ')||'нет',contextCount=this.meshes.filter(m=>m.context&&this.visibleMesh(m)).length;
-      ctx.fillText('Объекты: '+seedIds+' · сегменты окружения: '+contextCount+' · непрозрачность '+Math.round(this.alpha*100)+'% · метки: '+(this.annotationsVisible?this.annotationHits.length:0)+' · точки T: '+(this.targetsVisible?this.targets.length:0),18,y);y+=22;
-      ctx.fillText('MICrONS Consortium (2025) · doi:10.1038/s41586-025-08790-w · CC BY 4.0',18,y);
+      ctx.fillText('Объекты: '+seedIds+' · соседних структур: '+contextCount+' · меток: '+(this.annotationsVisible?this.annotationHits.length:0),28,height+134);
+      ctx.font='24px system-ui';ctx.fillText('3D для навигации. Анатомию проверяйте по серийной ЭМ.',28,height+177);ctx.fillText('MICrONS Consortium (2025) · doi:10.1038/s41586-025-08790-w · CC BY 4.0',28,height+216);
       return {view,blob:new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Не удалось создать PNG 3D-вида.')),'image/png'))};
     }
     async exportPNG() {

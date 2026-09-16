@@ -200,21 +200,32 @@
     return AnnotationsCore.makeBackup(metadata,records,caseNotes,filter,saved);
   }
   async function imageBlob(withAnnotations=true) {
-    const v=viewer(),image=$('imageCanvas'),scale=2,canvas=document.createElement('canvas');canvas.width=Math.max(1100,image.width*scale+32);canvas.height=image.height*scale+170;
-    const ctx=canvas.getContext('2d'),left=Math.round((canvas.width-image.width*scale)/2),top=65;ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#18344b';ctx.font='bold 18px system-ui';ctx.fillText(`${currentCase} · ${v.volume.volume_id} · Z ${v.z}`,16,28);ctx.font='14px system-ui';ctx.fillText(`Глобальный Z ${v.volume.begin_vox_xyz[2]+v.z} · шаг XYZ ${v.volume.resolution_nm.join(' × ')} нм · яркость ${v.displayWindow.join('–')}`,16,50);
+    const v=viewer(),image=$('imageCanvas');if(!v?.ready)throw new Error('Дождитесь загрузки 2D.');
+    const scale=Math.max(1,Math.floor(3072/Math.max(image.width,image.height))),left=32,top=120,canvas=document.createElement('canvas');
+    canvas.width=image.width*scale+left*2;canvas.height=image.height*scale+top+150;
+    const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#18344b';ctx.font='bold 34px system-ui';ctx.fillText(`${currentCase} · ${v.volume.volume_id} · Z ${v.z}`,left,45);ctx.font='26px system-ui';ctx.fillText(`Глобальный Z ${v.volume.begin_vox_xyz[2]+v.z} · шаг XYZ ${v.volume.resolution_nm.join(' × ')} нм · яркость ${v.displayWindow.join('–')}`,left,85);
     ctx.imageSmoothingEnabled=false;ctx.drawImage(image,left,top,image.width*scale,image.height*scale);
-    if(withAnnotations&&$('overlayToggle').checked)ctx.drawImage($('overlayCanvas'),left,top,image.width*scale,image.height*scale);
-    if(withAnnotations){const marks=document.createElement('canvas');marks.width=image.width;marks.height=image.height;drawOn(marks,true,scale);ctx.drawImage(marks,left,top,image.width*scale,image.height*scale);}
-    const y=top+image.height*scale+25,bar=500/v.volume.resolution_nm[0]*scale;ctx.strokeStyle='#18344b';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(16,y);ctx.lineTo(16+bar,y);ctx.stroke();ctx.fillText('500 нм',26+bar,y+5);ctx.fillText(withAnnotations?'Метки: '+sectionRecords().map(r=>'N'+r.number).join(', ').slice(0,110):'Изображение без навигационных и пользовательских меток',16,y+27);ctx.font='12px system-ui';ctx.fillText('MICrONS Consortium (2025) · CC BY 4.0 · doi:10.1038/s41586-025-08790-w',16,y+50);ctx.fillText('Точные координаты, свойства и наблюдения приложены в JSON и CSV. Исходные пиксели TIFF сохранены.',16,y+70);
+    // Draw vector symbols directly into the export, without enlarging the screen overlay.
+    const unit=Math.max(1,Math.max(image.width,image.height)*scale/1200);
+    if(withAnnotations&&$('overlayToggle').checked)for(const contact of v.currentCase.contacts)for(const [key,filter,suffix] of [['ctr_nm','tCenter',''],['pre_nm','tPre',' пре'],['post_nm','tPost',' пост']]){
+      if(!contact[key]||!$(filter).checked)continue;
+      const p=contact[key].map((n,i)=>Math.floor(n/v.volume.resolution_nm[i])-v.volume.begin_vox_xyz[i]);
+      if(p[2]!==v.z||p.some((n,i)=>n<0||n>=v.volume.shape_xyz[i]))continue;
+      const x=left+(p[0]+.5)*scale,y=top+(p[1]+.5)*scale;MarkerStyles.draw(ctx,x,y,6*unit,key,'',false,unit);
+      ctx.font='bold '+13*unit+'px system-ui';ctx.lineWidth=3*unit;ctx.strokeStyle='#172632';ctx.strokeText(contact.contact_id+suffix,x+10*unit,y-10*unit);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(contact.contact_id+suffix,x+10*unit,y-10*unit);
+    }
+    if(withAnnotations)for(const record of sectionRecords()){const [x,y]=locationInVolume(record);MarkerStyles.draw(ctx,left+x*scale,top+y*scale,10*unit,record.kind,record.number,record.id===selectedId,unit);}
+    const y=top+image.height*scale+38,bar=500/v.volume.resolution_nm[0]*scale;ctx.strokeStyle='#18344b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+bar,y);ctx.stroke();ctx.fillStyle='#18344b';ctx.font='26px system-ui';ctx.fillText('500 нм',left+bar+16,y+8);
+    ctx.fillText(`Исходное изображение: ${image.width} × ${image.height} пикселей · без потери исходных пикселей`,left,y+43);ctx.font='24px system-ui';ctx.fillText('MICrONS Consortium (2025) · CC BY 4.0 · doi:10.1038/s41586-025-08790-w',left,y+82);
     return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Не удалось создать PNG.')),'image/png'));
   }
-  async function exportFindings(scope) {
+  async function exportFindings(scope,{includeImages=scope!=='all'}={}) {
     if(!store)return;
     try{
       const v=viewer(),frozenCase=currentCase,isCase=scope!=='all',filter=isCase?{case_id:frozenCase}:{};
       const frozenRecords=structuredClone(records),captured=[];
       // Both main-view exports capture pixels before awaiting storage. The notes-only window exports retained snapshots.
-      if(!notesWindow||isCase){
+      if(includeImages&&(!notesWindow||isCase)){
         if(!v?.ready||!v.surface?.modelReady)throw new Error('Дождитесь загрузки 2D и 3D.');
         const shot=v.surface.snapshotEvidence(),volume=structuredClone(v.volume),time=now(),z=v.z;
         const base={case_id:frozenCase,volume_id:volume.volume_id,local_z:z,global_z:volume.begin_vox_xyz[2]+z,created_at:time,updated_at:time,display_window:[...v.displayWindow],resolution_nm:[...volume.resolution_nm],linked_to_slice:true,caption:''};
@@ -225,8 +236,8 @@
       }
       const pixels=Promise.all(captured.map(async item=>{const [annotated,raw]=await Promise.all([item.annotated,item.raw]);return{...item,annotated,raw};}));pixels.catch(()=>{});
       const settings=notesWindow?await store.getSettings():{preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
-      if(v?.ready){settings.last_view={case_id:frozenCase,volume_id:v.volume.volume_id,z:v.z};settings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)settings.surface_view=v.surface.getViewState();}
-      $('restoreResult').classList.remove('save-failed');$('restoreResult').textContent='Сохраняем результаты и изображения…';
+      if(v?.ready){settings.last_view={case_id:frozenCase,volume_id:v.volume.volume_id,z:v.z};settings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)try{settings.surface_view=v.surface.getViewState();}catch{}}
+      $('restoreResult').classList.remove('save-failed');$('restoreResult').textContent=includeImages?'Сохраняем результаты и изображения…':'Сохраняем точки и заметки…';
       try{await store.putSettings(settings);}catch{}
       const extraEvidence=[];let imagesNotRetained=false;
       for(const item of await pixels){
@@ -240,12 +251,13 @@
       const full=await backup();full.settings=settings;full.settings_updated_at=now();
       const data=AnnotationsCore.makeBackup(metadata,full.annotations,full.cases,filter,full),images=new Map(data.evidence.map(e=>[e.id,e]));
       for(const item of extraEvidence){const {annotated,raw,...meta}=item;images.set(meta.id,meta);}data.evidence=[...images.values()];
-      const files=await store.exportFiles(filter,{backup:data,extraEvidence});
-      download(AnnotationsCore.zip(files),'MICrONS-'+(isCase?frozenCase:'all-results')+'-'+new Date().toISOString().slice(0,10)+'.zip');
-      $('restoreResult').textContent=(isCase?'Случай сохранён':'Все результаты сохранены')+`: снимков ${data.evidence.length}. `+(notesWindow?'Свежие снимки 2D / 3D добавляются при сохранении из основного просмотрщика.':'Включены текущие 2D / 3D и ранее сохранённые снимки.')+(imagesNotRetained?' Снимки включены в ZIP, но их не удалось сохранить в браузере.':'');
+      const files=await store.exportFiles(filter,{backup:data,extraEvidence,includeImages});
+      download(AnnotationsCore.zip(files),'MICrONS-'+(isCase?frozenCase:includeImages?'all-results-with-images':'all-results')+'-'+new Date().toISOString().slice(0,10)+'.zip');
+      $('restoreResult').textContent=!includeImages?'Все точки и заметки сохранены. ZIP можно загрузить для продолжения работы.':(isCase?'Случай сохранён':'Все результаты сохранены')+`: снимков ${data.evidence.length}. `+(notesWindow?'Свежие снимки 2D / 3D добавляются при сохранении из основного просмотрщика.':'Включены текущие 2D / 3D и ранее сохранённые снимки.')+(imagesNotRetained?' Снимки включены в ZIP, но их не удалось сохранить в браузере.':'');
     }catch(error){$('restoreResult').textContent='Не удалось сохранить: '+error.message;$('restoreResult').classList.add('save-failed');}
   }
   $('annotationsExportAll').addEventListener('click',()=>exportFindings('all'));
+  $('annotationsExportAllImages').addEventListener('click',()=>exportFindings('all',{includeImages:true}));
   $('annotationsExportCase').addEventListener('click',()=>exportFindings('case'));
   $('annotationsExportImage').addEventListener('click',()=>exportFindings('image'));
   $('annotationsImport').addEventListener('change',async event=>{
@@ -283,7 +295,7 @@
   }
   async function boot(data) {
     metadata=data;
-    try{store=await AnnotationsCore.open(data);await recoverPending();await refresh();currentCase=viewer()?.currentCase?.case_id||'';if(params.get('annotation')&&byId(params.get('annotation'))?.case_id===currentCase)selectedId=params.get('annotation');for(const id of ['annotationsExportAll','annotationsExportCase','annotationsImport'])$(id).disabled=false;syncCase();renderList();renderEditor(true);renderCaseNotes(true);saveStatus();window.dispatchEvent(new Event("annotations:ready"));}catch(error){$('annotationSaveStatus').textContent='Локальное сохранение недоступно: '+error.message+'. Разрешите хранение данных сайта и обновите страницу.';$('annotationSaveStatus').classList.add('save-failed');}
+    try{store=await AnnotationsCore.open(data);await recoverPending();await refresh();currentCase=viewer()?.currentCase?.case_id||'';if(params.get('annotation')&&byId(params.get('annotation'))?.case_id===currentCase)selectedId=params.get('annotation');for(const id of ['annotationsExportAll','annotationsExportAllImages','annotationsExportCase','annotationsImport'])$(id).disabled=false;syncCase();renderList();renderEditor(true);renderCaseNotes(true);saveStatus();window.dispatchEvent(new Event("annotations:ready"));}catch(error){$('annotationSaveStatus').textContent='Локальное сохранение недоступно: '+error.message+'. Разрешите хранение данных сайта и обновите страницу.';$('annotationSaveStatus').classList.add('save-failed');}
   }
   window.addEventListener('review:ready',event=>boot(event.detail),{once:true});
   if(viewer()?.metadata)boot(viewer().metadata);
