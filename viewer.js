@@ -48,7 +48,9 @@
       state.metadata=validateMetadata(JSON.parse(await HandoffAssets.read('case_index.json',true)));
       ui.caseSelect.replaceChildren(...state.metadata.cases.map(c=>new Option(c.case_id,c.case_id)));
       ui.caseSelect.disabled=false;
-      const params=new URLSearchParams(location.search), wanted=params.get('case');
+      const params=new URLSearchParams(location.search);
+      if(!params.has('case')&&!params.has('panel'))try{const saved=JSON.parse(localStorage.getItem('microns-last-view-v1')||'null');if(saved&&state.metadata.cases.some(c=>c.case_id===saved.case_id)){params.set('case',saved.case_id);params.set('volume',saved.volume_id);params.set('z',String(saved.z));}}catch{}
+      const wanted=params.get('case');
       if(state.metadata.cases.some(c=>c.case_id===wanted))ui.caseSelect.value=wanted;
       window.dispatchEvent(new CustomEvent('review:ready',{detail:state.metadata}));
       selectCase(params.get('volume'),params.get('z'));
@@ -75,7 +77,7 @@
     ui.volumeSelect.replaceChildren(...state.currentCase.volumes.map(v=>new Option(v.volume_id.replace('-main',' · основной').replace('-extension-',' · расширение '),v.volume_id)));
     if(state.currentCase.volumes.some(v=>v.volume_id===wantedVolume))ui.volumeSelect.value=wantedVolume;
     ui.volumeSelect.disabled=false;
-    loadVolume(wantedZ);
+    return loadVolume(wantedZ);
   }
   async function loadVolume(wantedZ) {
     state.controller?.abort();state.controller=new AbortController();
@@ -89,6 +91,7 @@
     window.dispatchEvent(new CustomEvent('review:volume',{detail:{caseId:state.currentCase.case_id,volumeId:volume.volume_id}}));
     ui.volumeDetails.textContent = 'Размеры XYZ: ' + fmt(volume.shape_xyz) + '\nРазмер вокселя (нм): ' + fmt(volume.resolution_nm) + '\nНачало в глобальных координатах: ' + fmt(volume.begin_vox_xyz) + '\nКонец в глобальных координатах (не включается): ' + fmt(volume.end_vox_xyz_exclusive);
     ui.volumeDetails.style.whiteSpace = 'pre-line';
+    if(new URLSearchParams(location.search).get('panel')==='annotations'){status('Свойства и отметки · '+volume.volume_id);return;}
     try {
       const file = findFile(volume.path);
       if (!file) throw new Error('TIFF не выбран: ' + volume.path + '. Добавьте файл или выберите папку с полным пакетом.');
@@ -102,7 +105,7 @@
       surface.setVolume(volume,state.currentCase.case_id);
       resetOrthos();
       state.black = 0; state.white = 255; ui.blackInput.value = '0'; ui.whiteInput.value = '255';
-      ui.overlayToggle.checked = false;
+
       for (const name of ['zSlider','zInput','zoomSelect','fitButton','blackInput','whiteInput','rawButton','windowButton','exportButton','overlayToggle']) ui[name].disabled = false;
       ui.zSlider.max = ui.zInput.max = String(tiff.depth - 1);
       ui.imageCanvas.width = ui.overlayCanvas.width = tiff.width;
@@ -170,18 +173,23 @@
     drawOverlay(); drawScale();
   }
   function drawOverlay() {
-    surface.setTarget(state.target,ui.overlayToggle.checked);
+    surface.setTarget(state.target,false);
     byId('orthoTarget').disabled=!state.target;
-    const ctx = ui.overlayCanvas.getContext('2d'); ctx.clearRect(0,0,ui.overlayCanvas.width,ui.overlayCanvas.height);
-    const target = state.target;
-    if (!target) { ui.targetStatus.textContent = 'Выберите стартовую точку, чтобы перейти к её срезу. Метки ' + (ui.overlayToggle.checked ? 'включены.' : 'выключены.'); return; }
-    const samePlane = state.z === target.local[2];
-    ui.targetStatus.textContent = target.id + ' ' + target.label.toLowerCase() + ': локальные XYZ ' + fmt(target.local) + '. ' + (!ui.overlayToggle.checked ? 'Метка выключена.' : samePlane ? 'Метка находится на этом срезе.' : 'Метка скрыта: точка находится на локальной Z ' + target.local[2] + '.') + ' При преобразовании координат используется округление вниз (floor).';
-    if (!ui.overlayToggle.checked || !samePlane) return;
-    const [x,y] = target.local.map(v => v + .5), r = 8 / state.zoom, gap = 3 / state.zoom;
-    ctx.lineWidth = 3 / state.zoom; ctx.strokeStyle = '#102c36';
-    const cross = () => { ctx.beginPath(); ctx.moveTo(x-r,y);ctx.lineTo(x-gap,y);ctx.moveTo(x+gap,y);ctx.lineTo(x+r,y);ctx.moveTo(x,y-r);ctx.lineTo(x,y-gap);ctx.moveTo(x,y+gap);ctx.lineTo(x,y+r);ctx.stroke(); };
-    cross(); ctx.lineWidth = 1.5 / state.zoom; ctx.strokeStyle = '#ffed75'; cross();
+    const ctx=ui.overlayCanvas.getContext('2d');ctx.clearRect(0,0,ui.overlayCanvas.width,ui.overlayCanvas.height);
+    const points=[];
+    if(state.currentCase&&state.volume)for(const contact of state.currentCase.contacts)for(const [key,filter,suffix] of [['ctr_nm','tCenter',''],['pre_nm','tPre',' пре'],['post_nm','tPost',' пост']]){
+      if(!contact[key]||!byId(filter).checked)continue;
+      const local=toLocal(contact[key]);if(!inBounds(local))continue;
+      const point={id:contact.contact_id,key,label:contact.contact_id+suffix,nm:contact[key],local};points.push(point);
+      if(!ui.overlayToggle.checked||local[2]!==state.z)continue;
+      const x=local[0]+.5,y=local[1]+.5,r=5/state.zoom;
+      ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.strokeStyle='#172632';ctx.lineWidth=4/state.zoom;ctx.stroke();ctx.strokeStyle='#ffda65';ctx.lineWidth=2/state.zoom;ctx.stroke();
+      ctx.font='bold '+(13/state.zoom)+'px system-ui';ctx.lineWidth=3/state.zoom;ctx.strokeStyle='#172632';ctx.strokeText(point.label,x+8/state.zoom,y-8/state.zoom);ctx.fillStyle='#ffe18b';ctx.fillText(point.label,x+8/state.zoom,y-8/state.zoom);
+    }
+    surface.setTargets?.(points,ui.overlayToggle.checked);
+    const target=state.target;
+    ui.targetStatus.textContent=(target?target.id+' '+target.label.toLowerCase()+': локальные XYZ '+fmt(target.local)+'. ':'')+(ui.overlayToggle.checked?'Все включённые T-точки показаны на своих срезах; в 3D — вместе.':'Точки T скрыты. Кнопки контактов по-прежнему перемещают к их срезам.');
+    window.dispatchEvent(new Event('review:display'));
   }
   function drawScale() {
     const cssLength = 500 / state.volume.resolution_nm[0] * state.zoom;
@@ -204,12 +212,13 @@
     const canvas = document.createElement('canvas'); canvas.width = Math.max(1500,imageWidth + 32); canvas.height = imageHeight + 250;
     const ctx = canvas.getContext('2d'), left = Math.floor((canvas.width-imageWidth)/2), top = 66;
     const globalZ = state.volume.begin_vox_xyz[2]+state.z;
-    const markerIncluded = Boolean(state.target && ui.overlayToggle.checked && state.target.local[2]===state.z);
+    const markerIncluded = ui.overlayToggle.checked;
     ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#17313d';ctx.font='bold 18px system-ui';
     ctx.fillText(state.currentCase.case_id+' · '+state.volume.volume_id,16,27);
     ctx.font='14px system-ui';ctx.fillText('Локальная Z '+state.z+' / '+(state.tiff.depth-1)+' · глобальная Z '+globalZ+' · '+globalZ*state.volume.resolution_nm[2]+' нм',16,49);
     ctx.imageSmoothingEnabled=false;ctx.drawImage(ui.imageCanvas,left,top,imageWidth,imageHeight);
     if(markerIncluded)ctx.drawImage(ui.overlayCanvas,left,top,imageWidth,imageHeight);
+    if(window.HandoffAnnotations?.visible)ctx.drawImage(byId('annotationCanvas'),left,top,imageWidth,imageHeight);
     let y=top+imageHeight+20;
     const bar=500/state.volume.resolution_nm[0]*scale;ctx.strokeStyle='#17313d';ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(16,y);ctx.lineTo(16+bar,y);ctx.moveTo(16,y-4);ctx.lineTo(16,y+4);ctx.moveTo(16+bar,y-4);ctx.lineTo(16+bar,y+4);ctx.stroke();ctx.fillText('500 нм',25+bar,y+5);
@@ -242,6 +251,7 @@
   ui.rawButton.addEventListener('click',()=>setWindow(0,255));ui.windowButton.addEventListener('click',()=>setWindow(110,160));
   ui.exportButton.addEventListener('click',exportSection);
   ui.overlayToggle.addEventListener('change',drawOverlay);
+  for(const id of ['tCenter','tPre','tPost'])byId(id).addEventListener('change',drawOverlay);
   const ortho={x:0,y:0,key:'',rawXZ:null,rawYZ:null};
   function resetOrthos(){
     ortho.x=Math.floor(state.tiff.width/2);ortho.y=Math.floor(state.tiff.height/2);ortho.key='';
@@ -278,7 +288,7 @@
     if(['ArrowLeft','ArrowDown','ArrowRight','ArrowUp'].includes(event.key)){event.preventDefault();setZ(state.z+(['ArrowRight','ArrowUp'].includes(event.key)?1:-1));}
   });
   let drag=null;
-  ui.viewport.addEventListener('pointerdown',e=>{if(!state.tiff || e.button!==0)return;ui.viewport.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,left:ui.viewport.scrollLeft,top:ui.viewport.scrollTop};ui.viewport.setPointerCapture(e.pointerId);});
+  ui.viewport.addEventListener('pointerdown',e=>{if(!state.tiff || e.button!==0 || window.HandoffAnnotations?.captures2D)return;ui.viewport.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,left:ui.viewport.scrollLeft,top:ui.viewport.scrollTop};ui.viewport.setPointerCapture(e.pointerId);});
   ui.viewport.addEventListener('pointerup',()=>{drag=null;});ui.viewport.addEventListener('pointercancel',()=>{drag=null;});
   ui.viewport.addEventListener('pointermove',event=>{
     if(!state.tiff)return;
@@ -291,8 +301,24 @@
   window.addEventListener('resize',()=>{if(state.tiff){if(state.needsFit&&!byId('page-viewer').hidden){ui.fitButton.click();state.needsFit=false;}drawScale();renderOrthos();}});
   window.ReviewViewer={
     get metadata(){return state.metadata;},get currentCase(){return state.currentCase;},get volume(){return state.volume;},
-    get ready(){return Boolean(state.tiff);},get z(){return state.z;},get target(){return state.target;},
-    select(id){if(!state.metadata?.cases.some(c=>c.case_id===id))return;ui.caseSelect.value=id;selectCase();}
+    get ready(){return Boolean(state.tiff);},get z(){return state.z;},get target(){return state.target;},get zoom(){return state.zoom;},get surface(){return surface;},get displayWindow(){return [state.black,state.white];},
+    setZ,
+    async gotoPoint(caseId,volumeId,pointNm){
+      if(!state.metadata?.cases.some(c=>c.case_id===caseId))return;
+      if(state.currentCase?.case_id!==caseId||state.volume?.volume_id!==volumeId){ui.caseSelect.value=caseId;await selectCase(volumeId);}
+      if(!state.tiff)return;const local=toLocal(pointNm);setZ(local[2]);
+      ui.viewport.scrollLeft=Math.max(0,(local[0]+.5)*state.zoom-ui.viewport.clientWidth/2);ui.viewport.scrollTop=Math.max(0,(local[1]+.5)*state.zoom-ui.viewport.clientHeight/2);
+    },
+    async select(id,volumeId,z){
+      const requested=state.metadata?.cases.find(c=>c.case_id===id);if(!requested)return;
+      if(volumeId&&!requested.volumes.some(v=>v.volume_id===volumeId))throw new Error('Указанный объём не принадлежит случаю '+id+'.');
+      // Saved evidence may belong to a case outside the currently displayed pilot group.
+      if(!Array.from(ui.caseSelect.options).some(option=>option.value===id)){
+        const group=byId('caseGroup');if(group)group.value='all';
+        ui.caseSelect.replaceChildren(...state.metadata.cases.map(c=>new Option(c.case_id,c.case_id)));
+      }
+      ui.caseSelect.value=id;return await selectCase(volumeId,z);
+    }
   };
   if(document.readyState!=='complete')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
