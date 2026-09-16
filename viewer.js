@@ -183,8 +183,8 @@
       const point={id:contact.contact_id,key,label:contact.contact_id+suffix,nm:contact[key],local};points.push(point);
       if(!ui.overlayToggle.checked||local[2]!==state.z)continue;
       const x=local[0]+.5,y=local[1]+.5,r=5/state.zoom;
-      ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.strokeStyle='#172632';ctx.lineWidth=4/state.zoom;ctx.stroke();ctx.strokeStyle='#ffda65';ctx.lineWidth=2/state.zoom;ctx.stroke();
-      ctx.font='bold '+(13/state.zoom)+'px system-ui';ctx.lineWidth=3/state.zoom;ctx.strokeStyle='#172632';ctx.strokeText(point.label,x+8/state.zoom,y-8/state.zoom);ctx.fillStyle='#ffe18b';ctx.fillText(point.label,x+8/state.zoom,y-8/state.zoom);
+      MarkerStyles.draw(ctx,x,y,r,key,'',false,1/state.zoom);
+      ctx.font='bold '+(13/state.zoom)+'px system-ui';ctx.lineWidth=3/state.zoom;ctx.strokeStyle='#172632';ctx.strokeText(point.label,x+8/state.zoom,y-8/state.zoom);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(point.label,x+8/state.zoom,y-8/state.zoom);
     }
     surface.setTargets?.(points,ui.overlayToggle.checked);
     const target=state.target;

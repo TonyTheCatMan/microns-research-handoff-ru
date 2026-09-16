@@ -20,10 +20,8 @@
     if([...$('evidencePair').options].some(o=>o.value===pair))$('evidencePair').value=pair;
   }
   function association(){
-    const value=$('evidenceLink').value,c=viewer().currentCase.case_id;
-    if(value.startsWith('T:')){const contact_id=value.slice(2);return{contact_id,review_id:'CONTACT_REVIEW:'+c+':'+contact_id,table:'CONTACT_REVIEW'};}
-    if(value.startsWith('N:')){const annotation_id=value.slice(2),r=api().records.find(r=>r.id===annotation_id);return{annotation_id,contact_id:'N'+r.number,...(r.kind==='contact'?{review_id:'ADDITIONAL_CONTACTS:'+annotation_id,table:'ADDITIONAL_CONTACTS'}:{})};}
-    return{review_id:'CASE_REVIEW:'+c,table:'CASE_REVIEW'};
+    const r=api().records.find(r=>r.id===api().selectedId&&r.case_id===viewer().currentCase.case_id);
+    return r?{annotation_id:r.id}:{};
   }
   async function capture(source,link){
     const v=viewer();if(!api()?.store||!v?.ready)return;
@@ -72,12 +70,12 @@
     const current=rows.filter(r=>r.case_id===viewer()?.currentCase?.case_id).sort((a,b)=>a.created_at.localeCompare(b.created_at));
     const nodes=current.map(row=>{
       const article=document.createElement('article');article.className='evidence-row';article.dataset.evidenceId=row.id;
-      const label=document.createElement('span'),small=document.createElement('small');label.textContent=(row.source_view==='3d'?'3D · ':'2D · ')+row.volume_id+' · Z '+row.local_z+(row.caption?' · '+row.caption:'');small.textContent='E:'+row.id+(row.contact_id?' · '+row.contact_id:'')+(row.linked_evidence_id?' · парное 2D E:'+row.linked_evidence_id:'');label.append(small);article.append(label);
+      const label=document.createElement('span'),small=document.createElement('small');label.textContent=(row.source_view==='3d'?'3D · ':'2D · ')+row.volume_id+' · Z '+row.local_z+(row.caption?' · '+row.caption:'');small.textContent=new Date(row.created_at).toLocaleString('ru-RU');label.append(small);article.append(label);
       article.append(button('Посмотреть',async()=>{const old=article.querySelector('img');if(old){old.remove();return;}const e=await get(row.id),url=URL.createObjectURL(e.annotated);urls.push(url);const img=document.createElement('img');img.className='evidence-preview';img.alt=row.caption||'Сохранённый вид '+row.volume_id;img.src=url;article.append(img);}),
         button('Скачать PNG',async()=>download((await get(row.id)).annotated,row.volume_id+'-'+row.source_view+'-'+row.id.slice(0,8)+'.png')),
         button(row.source_view==='3d'?'Восстановить вид 3D':'Перейти к срезу',()=>restoreView(row)));
       if(row.source_view==='2d')article.append(button('Без меток PNG',async()=>download((await get(row.id)).raw,row.volume_id+'-raw-'+row.id.slice(0,8)+'.png')));
-      article.append(button('Удалить изображение',async()=>{await api().enqueue(async()=>{await api().store.removeEvidence(row.id);await refresh();notify();status('Изображение удалено. Анатомические записи сохранены; ссылку E при необходимости замените.');});}));
+      article.append(button('Удалить изображение',async()=>{await api().enqueue(async()=>{await api().store.removeEvidence(row.id);await refresh();notify();status('Снимок удалён. Заметки сохранены.');});}));
       return article;
     });
     if(!nodes.length){const p=document.createElement('p');p.className='hint';p.textContent='В этом случае ещё нет сохранённых изображений. Выберите нужный срез или ракурс и нажмите «Сохранить». ';nodes.push(p);}

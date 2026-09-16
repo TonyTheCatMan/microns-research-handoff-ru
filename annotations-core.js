@@ -116,6 +116,7 @@
     const source_view=choice(value.source_view||'2d',['2d','3d'],'вид доказательства');
     if(value.point_nm!==undefined&&value.point_nm!==null&&(!point(value.point_nm)||value.point_nm.some((n,i)=>n<min[i]||n>=max[i])||source_view==='2d'&&Math.floor(value.point_nm[2]/res[2])-v.begin_vox_xyz[2]!==value.local_z))fail('Точка доказательства не соответствует срезу.');
     const result={id:value.id,case_id:value.case_id,volume_id:value.volume_id,annotation_id:value.annotation_id??null,contact_id:value.contact_id??null,local_z:value.local_z,global_z:value.global_z,point_nm:value.point_nm?[...value.point_nm]:null,caption:plain(value.caption??'','подпись доказательства'),created_at:timestamp(value.created_at),updated_at:timestamp(value.updated_at),source_view,linked_to_slice:source_view==='2d'||value.linked_to_slice===true,annotated_file:'evidence/'+value.id+(source_view==='3d'?'/3d-navigation.png':'/annotated.png'),raw_file:source_view==='3d'?null:'evidence/'+value.id+'/raw.png'};
+    if(value.annotated_file?.startsWith('images/')){if(!/^images\/[A-Za-z0-9_.-]+\.png$/.test(value.annotated_file))fail('Неверное имя снимка.');result.annotated_file=value.annotated_file;}
     if(result.annotation_id!==null&&(typeof result.annotation_id!=='string'||!/^[0-9a-f-]{36}$/i.test(result.annotation_id)))fail('Неверная ссылка на аннотацию.');
     if(result.contact_id!==null&&!ctx.cases.get(value.case_id).contacts.some(r=>r.contact_id===result.contact_id)&&!/^N[1-9]\d*$/.test(result.contact_id))fail('Неверная ссылка на контакт.');
     if(value.display_window!==undefined){if(!Array.isArray(value.display_window)||value.display_window.length!==2||!value.display_window.every(Number.isFinite)||value.display_window[0]>=value.display_window[1])fail('Неверная яркость доказательства.');result.display_window=[...value.display_window];}
@@ -175,7 +176,7 @@
     async add(input){
       return transaction(this.db,['annotations','counters'],'readwrite',async tx=>{
         if(!this.context.cases.has(input.case_id))fail('Неизвестный случай.');
-        const counters=tx.objectStore('counters'),counter=await request(counters.get(input.case_id)),number=(counter?.last_number||0)+1,t=now();
+        const counters=tx.objectStore('counters'),active=await request(tx.objectStore('annotations').getAll()),number=active.filter(r=>r.case_id===input.case_id).reduce((n,r)=>Math.max(n,r.number),0)+1,t=now();
         const row=validateRecord({...input,id:uuid(),number,label:input.label||'',segment_id:input.segment_id??null,object_id:input.object_id??null,status:input.status||'uncertain',location:input.location||'uncertain',properties:input.properties||'',notes:input.notes||'',kind:input.kind||'contact',created_at:t,updated_at:t},this.context);
         await request(tx.objectStore('annotations').add(row));await request(counters.put({case_id:row.case_id,last_number:number}));return row;
       });
@@ -195,7 +196,7 @@
       const validated=validateRecord(record,this.context);
       return transaction(this.db,['annotations','deleted','counters'],'readwrite',async tx=>{
         const records=tx.objectStore('annotations'),existing=await request(records.get(validated.id));if(existing)fail('Аннотация уже существует.');
-        const all=await request(records.getAll());if(all.some(r=>r.case_id===validated.case_id&&r.number===validated.number))fail('Этот номер уже занят; восстановите запись через импорт.');
+        const all=await request(records.getAll());if(all.some(r=>r.case_id===validated.case_id&&r.number===validated.number))validated.number=all.filter(r=>r.case_id===validated.case_id).reduce((n,r)=>Math.max(n,r.number),0)+1;
         const deleted=await request(tx.objectStore('deleted').get(validated.id));
         const row={...validated,updated_at:now(deleted?.deleted_at||validated.updated_at)};
         await request(records.add(row));await request(tx.objectStore('deleted').delete(row.id));
@@ -270,8 +271,8 @@
           const row=clone(incoming);
           if(old)row.number=old.number;
           else if(tomb)row.number=tomb.number;
-          else if([...current.values(),...tombstones.values()].some(r=>r.case_id===row.case_id&&r.number===row.number)){
-            const previous=row.number;row.number=(counts.get(row.case_id)||0)+1;counts.set(row.case_id,row.number);report.renumbered.push({id:row.id,case_id:row.case_id,from:previous,to:row.number});
+          if([...current.values()].some(r=>r.id!==row.id&&r.case_id===row.case_id&&r.number===row.number)){
+            const previous=row.number;row.number=[...current.values()].filter(r=>r.case_id===row.case_id).reduce((n,r)=>Math.max(n,r.number),0)+1;counts.set(row.case_id,row.number);report.renumbered.push({id:row.id,case_id:row.case_id,from:previous,to:row.number});
           }
           await request(records.put(row));await request(deleted.delete(row.id));current.set(row.id,row);tombstones.delete(row.id);
           if(old){report.updated++;report.conflicts.push({id:row.id,case_id:row.case_id,reason:'newer_import_used'});}else report.added++;
@@ -324,25 +325,23 @@
         return report;
       });
     }
-    async exportFiles(filter={}, {backup}={}){
+    async exportFiles(filter={}, {backup,extraEvidence=[]}={}){
       const data=backup?validatePackage(backup,this.context):await this.exportData(filter);
-      const files=[{name:'findings.json',text:JSON.stringify(data,null,2)},{name:'annotations.csv',text:csv(data.annotations)},{name:'case-notes.csv',text:casesCSV(data.cases)},{name:'reviewer.json',text:JSON.stringify(data.reviewer,null,2)},{name:'settings.json',text:JSON.stringify(data.settings,null,2)}];
-      const annotationMap=new Map(data.annotations.map(a=>[a.id,a]));
-      const exportRows=[...data.review_records],linkedContacts=new Set(exportRows.filter(r=>r.table==='ADDITIONAL_CONTACTS').map(r=>r.data.annotation_id));
-      for(const a of data.annotations)if(a.kind==='contact'&&!linkedContacts.has(a.id))exportRows.push({id:'ADDITIONAL_CONTACTS:'+a.id,table:'ADDITIONAL_CONTACTS',case_id:a.case_id,data:{case_id:a.case_id,annotation_id:a.id}});
-      const exportRow=r=>{const a=annotationMap.get(r.data.annotation_id);return a?{...r.data,new_contact_id:'N'+a.number,volume_id:a.volume_id,x_nm:String(a.point_nm[0]),y_nm:String(a.point_nm[1]),z_nm:String(a.point_nm[2]),location_head_neck_shaft:r.data.location_head_neck_shaft||a.location,reason_or_uncertainty:r.data.reason_or_uncertainty||a.notes,annotation_properties:a.properties}:r.data;};
-      for(const [table,headers] of Object.entries(FORM_FIELDS)){const rows=exportRows.filter(r=>r.table===table).map(exportRow);files.push({name:table+'.csv',text:makeCSV(headers,rows)});}
-      files.push({name:'CONTACT_DETAILS.csv',text:makeCSV(['case_id','contact_id','new_contact_id','annotation_id',...EXTRA_FIELDS.CONTACT_REVIEW,'annotation_properties'],exportRows.filter(r=>['CONTACT_REVIEW','ADDITIONAL_CONTACTS'].includes(r.table)).map(exportRow))});
-      files.push({name:'CASE_COVERAGE.csv',text:makeCSV(['case_id',...EXTRA_FIELDS.CASE_REVIEW],data.review_records.filter(r=>r.table==='CASE_REVIEW').map(r=>r.data))});
-      files.push({name:'evidence.csv',text:makeCSV(['id','case_id','volume_id','source_view','linked_to_slice','annotation_id','contact_id','review_id','table','local_z','global_z','caption','annotated_file','raw_file','created_at'],data.evidence)});
+      const headers=['Случай','Метка','Тип','Заметка','Объём','Срез Z','X нм','Y нм','Z нм'],types={contact:'Контакт',point:'Особенность',object:'Объект',region:'Область'};
+      const rows=data.annotations.map(r=>{const {v,res}=volumeInfo(this.context,r.case_id,r.volume_id);return{'Случай':r.case_id,'Метка':r.number,'Тип':types[r.kind],'Заметка':[r.properties,r.notes].filter(Boolean).join('\n'),'Объём':r.volume_id,'Срез Z':Math.floor(r.point_nm[2]/res[2])-v.begin_vox_xyz[2],'X нм':r.point_nm[0],'Y нм':r.point_nm[1],'Z нм':r.point_nm[2]};});
+      const files=[{name:'results.csv',text:makeCSV(headers,rows)}];
       const all=new Map((await this.getEvidence({}, {blobs:true})).map(r=>[r.id,r]));
-      for(const meta of data.evidence){const e=all.get(meta.id);if(!e)fail('Доказательство было удалено во время экспорта. Повторите экспорт.');files.push({name:meta.annotated_file,bytes:new Uint8Array(await e.annotated.arrayBuffer())});if(meta.raw_file)files.push({name:meta.raw_file,bytes:new Uint8Array(await e.raw.arrayBuffer())});}
+      for(const item of extraEvidence)all.set(item.id,item);
+      data.raw_images={};let index=0;
+      for(const meta of data.evidence){const e=all.get(meta.id);if(!e)fail('Снимок удалён во время экспорта. Повторите сохранение.');meta.annotated_file=`images/${meta.volume_id}-Z${meta.local_z}-${meta.source_view.toUpperCase()}-${++index}.png`;files.push({name:meta.annotated_file,bytes:new Uint8Array(await e.annotated.arrayBuffer())});if(meta.raw_file){const bytes=new Uint8Array(await e.raw.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));data.raw_images[meta.id]=btoa(binary);}}
+      files.splice(1,0,{name:'backup.json',text:JSON.stringify(data)});
       return files;
     }
     async importZIP(file,{policy='keep-existing'}={}){
-      const entries=await unzipStored(file),text=entries.get('findings.json');if(!text)fail('В архиве нет findings.json.');
+      const entries=await unzipStored(file),text=entries.get('backup.json')||entries.get('findings.json');if(!text)fail('В архиве нет резервной копии.');
+      if(entries.has('backup.json')&&entries.has('findings.json'))fail('В архиве две резервные копии. Загрузите исходный ZIP сайта.');
       const data=validatePackage(JSON.parse(new TextDecoder().decode(text)),this.context),evidenceFiles=new Map();
-      for(const row of data.evidence){const annotated=entries.get(row.annotated_file),raw=row.raw_file?entries.get(row.raw_file):null;if(!annotated||row.raw_file&&!raw)fail('В архиве отсутствует изображение: '+row.id);evidenceFiles.set(row.id,{annotated:new Blob([annotated],{type:'image/png'}),raw:raw?new Blob([raw],{type:'image/png'}):null});}
+      for(const row of data.evidence){const annotated=entries.get(row.annotated_file);let raw=row.raw_file?entries.get(row.raw_file):null;if(row.raw_file&&!raw&&data.raw_images?.[row.id]){const encoded=data.raw_images[row.id];if(typeof encoded!=='string'||encoded.length>35*1024*1024||!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded))fail('Повреждено исходное изображение.');raw=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0));}if(!annotated||row.raw_file&&!raw)fail('В архиве отсутствует изображение: '+row.id);evidenceFiles.set(row.id,{annotated:new Blob([annotated],{type:'image/png'}),raw:raw?new Blob([raw],{type:'image/png'}):null});}
       return this.importData(data,{policy,evidenceFiles});
     }
   }
