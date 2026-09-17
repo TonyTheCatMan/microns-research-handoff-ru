@@ -240,7 +240,7 @@
         captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'2d',annotation_ids:sectionIds},annotated:imageBlob(true),raw:imageBlob(false)});
         captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'3d',annotation_ids:shot.view.annotation_ids,view_settings:shot.view},annotated:shot.blob,raw:Promise.resolve(null)});
       }
-      const neuroglancer=includeImages&&!notesWindow?window.NeuroglancerLink?.captureCurrent(frozenCase):Promise.resolve(null);
+      const neuroglancer=includeImages&&scope==='all'&&!notesWindow?window.NeuroglancerLink?.captureCurrent(frozenCase):Promise.resolve(null);
       neuroglancer?.catch(()=>{});
       const pixels=Promise.all(captured.map(async item=>{const [annotated,raw]=await Promise.all([item.annotated,item.raw]);return{...item,annotated,raw};}));pixels.catch(()=>{});
       const settings=notesWindow?await store.getSettings():{preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
@@ -259,7 +259,7 @@
       const ngShot=await neuroglancer;
       if(ngShot)files.push({name:`images/${frozenCase}-Neuroglancer-current.png`,bytes:new Uint8Array(await ngShot.arrayBuffer())});
       download(AnnotationsCore.zip(files),'MICrONS-'+(isCase?frozenCase:includeImages?'all-results-with-images':'all-results')+'-'+new Date().toISOString().slice(0,10)+'.zip');
-      $('restoreResult').textContent=!includeImages?'Все точки и заметки сохранены. ZIP можно загрузить для продолжения работы.':(isCase?'Случай сохранён':'Все результаты сохранены')+`: снимков ${data.evidence.length+(ngShot?1:0)}. `+(notesWindow?'Для снимков сохраняйте из основного просмотрщика.':'Только текущие 2D / 3D'+(ngShot?' и Neuroglancer.':'. Откройте Neuroglancer перед сохранением, чтобы включить его текущий вид.'));
+      $('restoreResult').textContent=!includeImages?'Все точки и заметки сохранены. ZIP можно загрузить для продолжения работы.':(isCase?'Случай сохранён':'Все результаты сохранены')+`: снимков ${data.evidence.length+(ngShot?1:0)}. `+(notesWindow?'Для снимков сохраняйте из основного просмотрщика.':'Только текущие 2D / 3D'+(ngShot?' и Neuroglancer.':isCase?'.':'. Откройте Neuroglancer перед сохранением, чтобы включить его текущий вид.'));
     }catch(error){$('restoreResult').textContent='Не удалось сохранить: '+error.message;$('restoreResult').classList.add('save-failed');}
     finally{exportBusy=false;exportButtons.forEach(button=>button.disabled=false);}
   }
@@ -267,14 +267,14 @@
   $('annotationsExportAllImages').addEventListener('click',()=>exportFindings('all',{includeImages:true}));
   $('annotationsExportCase').addEventListener('click',()=>exportFindings('case'));
   $('annotationsExportImage').addEventListener('click',()=>exportFindings('image'));
-  $('annotationsImport').addEventListener('change',async event=>{
+  async function importFindings(event,caseOnly=false){
     const input=event.target,file=input.files[0];if(!file||!store)return;
     const target=$('restoreResult');input.disabled=true;target.classList.remove('save-failed');target.textContent='Загружаем все метки и заметки…';
     const previousSettings={preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
     if(viewer()?.ready){const v=viewer();previousSettings.last_view={case_id:currentCase,volume_id:v.volume.volume_id,z:v.z};previousSettings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)previousSettings.surface_view=v.surface.getViewState();}
     try{
       let chain;do{chain=saveChain;await chain;}while(chain!==saveChain);if(failures.length)throw new Error('Сначала повторите сохранение текущих изменений.');
-      const result=/\.zip$/i.test(file.name)?await store.importZIP(file,{policy:'restore'}):await store.importData(JSON.parse(await file.text()),{policy:'restore'});
+      const result=/\.zip$/i.test(file.name)?await store.importZIP(file,{policy:'restore',caseOnly}):await store.importData(JSON.parse(await file.text()),{policy:'restore',caseOnly});
       selectedId=null;lastEditorId=null;await refresh();await window.HandoffAssessment?.refresh();await window.HandoffEvidence?.refresh();broadcast({type:'changed'});
       const settings=result.settings||{},first=result.case_ids[0];
       if(!settings.last_view&&first){const c=metadata.cases.find(c=>c.case_id===first);settings.last_view={case_id:first,volume_id:c.volumes[0].volume_id,z:0};}
@@ -288,7 +288,10 @@
       target.scrollIntoView({block:'center',behavior:'smooth'});
     }catch(error){target.textContent='Файл не восстановлен: '+error.message;target.classList.add('save-failed');target.scrollIntoView({block:'center',behavior:'smooth'});}
     finally{input.disabled=false;input.value='';}
-  });
+  }
+  $('annotationsImport').addEventListener('change',event=>importFindings(event));
+  $('annotationsImportCase').addEventListener('change',event=>importFindings(event,true));
+  $('neuroglancerImportCase').addEventListener('click',()=>$('annotationsImportCase').click());
   async function applySettings(settings){
     if(settings.preferences){for(const [id,value]of Object.entries(settings.preferences))if($(id)){$(id).checked=value;$(id).dispatchEvent(new Event('change'));}prefsSave();}
     if(settings.last_view){localStorage.setItem('microns-last-view-v1',JSON.stringify(settings.last_view));await viewer().select(settings.last_view.case_id,settings.last_view.volume_id,settings.last_view.z);}
@@ -302,7 +305,7 @@
   }
   async function boot(data) {
     metadata=data;
-    try{store=await AnnotationsCore.open(data);await recoverPending();await refresh();currentCase=viewer()?.currentCase?.case_id||'';if(params.get('annotation')&&byId(params.get('annotation'))?.case_id===currentCase)selectedId=params.get('annotation');for(const id of ['annotationsExportAll','annotationsExportAllImages','annotationsExportCase','annotationsImport'])$(id).disabled=false;syncCase();renderList();renderEditor(true);renderCaseNotes(true);saveStatus();window.dispatchEvent(new Event("annotations:ready"));}catch(error){$('annotationSaveStatus').textContent='Локальное сохранение недоступно: '+error.message+'. Разрешите хранение данных сайта и обновите страницу.';$('annotationSaveStatus').classList.add('save-failed');}
+    try{store=await AnnotationsCore.open(data);await recoverPending();await refresh();currentCase=viewer()?.currentCase?.case_id||'';if(params.get('annotation')&&byId(params.get('annotation'))?.case_id===currentCase)selectedId=params.get('annotation');for(const id of ['annotationsExportAll','annotationsExportAllImages','annotationsExportCase','annotationsImport','annotationsImportCase'])$(id).disabled=false;syncCase();renderList();renderEditor(true);renderCaseNotes(true);saveStatus();window.dispatchEvent(new Event("annotations:ready"));}catch(error){$('annotationSaveStatus').textContent='Локальное сохранение недоступно: '+error.message+'. Разрешите хранение данных сайта и обновите страницу.';$('annotationSaveStatus').classList.add('save-failed');}
   }
   window.addEventListener('review:ready',event=>boot(event.detail),{once:true});
   if(viewer()?.metadata)boot(viewer().metadata);

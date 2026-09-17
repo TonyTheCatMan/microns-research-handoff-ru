@@ -1,0 +1,154 @@
+[
+  {
+    "crate": "crossbeam-deque-0.8.5",
+    "url": "https://static.crates.io/crates/crossbeam-deque/crossbeam-deque-0.8.5.crate",
+    "licenses": [
+      "rust\\crossbeam-deque-0.8.5\\LICENSE-APACHE",
+      "rust\\crossbeam-deque-0.8.5\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "crossbeam-epoch-0.9.18",
+    "url": "https://static.crates.io/crates/crossbeam-epoch/crossbeam-epoch-0.9.18.crate",
+    "licenses": [
+      "rust\\crossbeam-epoch-0.9.18\\LICENSE-APACHE",
+      "rust\\crossbeam-epoch-0.9.18\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "dlmalloc-0.2.6",
+    "url": "https://static.crates.io/crates/dlmalloc/dlmalloc-0.2.6.crate",
+    "licenses": [
+      "rust\\dlmalloc-0.2.6\\LICENSE-APACHE",
+      "rust\\dlmalloc-0.2.6\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "hashbrown-0.14.5",
+    "url": "https://static.crates.io/crates/hashbrown/hashbrown-0.14.5.crate",
+    "licenses": [
+      "rust\\hashbrown-0.14.5\\LICENSE-APACHE",
+      "rust\\hashbrown-0.14.5\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-bitstream-0.5.1",
+    "url": "https://static.crates.io/crates/jxl-bitstream/jxl-bitstream-0.5.1.crate",
+    "licenses": [
+      "rust\\jxl-bitstream-0.5.1\\LICENSE-APACHE",
+      "rust\\jxl-bitstream-0.5.1\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-coding-0.5.0",
+    "url": "https://static.crates.io/crates/jxl-coding/jxl-coding-0.5.0.crate",
+    "licenses": [
+      "rust\\jxl-coding-0.5.0\\LICENSE-APACHE",
+      "rust\\jxl-coding-0.5.0\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-color-0.9.0",
+    "url": "https://static.crates.io/crates/jxl-color/jxl-color-0.9.0.crate",
+    "licenses": [
+      "rust\\jxl-color-0.9.0\\LICENSE-APACHE",
+      "rust\\jxl-color-0.9.0\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-frame-0.11.1",
+    "url": "https://static.crates.io/crates/jxl-frame/jxl-frame-0.11.1.crate",
+    "licenses": [
+      "rust\\jxl-frame-0.11.1\\LICENSE-APACHE",
+      "rust\\jxl-frame-0.11.1\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-grid-0.5.2",
+    "url": "https://static.crates.io/crates/jxl-grid/jxl-grid-0.5.2.crate",
+    "licenses": [
+      "rust\\jxl-grid-0.5.2\\LICENSE-APACHE",
+      "rust\\jxl-grid-0.5.2\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-image-0.11.0",
+    "url": "https://static.crates.io/crates/jxl-image/jxl-image-0.11.0.crate",
+    "licenses": [
+      "rust\\jxl-image-0.11.0\\LICENSE-APACHE",
+      "rust\\jxl-image-0.11.0\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-modular-0.9.1",
+    "url": "https://static.crates.io/crates/jxl-modular/jxl-modular-0.9.1.crate",
+    "licenses": [
+      "rust\\jxl-modular-0.9.1\\LICENSE-APACHE",
+      "rust\\jxl-modular-0.9.1\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-oxide-0.10.2",
+    "url": "https://static.crates.io/crates/jxl-oxide/jxl-oxide-0.10.2.crate",
+    "licenses": [
+      "rust\\jxl-oxide-0.10.2\\LICENSE-APACHE",
+      "rust\\jxl-oxide-0.10.2\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-render-0.10.1",
+    "url": "https://static.crates.io/crates/jxl-render/jxl-render-0.10.1.crate",
+    "licenses": [
+      "rust\\jxl-render-0.10.1\\LICENSE-APACHE",
+      "rust\\jxl-render-0.10.1\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-threadpool-0.1.1",
+    "url": "https://static.crates.io/crates/jxl-threadpool/jxl-threadpool-0.1.1.crate",
+    "licenses": [
+      "rust\\jxl-threadpool-0.1.1\\LICENSE-APACHE",
+      "rust\\jxl-threadpool-0.1.1\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "jxl-vardct-0.9.0",
+    "url": "https://static.crates.io/crates/jxl-vardct/jxl-vardct-0.9.0.crate",
+    "licenses": [
+      "rust\\jxl-vardct-0.9.0\\LICENSE-APACHE",
+      "rust\\jxl-vardct-0.9.0\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "once_cell-1.20.2",
+    "url": "https://static.crates.io/crates/once_cell/once_cell-1.20.2.crate",
+    "licenses": [
+      "rust\\once_cell-1.20.2\\LICENSE-APACHE",
+      "rust\\once_cell-1.20.2\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "rayon-1.10.0",
+    "url": "https://static.crates.io/crates/rayon/rayon-1.10.0.crate",
+    "licenses": [
+      "rust\\rayon-1.10.0\\LICENSE-APACHE",
+      "rust\\rayon-1.10.0\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "rayon-core-1.12.1",
+    "url": "https://static.crates.io/crates/rayon-core/rayon-core-1.12.1.crate",
+    "licenses": [
+      "rust\\rayon-core-1.12.1\\LICENSE-APACHE",
+      "rust\\rayon-core-1.12.1\\LICENSE-MIT"
+    ]
+  },
+  {
+    "crate": "tracing-core-0.1.33",
+    "url": "https://static.crates.io/crates/tracing-core/tracing-core-0.1.33.crate",
+    "licenses": [
+      "rust\\tracing-core-0.1.33\\LICENSE",
+      "rust\\tracing-core-0.1.33\\LICENSE"
+    ]
+  }
+]

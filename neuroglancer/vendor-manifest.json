@@ -1,0 +1,80 @@
+{
+  "source": "https://ngl.microns-explorer.org/",
+  "files": [
+    {
+      "path": "09f21dcf7b4f13e8.wasm",
+      "bytes": 151589,
+      "sha256": "3201adf1c140cc636008290a727b59360ec3d228d2fb8a2b46fc7ac652f87122"
+    },
+    {
+      "path": "174.50e353543e20d218.js",
+      "bytes": 747543,
+      "sha256": "6d6dfd330fe1743386c14a8e43c086a48499f5ce7643e1fd611dda8cca629538"
+    },
+    {
+      "path": "205.e3bb78c5d2204385.js",
+      "bytes": 245761,
+      "sha256": "3eaad6cf05f9948a502e20e40a7d5429b68a15cd034f76903843d3aa677b2bde"
+    },
+    {
+      "path": "213.85b7f41248692099.js",
+      "bytes": 11785,
+      "sha256": "8468b2258712d72bf85a89183426df88f5a3be085e9b351521f17b4e5f6129f6"
+    },
+    {
+      "path": "412.836450b764541754.js",
+      "bytes": 69817,
+      "sha256": "c3be3b7a2c03d275169bee6f96f0edc70dd551a5e68aa25a10727f78f966e773"
+    },
+    {
+      "path": "451.f4a0ec14850e18f3.js",
+      "bytes": 126425,
+      "sha256": "fdcadb96eae3449e4e8fd93134ee5340ab44e90b47fd7042ac3514981417db12"
+    },
+    {
+      "path": "452.65fd5948c85273e0.js",
+      "bytes": 237870,
+      "sha256": "517c49bc5b304f7f8beb4506209761670b4b1e283ea7586d00bee6846015f84f"
+    },
+    {
+      "path": "5b383a2480cdc3ac.wasm",
+      "bytes": 1683358,
+      "sha256": "9e1048423419df1c0a049ebde744c9b372bfbb3232c6c5a01525c2ee08ff62d6"
+    },
+    {
+      "path": "733.3e4d41581f5b1eae.js",
+      "bytes": 603525,
+      "sha256": "a3d90f2c9e8ef022ff0e68ba0ebaca18e160150f75ebc6b1546f7d3af5878e79"
+    },
+    {
+      "path": "822.335cc1cd71a6c687.js",
+      "bytes": 7879,
+      "sha256": "b40b306636290ab245aee266740d76b20565205acd9661b5193db68b67e4c2ce"
+    },
+    {
+      "path": "890.9a29af4fa38de4c7.js",
+      "bytes": 28778,
+      "sha256": "f954406dc775f2ed48426c81d752e05d9ffe6cdabba93d44c0ce21e1d036ca6d"
+    },
+    {
+      "path": "def6161ec2354b02.wasm",
+      "bytes": 43596,
+      "sha256": "c6bbfc556e2527a5ef41895514ddff94c3c5fe05637bd78b769a69fcd22a0941"
+    },
+    {
+      "path": "e431fe7ba8d0a870.wasm",
+      "bytes": 44088,
+      "sha256": "feb7db04f4ee19884c2486caa80b6c88418e86d881ba101085bdc27825fcc8b8"
+    },
+    {
+      "path": "main.e9945dcc2df22b9e.css",
+      "bytes": 79443,
+      "sha256": "aa1d8587f9ca775364a7b92fe68ed2d4a055c35cd9de18d19d73bc38bb597bd7"
+    },
+    {
+      "path": "main.e9945dcc2df22b9e.js",
+      "bytes": 1240000,
+      "sha256": "91e70c4c7c8648fd2fc8a58695bf00c58a5f004f9f6cd48228696e03836ccc54"
+    }
+  ]
+}

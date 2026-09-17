@@ -249,9 +249,17 @@
       });
     }
     async backupJSON(filter={}){return JSON.stringify(await this.exportData(filter),null,2);}
-    async importData(input,{policy='keep-existing',evidenceFiles=new Map()}={}){
+    async importData(input,{policy='keep-existing',evidenceFiles=new Map(),caseOnly=false}={}){
       if(!['keep-existing','newer','restore'].includes(policy))fail('Неизвестный режим объединения.');
       const data=validatePackage(typeof input==='string'?JSON.parse(input):input,this.context);
+      let importCaseId=null;
+      if(caseOnly){
+        const ids=new Set([data.scope?.case_id,...['annotations','cases','counters','deleted','review_records','evidence'].flatMap(key=>data[key].map(r=>r.case_id))].filter(Boolean));
+        if(ids.size!==1||!this.context.cases.has([...ids][0]))fail('Выберите файл одного случая. Для общего архива используйте «Загрузить все результаты».');
+        importCaseId=[...ids][0];data.reviewer={};data.reviewer_updated_at=null;
+        const settings=data.settings;
+        data.settings=settings.last_view?.case_id===importCaseId?Object.fromEntries(['last_view','display','surface_view'].filter(k=>settings[k]!==undefined&&(k!=='surface_view'||settings[k].case_id===importCaseId)).map(k=>[k,settings[k]])):{};
+      }
       for(const row of data.evidence){const blobs=evidenceFiles.get(row.id);if(blobs){await validatePNG(blobs.annotated);if(row.source_view==='2d')await validatePNG(blobs.raw);}}
       return transaction(this.db,['annotations','cases','counters','deleted','reviews','evidence','meta'],'readwrite',async tx=>{
         const records=tx.objectStore('annotations'),cases=tx.objectStore('cases'),counterStore=tx.objectStore('counters'),deleted=tx.objectStore('deleted');
@@ -260,7 +268,7 @@
         const current=new Map((await request(records.getAll())).map(r=>[r.id,r]));
         const tombstones=new Map((await request(deleted.getAll())).map(r=>[r.id,r]));
         const counts=new Map((await request(counterStore.getAll())).map(r=>[r.case_id,r.last_number]));
-        const report={evidence_total:data.evidence.length,annotations_total:data.annotations.length,notes_total:data.annotations.filter(r=>r.notes||r.properties).length,case_ids:[...new Set([...data.annotations,...data.cases].map(r=>r.case_id))],settings:data.settings,added:0,updated:0,skipped:0,deleted:0,cases_added:0,cases_updated:0,reviews_added:0,reviews_updated:0,evidence_added:0,evidence_updated:0,settings_updated:0,missingEvidence:0,conflicts:[],renumbered:[]};
+        const report={evidence_total:data.evidence.length,annotations_total:data.annotations.length,notes_total:data.annotations.filter(r=>r.notes||r.properties).length,case_ids:caseOnly?[importCaseId]:[...new Set([...data.annotations,...data.cases].map(r=>r.case_id))],settings:data.settings,added:0,updated:0,skipped:0,deleted:0,cases_added:0,cases_updated:0,reviews_added:0,reviews_updated:0,evidence_added:0,evidence_updated:0,settings_updated:0,missingEvidence:0,conflicts:[],renumbered:[]};
         for(const c of data.counters)counts.set(c.case_id,Math.max(counts.get(c.case_id)||0,c.last_number));
         for(const row of [...data.annotations,...data.deleted])counts.set(row.case_id,Math.max(counts.get(row.case_id)||0,row.number));
         const identical=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -312,7 +320,7 @@
         if(Object.keys(data.settings).length){const s=tx.objectStore('meta'),old=await request(s.get('settings'));
           if(!old||!Object.keys(old.value||{}).length){await request(s.put({key:'settings',value:data.settings,updated_at:data.settings_updated_at||now()}));report.settings_updated++;}
           else if(!identical(old.value,data.settings)){
-            if(policy==='restore'||policy==='newer'&&data.settings_updated_at&&Date.parse(data.settings_updated_at)>Date.parse(old.updated_at)){await request(s.put({key:'settings',value:data.settings,updated_at:data.settings_updated_at}));report.settings_updated++;report.conflicts.push({reason:'newer_settings_used'});}
+            if(policy==='restore'||policy==='newer'&&data.settings_updated_at&&Date.parse(data.settings_updated_at)>Date.parse(old.updated_at)){await request(s.put({key:'settings',value:caseOnly?{...old.value,...data.settings}:data.settings,updated_at:data.settings_updated_at}));report.settings_updated++;report.conflicts.push({reason:'newer_settings_used'});}
             else report.conflicts.push({reason:'settings_kept'});
           }
         }
@@ -354,12 +362,12 @@
       files.splice(1,0,{name:'backup.json',text:JSON.stringify(data)});
       return files;
     }
-    async importZIP(file,{policy='keep-existing'}={}){
+    async importZIP(file,{policy='keep-existing',caseOnly=false}={}){
       const entries=await unzipStored(file),text=entries.get('backup.json')||entries.get('findings.json');if(!text)fail('В архиве нет резервной копии.');
       if(entries.has('backup.json')&&entries.has('findings.json'))fail('В архиве две резервные копии. Загрузите исходный ZIP сайта.');
       const data=validatePackage(JSON.parse(new TextDecoder().decode(text)),this.context),evidenceFiles=new Map();
       for(const row of data.evidence){const annotated=entries.get(row.annotated_file);let raw=row.raw_file?entries.get(row.raw_file):null;if(row.raw_file&&!raw&&data.raw_images?.[row.id]){const encoded=data.raw_images[row.id];if(typeof encoded!=='string'||encoded.length>35*1024*1024||!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded))fail('Повреждено исходное изображение.');raw=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0));}if(!annotated||row.raw_file&&!raw)fail('В архиве отсутствует изображение: '+row.id);evidenceFiles.set(row.id,{annotated:new Blob([annotated],{type:'image/png'}),raw:raw?new Blob([raw],{type:'image/png'}):null});}
-      return this.importData(data,{policy,evidenceFiles});
+      return this.importData(data,{policy,evidenceFiles,caseOnly});
     }
   }
   async function open(metadata,{dbName,indexedDB=globalThis.indexedDB}={}){

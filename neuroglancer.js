@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = 'https://ngl.microns-explorer.org/';
+  const HOST = new URL('neuroglancer/',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
 
@@ -29,8 +29,9 @@
       // Opening Neuroglancer shows the findings even if the main viewer's overlay was hidden.
       return [{type:'annotation',name:'Мои метки · '+label,visible:true,
         source:{url:'local://annotations',transform:{outputDimensions:dimensions}},annotationColor:color,
+        annotationProperties:[{id:'number',type:'uint32',description:'Номер метки',default:0}],
         shader:'void main(){setColor(defaultColor());setPointMarkerSize(16.0);setPointMarkerBorderColor(vec4(1.0));setPointMarkerBorderWidth(2.0);}',
-        annotations:points.map(r=>({type:'point',id:r.id,point:r.point_nm.map((n,i)=>n/resolution[i]),
+        annotations:points.map(r=>({type:'point',id:r.id,point:r.point_nm.map((n,i)=>n/resolution[i]),props:[r.number],
           description:[`№${r.number} · ${label} · ${r.case_id} · ${r.volume_id}`,r.notes,r.properties].filter(Boolean).join('\n')}))}];
     });
     return {
@@ -47,8 +48,7 @@
         {type: 'annotation', name: 'Заданные точки · не проверены', source: {url: 'local://annotations', transform: {outputDimensions: dimensions}}, annotationColor: '#ffca64', annotations},
         ...userLayers
       ],
-      // A 3D slice plane also occludes annotations. Keep the EM slice in its separate 2D panel.
-      showSlices: !records.length,
+      showSlices: true,
       selectedLayer: {visible: false},
       layout: {type: 'xy-3d', orthographicProjection: true}
     };

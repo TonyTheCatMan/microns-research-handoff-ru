@@ -1,0 +1,161 @@
+[
+  {
+    "path": "neuroglancer-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/google/neuroglancer/master/LICENSE",
+    "bytes": 11358,
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "path": "codemirror-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/codemirror/codemirror5/master/LICENSE",
+    "bytes": 1113,
+    "sha256": "168a4becc968f5001e2ee2e0291b6e4daabafc1894a11ade1e11d56e96096e07"
+  },
+  {
+    "path": "crc-32-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/SheetJS/js-crc32/master/LICENSE",
+    "bytes": 11355,
+    "sha256": "c542ba7851b5d39a5face477e47a27cb7c00a9759e321b66824e79718bffe1ac"
+  },
+  {
+    "path": "gl-matrix-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/toji/gl-matrix/master/LICENSE.md",
+    "bytes": 1083,
+    "sha256": "af62d31a0cdc1bf95d5e19428c3e0de368b727d9d5b6b6cdb466f8a52e68ad06"
+  },
+  {
+    "path": "lodash-es-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/lodash/lodash/4.17.21/LICENSE",
+    "bytes": 1952,
+    "sha256": "f71e8ed126b46346494aad5486874cd8f0aafe95092ed67d2e3cb6110f939abc"
+  },
+  {
+    "path": "core-js-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/zloirock/core-js/master/LICENSE",
+    "bytes": 1134,
+    "sha256": "b87653fff2d44426ab5cd4723cee3b1364dc8d35a0acdf098c54689543123bf8"
+  },
+  {
+    "path": "fflate-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/101arrowz/fflate/master/LICENSE",
+    "bytes": 1069,
+    "sha256": "0a1df3a083d0c010560aa342e87959c8c1070e6fd54545741f083f22d0c8b551"
+  },
+  {
+    "path": "msgpackr-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/kriszyp/msgpackr/master/LICENSE",
+    "bytes": 1065,
+    "sha256": "d00470775464c789c7ac04cfba3bf1b79ef149790eb72556d1c51d8f50c8e7f3"
+  },
+  {
+    "path": "nifti-reader-js-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/rii-mango/NIFTI-Reader-JS/master/LICENSE",
+    "bytes": 1054,
+    "sha256": "35d89c5827cb1f9685ffc3fb6ebcc9532f75663554ed6efddadad95071bae5c9"
+  },
+  {
+    "path": "valibot-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/fabian-hiller/valibot/main/LICENSE.md",
+    "bytes": 1065,
+    "sha256": "1ca6c9ca372cffe26c313464b9d9f0aef2417b27b2bad20396f4769005122d4d"
+  },
+  {
+    "path": "numcodecs-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/manzt/numcodecs.js/main/LICENSE",
+    "bytes": 1068,
+    "sha256": "785e5823c2471046f06ae8f64f0374557f1a14ec786febf690e2dbc65e804ce7"
+  },
+  {
+    "path": "ikonate-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/mikolajdobrucki/ikonate/master/LICENSE",
+    "bytes": 1082,
+    "sha256": "7b4fbc0fda4330e71c1c20706b69e69f2c5ea721fcf3791911188e268975b523"
+  },
+  {
+    "path": "draco-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/google/draco/main/LICENSE",
+    "bytes": 13898,
+    "sha256": "d3709b0fb4b8a94bbb1d02b8a2e484f258b0d9c5c5a01f940391f3fe662cd1a4"
+  },
+  {
+    "path": "libjxl-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/libjxl/libjxl/main/LICENSE",
+    "bytes": 1508,
+    "sha256": "8405932022a556380c2d8c272eff154a923feb197233f348ce5f7334fb0a5ede"
+  },
+  {
+    "path": "compresso-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/VCG/compresso/master/LICENSE",
+    "bytes": 1063,
+    "sha256": "fbbdf53238d4c6ce76a8646fabbc040feca836d70374ab71080e8b9ee5b4acea"
+  },
+  {
+    "path": "libpng-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/pnggroup/libpng/libpng16/LICENSE",
+    "bytes": 5345,
+    "sha256": "bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526"
+  },
+  {
+    "path": "zlib-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/madler/zlib/master/LICENSE",
+    "bytes": 1002,
+    "sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2"
+  },
+  {
+    "path": "zstd-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/facebook/zstd/dev/LICENSE",
+    "bytes": 1549,
+    "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+  },
+  {
+    "path": "blosc-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/Blosc/c-blosc/main/LICENSE.txt",
+    "bytes": 1644,
+    "sha256": "22623131a9b9f6a86a4dc6b9bccbb1d2aeb390df86bca00fc727af24735c2fae"
+  },
+  {
+    "path": "spng-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/randy408/libspng/master/LICENSE",
+    "bytes": 1341
+  },
+  {
+    "path": "miniz-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/richgel999/miniz/master/LICENSE",
+    "bytes": 1184
+  },
+  {
+    "path": "compresso-neuroglancer-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/google/neuroglancer/master/src/sliceview/compresso/LICENSE",
+    "bytes": 1142
+  },
+  {
+    "path": "cc3d-header.txt",
+    "url": "https://raw.githubusercontent.com/google/neuroglancer/master/src/sliceview/compresso/cc3d.hpp",
+    "bytes": 1185
+  },
+  {
+    "path": "lz4-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/lz4/lz4/dev/lib/LICENSE",
+    "bytes": 1311
+  },
+  {
+    "path": "snappy-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/google/snappy/main/COPYING",
+    "bytes": 2645
+  },
+  {
+    "path": "emscripten-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/emscripten-core/emscripten/main/LICENSE",
+    "bytes": 5093
+  },
+  {
+    "path": "rust-LICENSE-MIT.txt",
+    "url": "https://raw.githubusercontent.com/rust-lang/rust/master/LICENSE-MIT",
+    "bytes": 1068
+  },
+  {
+    "path": "rust-LICENSE-APACHE.txt",
+    "url": "https://raw.githubusercontent.com/rust-lang/rust/master/LICENSE-APACHE",
+    "bytes": 9723
+  }
+]

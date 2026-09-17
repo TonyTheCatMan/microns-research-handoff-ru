@@ -1,0 +1,651 @@
+Neuroglancer vendored browser runtime
+Source: https://ngl.microns-explorer.org/
+Pinned original entry bundle: main.e9945dcc2df22b9e.js
+Downloaded 2026-09-17. Runtime assets are unmodified. See prototype-manifest.json for checksums.
+
+Source-file copyright/license headers extracted from the deployed source maps:
+
+Sources: webpack://neuroglancer/./src/sliceview/png/index.ts
+/**
+ * @license
+ * Copyright 2022 William Silvermsith
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/sliceview/jxl/index.ts
+/**
+ * @license
+ * Copyright 2024 William Silvermsith
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/sliceview/compresso/index.ts
+/**
+ * @license
+ * Copyright 2021 William Silvermsith
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/async_computation/handler.ts, webpack://neuroglancer/./src/async_computation/encode_compressed_segmentation.ts, webpack://neuroglancer/./src/async_computation/index.ts, webpack://neuroglancer/./src/async_computation/encode_compressed_segmentation_request.ts, webpack://neuroglancer/./src/async_computation/decode_jpeg.ts, webpack://neuroglancer/./src/async_computation/decode_jpeg_request.ts, webpack://neuroglancer/./src/async_computation/vtk_mesh.ts, webpack://neuroglancer/./src/async_computation/vtk_mesh_request.ts, webpack://neuroglancer/./src/credentials_provider/http_request.ts, webpack://neuroglancer/./src/kvstore/s3/list.ts, webpack://neuroglancer/./src/util/matrix.ts, webpack://neuroglancer/./src/mesh/draco/index.ts, webpack://neuroglancer/./src/render_layer_backend.ts, webpack://neuroglancer/./src/util/si_units.ts, webpack://neuroglancer/./src/util/vector.ts, webpack://neuroglancer/./src/coordinate_transform.ts, webpack://neuroglancer/./src/render_coordinate_transform.ts, webpack://neuroglancer/./src/util/velocity_estimation.ts, webpack://neuroglancer/./src/util/zorder.ts, webpack://neuroglancer/./src/mesh/multiscale.ts, webpack://neuroglancer/./src/async_computation/request.ts, webpack://neuroglancer/./src/datasource/n5/backend.ts, webpack://neuroglancer/./src/datasource/n5/base.ts, webpack://neuroglancer/./src/datasource/zarr/base.ts, webpack://neuroglancer/./src/render_layer_common.ts, webpack://neuroglancer/./src/util/string.ts, webpack://neuroglancer/./src/util/message_list.ts, webpack://neuroglancer/./src/projection_parameters.ts, webpack://neuroglancer/./src/util/error.ts, webpack://neuroglancer/./src/widget/icon.ts, webpack://neuroglancer/./src/widget/close_button.ts, webpack://neuroglancer/./src/widget/copy_button.ts, webpack://neuroglancer/./src/widget/dependent_view_widget.ts, webpack://neuroglancer/./src/webgl/shader_ui_controls.ts, webpack://neuroglancer/./src/render_scale_statistics.ts, webpack://neuroglancer/./src/layer/layer_data_source.ts, webpack://neuroglancer/./src/util/number_to_string.ts, webpack://neuroglancer/./src/widget/render_scale_widget.ts, webpack://neuroglancer/./src/widget/star_button.ts, webpack://neuroglancer/./src/widget/add_button.ts, webpack://neuroglancer/./src/widget/delete_button.ts, webpack://neuroglancer/./src/widget/virtual_list.ts, webpack://neuroglancer/./src/widget/maximize_button.ts, webpack://neuroglancer/./src/widget/help_button.ts, webpack://neuroglancer/./src/widget/shader_controls.ts, webpack://neuroglancer/./src/widget/layer_control_channel_invlerp.ts, webpack://neuroglancer/./src/widget/layer_control_property_invlerp.ts, webpack://neuroglancer/./src/widget/coordinate_transform.ts, webpack://neuroglancer/./src/ui/layer_data_sources_tab.ts, webpack://neuroglancer/./src/widget/channel_dimensions_widget.ts, webpack://neuroglancer/./src/datasource/n5/frontend.ts, webpack://neuroglancer/./src/datasource/n5/register_default.ts, webpack://neuroglancer/./src/datasource/vtk/register_default.ts, webpack://neuroglancer/./src/kvstore/http/html_directory_listing.ts, webpack://neuroglancer/./src/widget/display_dimensions_widget.ts, webpack://neuroglancer/./src/ui/statistics.ts
+/**
+ * @license
+ * Copyright 2019 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/util/array.ts, webpack://neuroglancer/./src/sliceview/compressed_segmentation/encode_common.ts, webpack://neuroglancer/./src/util/gzip.ts, webpack://neuroglancer/./src/datasource/vtk/parse.ts, webpack://neuroglancer/./src/trackable_value.ts, webpack://neuroglancer/./src/util/disposable.ts, webpack://neuroglancer/./src/util/geom.ts, webpack://neuroglancer/./src/util/http_request.ts, webpack://neuroglancer/./src/util/json.ts, webpack://neuroglancer/./src/util/random.ts, webpack://neuroglancer/./src/util/signal.ts, webpack://neuroglancer/./src/chunk_manager/base.ts, webpack://neuroglancer/./src/navigation_state.ts, webpack://neuroglancer/./src/util/data_type.ts, webpack://neuroglancer/./src/util/endian.ts, webpack://neuroglancer/./src/datasource/nifti/backend.ts, webpack://neuroglancer/./src/single_mesh/backend.ts, webpack://neuroglancer/./src/worker_rpc.ts, webpack://neuroglancer/./src/shared_watchable_value.ts, webpack://neuroglancer/./src/util/pairing_heap.ts, webpack://neuroglancer/./src/chunk_manager/backend.ts, webpack://neuroglancer/./src/util/trackable.ts, webpack://neuroglancer/./src/display_context.ts, webpack://neuroglancer/./src/sliceview/base.ts, webpack://neuroglancer/./src/visibility_priority/backend.ts, webpack://neuroglancer/./src/sliceview/backend.ts, webpack://neuroglancer/./src/annotation/base.ts, webpack://neuroglancer/./src/shared_disjoint_sets.ts, webpack://neuroglancer/./src/gpu_hash/hash_table.ts, webpack://neuroglancer/./src/uint64_set.ts, webpack://neuroglancer/./src/segmentation_display_state/base.ts, webpack://neuroglancer/./src/segmentation_display_state/backend.ts, webpack://neuroglancer/./src/mesh/backend.ts, webpack://neuroglancer/./src/sliceview/backend_chunk_decoders/postprocess.ts, webpack://neuroglancer/./src/util/numpy_dtype.ts, webpack://neuroglancer/./src/util/npy.ts, webpack://neuroglancer/./src/sliceview/backend_chunk_decoders/bossNpz.ts, webpack://neuroglancer/./src/sliceview/backend_chunk_decoders/jpeg.ts, webpack://neuroglancer/./src/sliceview/volume/backend.ts, webpack://neuroglancer/./src/datasource/brainmaps/api.ts, webpack://neuroglancer/./src/skeleton/backend.ts, webpack://neuroglancer/./src/sliceview/backend_chunk_decoders/compressed_segmentation.ts, webpack://neuroglancer/./src/sliceview/backend_chunk_decoders/raw.ts, webpack://neuroglancer/./src/datasource/brainmaps/backend.ts, webpack://neuroglancer/./src/datasource/dvid/backend.ts, webpack://neuroglancer/./src/chunk_manager/generic_file_source.ts, webpack://neuroglancer/./src/util/hash.ts, webpack://neuroglancer/./src/datasource/precomputed/sharded.ts, webpack://neuroglancer/./src/sliceview/backend_chunk_decoders/jxl.ts, webpack://neuroglancer/./src/datasource/precomputed/backend.ts, webpack://neuroglancer/./src/skeleton/decode_precomputed_skeleton.ts, webpack://neuroglancer/./src/datasource/graphene/backend.ts, webpack://neuroglancer/./src/datasource/render/backend.ts, webpack://neuroglancer/./src/datasource/vtk/backend.ts, webpack://neuroglancer/./src/worker_rpc_context.ts, webpack://neuroglancer/./src/datasource/brainmaps/base.ts, webpack://neuroglancer/./src/datasource/dvid/base.ts, webpack://neuroglancer/./src/datasource/nifti/base.ts, webpack://neuroglancer/./src/datasource/precomputed/base.ts, webpack://neuroglancer/./src/datasource/render/base.ts, webpack://neuroglancer/./src/gpu_hash/hash_function.ts, webpack://neuroglancer/./src/mesh/base.ts, webpack://neuroglancer/./src/single_mesh/base.ts, webpack://neuroglancer/./src/skeleton/base.ts, webpack://neuroglancer/./src/sliceview/chunk_layout.ts, webpack://neuroglancer/./src/util/disjoint_sets.ts, webpack://neuroglancer/./src/util/linked_list.ts, webpack://neuroglancer/./src/util/memoize.ts, webpack://neuroglancer/./src/util/object_id.ts, webpack://neuroglancer/./src/webgl/context.ts, webpack://neuroglancer/./src/webgl/shader.ts, webpack://neuroglancer/./src/status.ts, webpack://neuroglancer/./src/renderlayer.ts, webpack://neuroglancer/./src/datasource/local.ts, webpack://neuroglancer/./src/skeleton/frontend.ts, webpack://neuroglancer/./src/sliceview/volume/base.ts, webpack://neuroglancer/./src/layer/index.ts, webpack://neuroglancer/./src/sliceview/volume/frontend.ts, webpack://neuroglancer/./src/visibility_priority/frontend.ts, webpack://neuroglancer/./src/trackable_boolean.ts, webpack://neuroglancer/./src/webgl/dynamic_shader.ts, webpack://neuroglancer/./src/webgl/buffer.ts, webpack://neuroglancer/./src/webgl/square_corners_buffer.ts, webpack://neuroglancer/./src/webgl/texture.ts, webpack://neuroglancer/./src/webgl/trivial_shaders.ts, webpack://neuroglancer/./src/webgl/offscreen.ts, webpack://neuroglancer/./src/webgl/shader_lib.ts, webpack://neuroglancer/./src/util/mouse_drag.ts, webpack://neuroglancer/./src/util/wheel_zoom.ts, webpack://neuroglancer/./src/util/colorspace.ts, webpack://neuroglancer/./src/util/dom.ts, webpack://neuroglancer/./src/util/clipboard.ts, webpack://neuroglancer/./src/util/keyboard_bindings.ts, webpack://neuroglancer/./src/webgl/colormaps.ts, webpack://neuroglancer/./src/chunk_manager/frontend.ts, webpack://neuroglancer/./src/sliceview/renderlayer.ts, webpack://neuroglancer/./src/sliceview/frontend.ts, webpack://neuroglancer/./src/util/completion.ts, webpack://neuroglancer/./src/datasource/index.ts, webpack://neuroglancer/./src/util/signal_binding_updater.ts, webpack://neuroglancer/./src/widget/range.ts, webpack://neuroglancer/./src/widget/segmentation_color_mode.ts, webpack://neuroglancer/./src/perspective_view/render_layer.ts, webpack://neuroglancer/./src/webgl/texture_access.ts, webpack://neuroglancer/./src/gpu_hash/shader.ts, webpack://neuroglancer/./src/segment_color.ts, webpack://neuroglancer/./src/segmentation_display_state/frontend.ts, webpack://neuroglancer/./src/mesh/frontend.ts, webpack://neuroglancer/./src/sliceview/volume/renderlayer.ts, webpack://neuroglancer/./src/sliceview/volume/segmentation_renderlayer.ts, webpack://neuroglancer/./src/trackable_alpha.ts, webpack://neuroglancer/./src/overlay.ts, webpack://neuroglancer/./src/widget/shader_code_widget.ts, webpack://neuroglancer/./src/ui/segmentation_display_options_tab.ts, webpack://neuroglancer/./src/uint64_ordered_set.ts, webpack://neuroglancer/./src/layer/segmentation/index.ts, webpack://neuroglancer/./src/widget/multiline_autocomplete.ts, webpack://neuroglancer/./src/util/dropdown.ts, webpack://neuroglancer/./src/util/longest_common_prefix.ts, webpack://neuroglancer/./src/layer/annotation/index.ts, webpack://neuroglancer/./src/sliceview/volume/image_renderlayer.ts, webpack://neuroglancer/./src/layer/image/index.ts, webpack://neuroglancer/./src/trackable_finite_float.ts, webpack://neuroglancer/./src/webgl/index_emulation.ts, webpack://neuroglancer/./src/single_mesh/frontend.ts, webpack://neuroglancer/./src/layer/single_mesh/index.ts, webpack://neuroglancer/./src/credentials_provider/interactive_credentials_provider.ts, webpack://neuroglancer/./src/datasource/boss/credentials_provider.ts, webpack://neuroglancer/./src/datasource/brainmaps/frontend.ts, webpack://neuroglancer/./src/util/google_oauth2.ts, webpack://neuroglancer/./src/datasource/brainmaps/credentials_provider.ts, webpack://neuroglancer/./src/datasource/dvid/frontend.ts, webpack://neuroglancer/./src/datasource/precomputed/frontend.ts, webpack://neuroglancer/./src/datasource/graphene/frontend.ts, webpack://neuroglancer/./src/datasource/nifti/frontend.ts, webpack://neuroglancer/./src/datasource/render/frontend.ts, webpack://neuroglancer/./src/sliceview/single_texture_chunk_format.ts, webpack://neuroglancer/./src/sliceview/uncompressed_chunk_format.ts, webpack://neuroglancer/./src/sliceview/compressed_segmentation/decode_common.ts, webpack://neuroglancer/./src/sliceview/compressed_segmentation/chunk_format.ts, webpack://neuroglancer/./src/data_management_context.ts, webpack://neuroglancer/./src/layout.ts, webpack://neuroglancer/./src/axes_lines.ts, webpack://neuroglancer/./src/object_picking.ts, webpack://neuroglancer/./src/rendered_data_panel.ts, webpack://neuroglancer/./src/widget/scale_bar.ts, webpack://neuroglancer/./src/perspective_view/panel.ts, webpack://neuroglancer/./src/sliceview/panel.ts, webpack://neuroglancer/./src/data_panel_layout.ts, webpack://neuroglancer/./src/help/input_event_bindings.ts, webpack://neuroglancer/./src/ui/layer_bar.ts, webpack://neuroglancer/./src/viewer.ts, webpack://neuroglancer/./src/ui/url_hash_binding.ts, webpack://neuroglancer/./src/main.ts, webpack://neuroglancer/./src/ui/default_viewer_setup.ts, webpack://neuroglancer/./src/ui/disable_default_actions.ts, webpack://neuroglancer/./src/ui/default_viewer.ts, webpack://neuroglancer/./src/ui/minimal_viewer.ts, webpack://neuroglancer/./src/ui/default_clipboard_handling.ts
+/**
+ * @license
+ * Copyright 2016 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/third_party/jpgjs/jpg.js
+/**
+ * @license
+ * Copyright 2015 Mozilla Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/async_computation/decode_png.ts, webpack://neuroglancer/./src/async_computation/decode_png_request.ts
+/**
+ * @license
+ * Copyright 2022 William Silversmith
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/async_computation/decode_blosc.ts, webpack://neuroglancer/./src/async_computation/decode_blosc_request.ts, webpack://neuroglancer/./src/async_computation/obj_mesh.ts, webpack://neuroglancer/./src/async_computation/obj_mesh_request.ts, webpack://neuroglancer/./src/segmentation_graph/segment_id.ts, webpack://neuroglancer/./src/util/erf.ts, webpack://neuroglancer/./src/volume_rendering/base.ts, webpack://neuroglancer/./src/volume_rendering/backend.ts, webpack://neuroglancer/./src/datasource/obj/backend.ts, webpack://neuroglancer/./src/datasource/zarr/backend.ts, webpack://neuroglancer/./src/credentials_provider/oauth2.ts, webpack://neuroglancer/./src/webgl/empirical_cdf.ts, webpack://neuroglancer/./src/webgl/lerp.ts, webpack://neuroglancer/./src/widget/invlerp.ts, webpack://neuroglancer/./src/widget/checkbox_icon.ts, webpack://neuroglancer/./src/widget/text_input.ts, webpack://neuroglancer/./src/widget/move_to_button.ts, webpack://neuroglancer/./src/ui/selection_details.ts, webpack://neuroglancer/./src/widget/filter_button.ts, webpack://neuroglancer/./src/segmentation_display_state/property_map.ts, webpack://neuroglancer/./src/segmentation_graph/source.ts, webpack://neuroglancer/./src/webgl/vertex_id.ts, webpack://neuroglancer/./src/webgl/bounding_box.ts, webpack://neuroglancer/./src/sliceview/wire_frame.ts, webpack://neuroglancer/./src/ui/segment_split_merge_tools.ts, webpack://neuroglancer/./src/ui/segment_list.ts, webpack://neuroglancer/./src/widget/linked_layer.ts, webpack://neuroglancer/./src/volume_rendering/volume_render_layer.ts, webpack://neuroglancer/./src/widget/datetime.ts, webpack://neuroglancer/./src/datasource/nggraph/credentials_provider.ts, webpack://neuroglancer/./src/datasource/nggraph/frontend.ts, webpack://neuroglancer/./src/datasource/nggraph/register_default.ts, webpack://neuroglancer/./src/datasource/obj/register_default.ts, webpack://neuroglancer/./src/datasource/zarr/frontend.ts, webpack://neuroglancer/./src/datasource/zarr/register_default.ts, webpack://neuroglancer/./src/kvstore/middleauth/credentials_provider.ts, webpack://neuroglancer/./src/kvstore/ngauth/credentials_provider.ts, webpack://neuroglancer/./src/kvstore/middleauth/register_credentials_provider.ts, webpack://neuroglancer/./src/kvstore/ngauth/register_credentials_provider.ts, webpack://neuroglancer/./src/util/base64.ts
+/**
+ * @license
+ * Copyright 2020 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/async_computation/decode_zstd.ts, webpack://neuroglancer/./src/async_computation/decode_zstd_request.ts, webpack://neuroglancer/./src/kvstore/byte_range/file_handle.ts, webpack://neuroglancer/./src/kvstore/index.ts, webpack://neuroglancer/./src/datasource/zarr/codec/sharding_indexed/resolve.ts, webpack://neuroglancer/./src/datasource/zarr/codec/resolve.ts, webpack://neuroglancer/./src/datasource/zarr/codec/decode.ts, webpack://neuroglancer/./src/datasource/zarr/codec/blosc/decode.ts, webpack://neuroglancer/./src/datasource/zarr/codec/zstd/decode.ts, webpack://neuroglancer/./src/datasource/zarr/codec/bytes/decode.ts, webpack://neuroglancer/./src/datasource/zarr/codec/crc32c/decode.ts, webpack://neuroglancer/./src/datasource/zarr/codec/gzip/decode.ts, webpack://neuroglancer/./src/datasource/zarr/metadata/parse_util.ts, webpack://neuroglancer/./src/datasource/zarr/metadata/parse.ts, webpack://neuroglancer/./src/datasource/zarr/codec/sharding_indexed/decode.ts, webpack://neuroglancer/./src/datasource/zarr/codec/transpose/decode.ts, webpack://neuroglancer/./src/kvstore/http/backend.ts, webpack://neuroglancer/./src/datasource/zarr/codec/index.ts, webpack://neuroglancer/./src/datasource/zarr/metadata/index.ts, webpack://neuroglancer/./src/kvstore/http/common.ts, webpack://neuroglancer/./src/kvstore/http/read.ts, webpack://neuroglancer/./src/widget/eye_button.ts, webpack://neuroglancer/./src/datasource/zarr/codec/blosc/resolve.ts, webpack://neuroglancer/./src/datasource/zarr/codec/zstd/resolve.ts, webpack://neuroglancer/./src/datasource/zarr/codec/gzip/resolve.ts, webpack://neuroglancer/./src/datasource/zarr/codec/bytes/resolve.ts, webpack://neuroglancer/./src/datasource/zarr/codec/crc32c/resolve.ts, webpack://neuroglancer/./src/datasource/zarr/codec/transpose/resolve.ts, webpack://neuroglancer/./src/kvstore/http/frontend.ts, webpack://neuroglancer/./src/kvstore/s3/frontend.ts
+/**
+ * @license
+ * Copyright 2023 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/async_computation/decode_jxl.ts, webpack://neuroglancer/./src/async_computation/decode_jxl_request.ts
+/**
+ * @license
+ * Copyright 2024 William Silversmith
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/async_computation/decode_compresso.ts, webpack://neuroglancer/./src/async_computation/decode_compresso_request.ts
+/**
+ * @license
+ * Copyright 2021 William Silversmith
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/kvstore/auto_detect.ts, webpack://neuroglancer/./src/kvstore/ocdbt/version_specifier.ts, webpack://neuroglancer/./src/util/bigint.ts, webpack://neuroglancer/./src/kvstore/ocdbt/decode_utils.ts, webpack://neuroglancer/./src/kvstore/zip/metadata.ts, webpack://neuroglancer/./src/kvstore/http/register_backend.ts, webpack://neuroglancer/./src/kvstore/icechunk/crockford_base32.ts, webpack://neuroglancer/./src/kvstore/icechunk/decode_utils.ts, webpack://neuroglancer/./src/kvstore/icechunk/manifest.ts, webpack://neuroglancer/./src/kvstore/icechunk/ref.ts, webpack://neuroglancer/./src/kvstore/icechunk/snapshot.ts, webpack://neuroglancer/./src/kvstore/icechunk/metadata_cache.ts, webpack://neuroglancer/./src/kvstore/icechunk/read.ts, webpack://neuroglancer/./src/kvstore/icechunk/url.ts, webpack://neuroglancer/./src/kvstore/icechunk/backend.ts, webpack://neuroglancer/./src/kvstore/icechunk/list.ts, webpack://neuroglancer/./src/kvstore/icechunk/complete_url.ts, webpack://neuroglancer/./src/kvstore/icechunk/register_backend.ts, webpack://neuroglancer/./src/kvstore/middleauth/register_backend.ts, webpack://neuroglancer/./src/util/leb128.ts, webpack://neuroglancer/./src/kvstore/ocdbt/key.ts, webpack://neuroglancer/./src/kvstore/ocdbt/indirect_data_reference.ts, webpack://neuroglancer/./src/kvstore/ocdbt/btree.ts, webpack://neuroglancer/./src/kvstore/ocdbt/version_tree.ts, webpack://neuroglancer/./src/kvstore/ocdbt/manifest.ts, webpack://neuroglancer/./src/kvstore/ocdbt/metadata_cache.ts, webpack://neuroglancer/./src/kvstore/ocdbt/list.ts, webpack://neuroglancer/./src/kvstore/ocdbt/read.ts, webpack://neuroglancer/./src/kvstore/ocdbt/read_version.ts, webpack://neuroglancer/./src/kvstore/ocdbt/backend.ts, webpack://neuroglancer/./src/kvstore/ocdbt/list_versions.ts, webpack://neuroglancer/./src/kvstore/ocdbt/complete_url.ts, webpack://neuroglancer/./src/kvstore/ocdbt/register_backend.ts, webpack://neuroglancer/./src/kvstore/s3/backend.ts, webpack://neuroglancer/./src/kvstore/s3/register_backend.ts, webpack://neuroglancer/./src/kvstore/zip/backend.ts, webpack://neuroglancer/./src/kvstore/zip/register_backend.ts, webpack://neuroglancer/./src/kvstore/byte_range/index.ts, webpack://neuroglancer/./src/kvstore/byte_range/register.ts, webpack://neuroglancer/./src/kvstore/gzip/file_handle.ts, webpack://neuroglancer/./src/kvstore/gzip/index.ts, webpack://neuroglancer/./src/kvstore/gzip/register.ts, webpack://neuroglancer/./src/kvstore/ocdbt/url.ts, webpack://neuroglancer/./src/kvstore/http/register_frontend.ts, webpack://neuroglancer/./src/kvstore/icechunk/auto_detect.ts, webpack://neuroglancer/./src/kvstore/icechunk/frontend.ts, webpack://neuroglancer/./src/kvstore/icechunk/register_frontend.ts, webpack://neuroglancer/./src/kvstore/middleauth/register_frontend.ts, webpack://neuroglancer/./src/kvstore/ocdbt/frontend.ts, webpack://neuroglancer/./src/kvstore/ocdbt/register_frontend.ts, webpack://neuroglancer/./src/kvstore/ocdbt/auto_detect.ts, webpack://neuroglancer/./src/kvstore/zip/auto_detect.ts, webpack://neuroglancer/./src/kvstore/s3/register_frontend.ts, webpack://neuroglancer/./src/kvstore/zip/frontend.ts, webpack://neuroglancer/./src/kvstore/zip/register_frontend.ts, webpack://neuroglancer/./src/widget/layer_type_indicator.ts
+/**
+ * @license
+ * Copyright 2025 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/kvstore/url.ts, webpack://neuroglancer/./src/util/abort.ts, webpack://neuroglancer/./src/util/progress_listener.ts, webpack://neuroglancer/./src/kvstore/backend.ts, webpack://neuroglancer/./src/kvstore/proxy.ts, webpack://neuroglancer/./src/kvstore/context.ts, webpack://neuroglancer/./src/kvstore/gcs/index.ts, webpack://neuroglancer/./src/kvstore/gcs/register.ts, webpack://neuroglancer/./src/kvstore/middleauth/common.ts, webpack://neuroglancer/./src/kvstore/ngauth/register.ts, webpack://neuroglancer/./src/kvstore/register.ts, webpack://neuroglancer/./src/kvstore/s3/common.ts, webpack://neuroglancer/./src/kvstore/shared_common.ts, webpack://neuroglancer/./src/ui/tool_drag_and_drop.ts, webpack://neuroglancer/./src/util/framerate.ts, webpack://neuroglancer/./src/widget/invlerp_range_finder.ts, webpack://neuroglancer/./src/ui/tool_query.ts, webpack://neuroglancer/./src/widget/transfer_function.ts, webpack://neuroglancer/./src/webgl/rectangle_grid_buffer.ts, webpack://neuroglancer/./src/datasource/kvstore_completions.ts, webpack://neuroglancer/./src/widget/progress_listener.ts, webpack://neuroglancer/./src/kvstore/frontend.ts, webpack://neuroglancer/./src/ui/tool_palette.ts
+/**
+ * @license
+ * Copyright 2024 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/annotation/index.ts, webpack://neuroglancer/./src/perspective_view/backend.ts, webpack://neuroglancer/./src/annotation/backend.ts, webpack://neuroglancer/./src/util/color.ts, webpack://neuroglancer/./src/perspective_view/base.ts, webpack://neuroglancer/./src/util/float32_to_string.ts, webpack://neuroglancer/./src/util/watchable_map.ts, webpack://neuroglancer/./src/webgl/quad.ts, webpack://neuroglancer/./src/widget/color.ts, webpack://neuroglancer/./src/widget/tab_view.ts, webpack://neuroglancer/./src/ui/tool.ts, webpack://neuroglancer/./src/annotation/annotation_layer_state.ts, webpack://neuroglancer/./src/annotation/type_handler.ts, webpack://neuroglancer/./src/annotation/frontend_source.ts, webpack://neuroglancer/./src/annotation/bounding_box.ts, webpack://neuroglancer/./src/annotation/line.ts, webpack://neuroglancer/./src/annotation/point.ts, webpack://neuroglancer/./src/webgl/ellipse.ts, webpack://neuroglancer/./src/webgl/spheres.ts, webpack://neuroglancer/./src/annotation/ellipsoid.ts, webpack://neuroglancer/./src/annotation/renderlayer.ts, webpack://neuroglancer/./src/ui/annotations.ts, webpack://neuroglancer/./src/widget/layer_reference.ts, webpack://neuroglancer/./src/util/touch_bindings.ts, webpack://neuroglancer/./src/python_integration/screenshots.ts, webpack://neuroglancer/./src/ui/layer_side_panel.ts, webpack://neuroglancer/./src/ui/state_editor.ts, webpack://neuroglancer/./src/widget/annotation_tool_status.ts
+/**
+ * @license
+ * Copyright 2018 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/kvstore/zip/metadata.ts
+/**
+ * Derived from https://github.com/greggman/unzipit/blob/4d94c9b77f7815062ff4460311e8b3ce4f7d5deb/src/unzipit.js
+ *
+ * Includes only parsing of raw entries.
+ *
+ * @license
+ *
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2014 Josh Wolfe
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * MIT License
+ *
+ * Copyright (c) 2019 Gregg Tavares
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+Sources: webpack://neuroglancer/./src/credentials_provider/index.ts, webpack://neuroglancer/./src/credentials_provider/shared_counterpart.ts, webpack://neuroglancer/./src/datasource/boss/api.ts, webpack://neuroglancer/./src/datasource/boss/backend.ts, webpack://neuroglancer/./src/util/hex.ts, webpack://neuroglancer/./src/credentials_provider/shared_common.ts, webpack://neuroglancer/./src/datasource/boss/base.ts, webpack://neuroglancer/./src/util/animation_frame_debounce.ts, webpack://neuroglancer/./src/util/trackable_enum.ts, webpack://neuroglancer/./src/util/drag_and_drop.ts, webpack://neuroglancer/./src/ui/default_input_event_bindings.ts, webpack://neuroglancer/./src/ui/layer_drag_and_drop.ts, webpack://neuroglancer/./src/layer_group_viewer.ts, webpack://neuroglancer/./src/util/event_action_map.ts, webpack://neuroglancer/./src/trackable_blend.ts, webpack://neuroglancer/./src/datasource/boss/frontend.ts, webpack://neuroglancer/./src/util/hierarchical_map.ts, webpack://neuroglancer/./src/util/mouse_bindings.ts, webpack://neuroglancer/./src/webgl/lines.ts, webpack://neuroglancer/./src/widget/enum_widget.ts, webpack://neuroglancer/./src/widget/number_input_widget.ts, webpack://neuroglancer/./src/webgl/circles.ts, webpack://neuroglancer/./src/sliceview/bounding_box_shader_helper.ts, webpack://neuroglancer/./src/util/automatic_focus.ts, webpack://neuroglancer/./src/kvstore/chunk_source_frontend.ts, webpack://neuroglancer/./src/credentials_provider/shared.ts, webpack://neuroglancer/./src/credentials_provider/chunk_source_frontend.ts, webpack://neuroglancer/./src/datasource/default_provider.ts, webpack://neuroglancer/./src/datasource/boss/register_default.ts, webpack://neuroglancer/./src/credentials_provider/default_manager.ts, webpack://neuroglancer/./src/datasource/boss/register_credentials_provider.ts, webpack://neuroglancer/./src/datasource/brainmaps/register_default.ts, webpack://neuroglancer/./src/datasource/brainmaps/register_credentials_provider.ts, webpack://neuroglancer/./src/datasource/dvid/register_default.ts, webpack://neuroglancer/./src/datasource/nifti/register_default.ts, webpack://neuroglancer/./src/datasource/precomputed/register_default.ts, webpack://neuroglancer/./src/datasource/render/register_default.ts, webpack://neuroglancer/./src/ui/context_menu.ts, webpack://neuroglancer/./src/ui/position_drag_and_drop.ts, webpack://neuroglancer/./src/layer_groups_layout.ts
+/**
+ * @license
+ * Copyright 2017 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/uint64_map.ts, webpack://neuroglancer/./src/datasource/dvid/api.ts, webpack://neuroglancer/./src/datasource/dvid/credentials_provider.ts, webpack://neuroglancer/./src/datasource/dvid/register_credentials_provider.ts
+/**
+ * @license
+ * This work is a derivative of the Google Neuroglancer project,
+ * Copyright 2016 Google Inc.
+ * The Derivative Work is covered by
+ * Copyright 2019 Howard Hughes Medical Institute
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/util/float.ts, webpack://neuroglancer/./src/util/lerp.ts, webpack://neuroglancer/./src/ui/drag_and_drop.ts, webpack://neuroglancer/./src/ui/side_panel_location.ts, webpack://neuroglancer/./src/ui/layer_side_panel_state.ts, webpack://neuroglancer/./src/widget/layer_control.ts, webpack://neuroglancer/./src/widget/layer_control_checkbox.ts, webpack://neuroglancer/./src/widget/layer_control_enum.ts, webpack://neuroglancer/./src/widget/layer_control_range.ts, webpack://neuroglancer/./src/widget/layer_control_color.ts, webpack://neuroglancer/./src/ui/side_panel.ts, webpack://neuroglancer/./src/segmentation_graph/local.ts, webpack://neuroglancer/./src/ui/layer_list_panel.ts, webpack://neuroglancer/./src/ui/viewer_settings.ts, webpack://neuroglancer/./src/ui/title.ts
+/**
+ * @license
+ * Copyright 2021 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/datasource/deepzoom/backend.ts, webpack://neuroglancer/./src/datasource/deepzoom/base.ts, webpack://neuroglancer/./src/datasource/deepzoom/frontend.ts
+/**
+ * @license
+ * Copyright 2016 Google Inc., 2023 Gergely Csucs
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/skeleton/decode_swc_skeleton.ts
+/**
+ * @license
+ * This work is a derivative of the Google Neuroglancer project,
+ * Copyright 2016 Google Inc.
+ * The Derivative Work is covered by
+ * Copyright 2020 Howard Hughes Medical Institute
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/datasource/graphene/base.ts
+/**
+ * @license
+ * Copyright 2019 The Neuroglancer Authors
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/sliceview/backend_chunk_decoders/compresso.ts
+/**
+ * @license
+ * Copyright 2021 William Silvermsith.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/sliceview/backend_chunk_decoders/png.ts
+/**
+ * @license
+ * Copyright 2022 William Silvermsith.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/kvstore/icechunk/crockford_base32.ts
+/**
+ * @license
+ * MIT License
+ *
+ * Copyright (c) 2016-2021 Linus Unnebäck
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+Sources: webpack://neuroglancer/./src/util/trackable_screenshot_mode.ts
+/**
+ * @license
+ * Copyright 2024 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use viewer file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/util/empirical_cdf.ts
+/**
+ * @license
+ * Copyright 2024 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+
+ * @file Defines facilities for manipulation of empirical cumulative distribution functions.
+ */
+
+Sources: webpack://neuroglancer/./src/widget/position_plot.ts, webpack://neuroglancer/./src/widget/position_widget.ts
+/**
+ * @license
+ * Copyright 2017-2019 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/ui/segment_select_tools.ts
+/**
+ * /**
+ * @license
+ * This work is a derivative of the Google Neuroglancer project,
+ * Copyright 2016 Google Inc.
+ * The Derivative Work is covered by
+ * Copyright 2021 Howard Hughes Medical Institute
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/datasource/deepzoom/register_default.ts
+/**
+ * @license
+ * Copyright 2017 Google Inc., 2023 Gergely Csucs
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/datasource/graphene/register_default.ts
+/**
+ * @license
+ * Copyright 2018 The Neuroglancer Authors
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/datasource/zarr/ome.ts
+/**
+ * @license
+ * Copyright 2022 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Sources: webpack://neuroglancer/./src/util/viewer_resolution_stats.ts
+/**
+ * @license
+ * Copyright 2024 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use viewer file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * @file Helper functions to get the resolution of the viewer layers and panels.
+ */
+
+Sources: webpack://neuroglancer/./src/util/screenshot_manager.ts
+/**
+ * @license
+ * Copyright 2024 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use viewer file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * @file Builds upon the Python screenshot tool to allow viewer screenshots to be taken and saved.
+ */
+
+Sources: webpack://neuroglancer/./src/ui/screenshot_menu.ts
+/**
+ * @license
+ * Copyright 2024 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * @file UI menu for taking screenshots from the viewer.
+ */
