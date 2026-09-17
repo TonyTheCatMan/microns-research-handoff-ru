@@ -299,5 +299,5 @@
   }
   window.addEventListener('review:ready',event=>boot(event.detail),{once:true});
   if(viewer()?.metadata)boot(viewer().metadata);
-  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},enqueue,exportFindings,imageBlob,select,refresh};
+  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},enqueue,exportFindings,imageBlob,select,refresh,whenSettled:async()=>{let chain;do{chain=saveChain;await chain;}while(chain!==saveChain);}};
 })();
