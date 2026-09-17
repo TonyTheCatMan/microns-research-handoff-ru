@@ -51,20 +51,25 @@
     return p.every((n,i)=>n>=0&&n<volume.shape_xyz[i])?p:null;
   }
   function sectionRecords() { const z=viewer()?.z;return caseRecords().filter(r=>{const p=locationInVolume(r);return p&&Math.floor(p[2])===z;}); }
-  function drawOn(canvas,force=false,scale=viewer()?.zoom||1) {
-    const v=viewer();if(!v?.ready)return;
-    const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);if(!force&&!visible())return;
+  function drawOn(canvas) {
+    const v=viewer(),ctx=canvas.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);if(!v?.ready)return;
+    const image=$('imageCanvas'),width=image.width*v.zoom,height=image.height*v.zoom,ratio=window.devicePixelRatio||1;
+    const pixelsWide=Math.max(1,Math.round(width*ratio)),pixelsHigh=Math.max(1,Math.round(height*ratio));
+    if(canvas.width!==pixelsWide)canvas.width=pixelsWide;if(canvas.height!==pixelsHigh)canvas.height=pixelsHigh;
+    canvas.style.width=width+'px';canvas.style.height=height+'px';if(!visible())return;
+    // Render labels at display resolution, independently of the enlarged EM pixels.
+    ctx.save();ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
     for(const record of sectionRecords()){
       const [x,y]=locationInVolume(record),selected=record.id===selectedId;
-      MarkerStyles.draw(ctx,x,y,10/scale,record.kind,record.number,selected,1/scale);
+      MarkerStyles.draw(ctx,x*v.zoom,y*v.zoom,10,record.kind,record.number,selected);
     }
+    ctx.restore();
   }
   function draw() {
     const v=viewer(), canvas=$('annotationCanvas');
-    if(!v?.ready){canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);return;}
-    const image=$('imageCanvas');if(canvas.width!==image.width)canvas.width=image.width;if(canvas.height!==image.height)canvas.height=image.height;
-    canvas.style.width=image.style.width;canvas.style.height=image.style.height;drawOn(canvas);
-    v.surface?.setAnnotations(caseRecords(),visible(),selectedId);
+    drawOn(canvas);
+    if(v?.ready)v.surface?.setAnnotations(caseRecords(),visible(),selectedId);
   }
   function renderList() {
     if(!store)return;
@@ -181,6 +186,11 @@
     if(!notesWindow)try{localStorage.setItem('microns-last-view-v1',JSON.stringify({case_id:currentCase,volume_id:viewer().volume.volume_id,z:viewer().z}));}catch{}
   });
   window.addEventListener('review:display',draw);
+  window.addEventListener('resize',() => drawOn($('annotationCanvas')));
+  function watchPixelDensity(){
+    matchMedia(`(resolution: ${window.devicePixelRatio||1}dppx)`).addEventListener('change',()=>{drawOn($('annotationCanvas'));watchPixelDensity();},{once:true});
+  }
+  watchPixelDensity();
   $('annotationPopout').addEventListener('click',()=>{
     const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);url.hash='viewer';
     const opened=window.open(url.href,'microns-annotation-properties','width=680,height=900');if(!opened)$('annotationModeHelp').textContent='Разрешите всплывающее окно для свойств или используйте панель ниже.';
