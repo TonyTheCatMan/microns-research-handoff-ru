@@ -8,6 +8,7 @@
   const labels = {contact:'Контакт', point:'Особенность', object:'Объект', uncertain:'Не разрешено', supported:'Поддержано', rejected:'Не подтверждено', note:'Заметка'};
   let store, metadata, records = [], caseNotes = [], selectedId = params.get('annotation'), currentCase = '', pending = 0;
   let saveChain = Promise.resolve(), failures = [], deleted = null, refreshGeneration = 0, lastEditorId = null, refreshNeeded = false;
+  let exportBusy=false;
   let channel; try { channel = new BroadcastChannel('microns-researcher-annotations-v1'); } catch {}
   const now = previous => new Date(Math.max(Date.now(),Date.parse(previous||'')+1||0)).toISOString(), byId = id => records.find(r => r.id === id);
   const changed = () => window.dispatchEvent(new Event('annotations:changed'));
@@ -214,47 +215,53 @@
       const x=left+(p[0]+.5)*scale,y=top+(p[1]+.5)*scale;MarkerStyles.draw(ctx,x,y,6*unit,key,'',false,unit);
       ctx.font='bold '+13*unit+'px system-ui';ctx.lineWidth=3*unit;ctx.strokeStyle='#172632';ctx.strokeText(contact.contact_id+suffix,x+10*unit,y-10*unit);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(contact.contact_id+suffix,x+10*unit,y-10*unit);
     }
-    if(withAnnotations)for(const record of sectionRecords()){const [x,y]=locationInVolume(record);MarkerStyles.draw(ctx,left+x*scale,top+y*scale,10*unit,record.kind,record.number,record.id===selectedId,unit);}
+    if(withAnnotations&&visible())for(const record of sectionRecords()){const [x,y]=locationInVolume(record);MarkerStyles.draw(ctx,left+x*scale,top+y*scale,10*unit,record.kind,record.number,record.id===selectedId,unit);}
     const y=top+image.height*scale+38,bar=500/v.volume.resolution_nm[0]*scale;ctx.strokeStyle='#18344b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+bar,y);ctx.stroke();ctx.fillStyle='#18344b';ctx.font='26px system-ui';ctx.fillText('500 нм',left+bar+16,y+8);
     ctx.fillText(`Исходное изображение: ${image.width} × ${image.height} пикселей · без потери исходных пикселей`,left,y+43);ctx.font='24px system-ui';ctx.fillText('MICrONS Consortium (2025) · CC BY 4.0 · doi:10.1038/s41586-025-08790-w',left,y+82);
     return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Не удалось создать PNG.')),'image/png'));
   }
   async function exportFindings(scope,{includeImages=scope!=='all'}={}) {
-    if(!store)return;
+    if(!store||exportBusy)return;
+    exportBusy=true;
+    const exportButtons=['annotationsExportAll','annotationsExportAllImages','annotationsExportCase','neuroglancerExportAll','neuroglancerExportCase'].map($).filter(Boolean);
+    exportButtons.forEach(button=>button.disabled=true);
     try{
       const v=viewer(),frozenCase=currentCase,isCase=scope!=='all',filter=isCase?{case_id:frozenCase}:{};
       const frozenRecords=structuredClone(records),captured=[];
-      // Both main-view exports capture pixels before awaiting storage. The notes-only window exports retained snapshots.
+      // Export just these views. Earlier snapshots stay in browser storage but are not added to this ZIP.
       if(includeImages&&(!notesWindow||isCase)){
         if(!v?.ready||!v.surface?.modelReady)throw new Error('Дождитесь загрузки 2D и 3D.');
-        const shot=v.surface.snapshotEvidence(),volume=structuredClone(v.volume),time=now(),z=v.z;
+        const panel=$('page-viewer'),wasHidden=panel.hidden;let shot;
+        try{panel.hidden=false;shot=v.surface.snapshotEvidence();}finally{panel.hidden=wasHidden;}
+        const volume=structuredClone(v.volume),time=now(),z=v.z;
         const base={case_id:frozenCase,volume_id:volume.volume_id,local_z:z,global_z:volume.begin_vox_xyz[2]+z,created_at:time,updated_at:time,display_window:[...v.displayWindow],resolution_nm:[...volume.resolution_nm],linked_to_slice:true,caption:''};
         if(shot.view.case_id!==frozenCase||shot.view.volume_id!==volume.volume_id||shot.view.local_z!==z)throw new Error('Дождитесь синхронизации 2D и 3D.');
         const sectionIds=frozenRecords.filter(r=>r.case_id===frozenCase&&r.point_nm.every((n,i)=>n>=volume.begin_vox_xyz[i]*volume.resolution_nm[i]&&n<volume.end_vox_xyz_exclusive[i]*volume.resolution_nm[i])&&Math.floor(r.point_nm[2]/volume.resolution_nm[2])-volume.begin_vox_xyz[2]===z).map(r=>r.id);
         captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'2d',annotation_ids:sectionIds},annotated:imageBlob(true),raw:imageBlob(false)});
         captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'3d',annotation_ids:shot.view.annotation_ids,view_settings:shot.view},annotated:shot.blob,raw:Promise.resolve(null)});
       }
+      const neuroglancer=includeImages&&!notesWindow?window.NeuroglancerLink?.captureCurrent(frozenCase):Promise.resolve(null);
+      neuroglancer?.catch(()=>{});
       const pixels=Promise.all(captured.map(async item=>{const [annotated,raw]=await Promise.all([item.annotated,item.raw]);return{...item,annotated,raw};}));pixels.catch(()=>{});
       const settings=notesWindow?await store.getSettings():{preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
       if(v?.ready){settings.last_view={case_id:frozenCase,volume_id:v.volume.volume_id,z:v.z};settings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)try{settings.surface_view=v.surface.getViewState();}catch{}}
       $('restoreResult').classList.remove('save-failed');$('restoreResult').textContent=includeImages?'Сохраняем результаты и изображения…':'Сохраняем точки и заметки…';
       try{await store.putSettings(settings);}catch{}
-      const extraEvidence=[];let imagesNotRetained=false;
+      const extraEvidence=[];
       for(const item of await pixels){
         if(item.meta.source_view==='3d'&&extraEvidence[0])item.meta.linked_evidence_id=extraEvidence[0].id;
-        const {id,created_at,updated_at,...signatureData}=item.meta;
-        const digest=await crypto.subtle.digest('SHA-256',await new Blob([item.annotated,item.raw||'',JSON.stringify(signatureData)]).arrayBuffer());item.meta.capture_signature=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
-        try{item.meta=await store.addEvidence(item.meta,{annotated:item.annotated,raw:item.raw});}catch{imagesNotRetained=true;}
         extraEvidence.push({...item.meta,annotated:item.annotated,raw:item.raw});
       }
-      if(extraEvidence.length){window.dispatchEvent(new Event('annotations:changed'));broadcast({type:'changed'});}
       const full=await backup();full.settings=settings;full.settings_updated_at=now();
-      const data=AnnotationsCore.makeBackup(metadata,full.annotations,full.cases,filter,full),images=new Map(data.evidence.map(e=>[e.id,e]));
-      for(const item of extraEvidence){const {annotated,raw,...meta}=item;images.set(meta.id,meta);}data.evidence=[...images.values()];
+      const data=AnnotationsCore.makeBackup(metadata,full.annotations,full.cases,filter,full);
+      data.evidence=extraEvidence.map(({annotated,raw,...meta})=>meta);
       const files=await store.exportFiles(filter,{backup:data,extraEvidence,includeImages});
+      const ngShot=await neuroglancer;
+      if(ngShot)files.push({name:`images/${frozenCase}-Neuroglancer-current.png`,bytes:new Uint8Array(await ngShot.arrayBuffer())});
       download(AnnotationsCore.zip(files),'MICrONS-'+(isCase?frozenCase:includeImages?'all-results-with-images':'all-results')+'-'+new Date().toISOString().slice(0,10)+'.zip');
-      $('restoreResult').textContent=!includeImages?'Все точки и заметки сохранены. ZIP можно загрузить для продолжения работы.':(isCase?'Случай сохранён':'Все результаты сохранены')+`: снимков ${data.evidence.length}. `+(notesWindow?'Свежие снимки 2D / 3D добавляются при сохранении из основного просмотрщика.':'Включены текущие 2D / 3D и ранее сохранённые снимки.')+(imagesNotRetained?' Снимки включены в ZIP, но их не удалось сохранить в браузере.':'');
+      $('restoreResult').textContent=!includeImages?'Все точки и заметки сохранены. ZIP можно загрузить для продолжения работы.':(isCase?'Случай сохранён':'Все результаты сохранены')+`: снимков ${data.evidence.length+(ngShot?1:0)}. `+(notesWindow?'Для снимков сохраняйте из основного просмотрщика.':'Только текущие 2D / 3D'+(ngShot?' и Neuroglancer.':'. Откройте Neuroglancer перед сохранением, чтобы включить его текущий вид.'));
     }catch(error){$('restoreResult').textContent='Не удалось сохранить: '+error.message;$('restoreResult').classList.add('save-failed');}
+    finally{exportBusy=false;exportButtons.forEach(button=>button.disabled=false);}
   }
   $('annotationsExportAll').addEventListener('click',()=>exportFindings('all'));
   $('annotationsExportAllImages').addEventListener('click',()=>exportFindings('all',{includeImages:true}));
