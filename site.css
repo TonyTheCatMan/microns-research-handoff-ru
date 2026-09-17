@@ -11,3 +11,5 @@
 .neuroglancer-export{margin:12px 0;align-items:center}
 [aria-disabled=true]{opacity:.55;pointer-events:none}.neuroglancer-page>.hint{margin:8px 0;min-height:22px}
 @media(max-width:800px){.neuroglancer-toolbar{align-items:stretch;flex-direction:column;padding:14px}.neuroglancer-frame{height:72vh;min-height:460px}.main-nav .neuroglancer-tab{padding:10px 12px}.neuroglancer-actions>a,.neuroglancer-actions>button{flex:1}.neuroglancer-help{font-size:14px}}
+
+.slice-stage{position:relative}
