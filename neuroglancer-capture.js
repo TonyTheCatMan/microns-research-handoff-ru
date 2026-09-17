@@ -1,4 +1,4 @@
-/* Capture the actual cross-origin viewer only through the browser's explicit tab picker. */
+/* Capture the current scene of the pinned, same-origin Neuroglancer viewer. */
 (() => {
   'use strict';
   const $=id=>document.getElementById(id);
@@ -8,41 +8,47 @@
     if(!frame)return null;
     const source=frame.src;
     if(busy)throw new Error('Дождитесь завершения снимка Neuroglancer.');
-    if(!navigator.mediaDevices?.getDisplayMedia||!window.CropTarget)throw new Error('Для снимка Neuroglancer откройте сайт в Chrome или Edge.');
     busy=true;
     const pages=[...document.querySelectorAll('.page')].map(node=>({node,hidden:node.hidden})),scroll=[scrollX,scrollY];
-    let stream,video;
+    const unchanged=()=>{
+      if(window.NeuroglancerLink.captureFrame(caseId)!==frame||frame.src!==source)throw new Error('Случай или метки изменились во время снимка. Повторите сохранение.');
+    };
     try{
       pages.forEach(({node})=>node.hidden=node.id!=='page-neuroglancer');
       frame.scrollIntoView({block:'center',behavior:'instant'});
-      $('neuroglancerStatus').textContent='Для снимка выберите эту вкладку MICrONS в окне браузера. Сохраняется только область Neuroglancer.';
-      // This must run before the first await, while the export click still has user activation.
-      stream=await navigator.mediaDevices.getDisplayMedia({video:{displaySurface:'browser',frameRate:{ideal:5,max:5}},audio:false,preferCurrentTab:true,selfBrowserSurface:'include',surfaceSwitching:'exclude',monitorTypeSurfaces:'exclude'});
-      const track=stream.getVideoTracks()[0];
-      if(window.NeuroglancerLink.captureFrame(caseId)!==frame||frame.src!==source)throw new Error('Случай или метки изменились во время снимка. Повторите сохранение.');
-      if(track.getSettings().displaySurface!=='browser'||typeof track.cropTo!=='function')throw new Error('Выберите эту вкладку MICrONS, а не окно или весь экран.');
-      // cropTo rejects a different tab. Never save another app, tab, or the surrounding desktop.
-      try{await track.cropTo(await CropTarget.fromElement(frame));}catch{throw new Error('Выбрана другая вкладка. Повторите и выберите эту вкладку MICrONS.');}
-      video=document.createElement('video');video.muted=true;video.srcObject=stream;
-      await video.play();
-      await new Promise((resolve,reject)=>{
-        const timeout=setTimeout(()=>reject(new Error('Браузер не передал снимок. Повторите сохранение.')),10000);
-        // Cropping/hi-DPI capture can resize the source WebGL buffer. Allow the source to repaint.
-        const started=performance.now();
-        const painted=()=>{if(performance.now()-started<1200)video.requestVideoFrameCallback(painted);else{clearTimeout(timeout);resolve();}};
-        video.requestVideoFrameCallback(painted);
-      });
-      if(!video.videoWidth||!video.videoHeight)throw new Error('Neuroglancer ещё не виден. Дождитесь загрузки и повторите сохранение.');
-      if(window.NeuroglancerLink.captureFrame(caseId)!==frame||frame.src!==source)throw new Error('Случай или метки изменились во время снимка. Повторите сохранение.');
-      const canvas=document.createElement('canvas');canvas.width=video.videoWidth;canvas.height=video.videoHeight;
-      canvas.getContext('2d').drawImage(video,0,0);
+      $('neuroglancerStatus').textContent='Сохраняем текущий вид Neuroglancer с метками…';
+      let sourceWindow,renderer,display;
+      try{sourceWindow=frame.contentWindow;renderer=sourceWindow.viewer;display=renderer?.display;}catch{throw new Error('Не удалось прочитать текущий вид Neuroglancer. Обновите сайт и откройте Neuroglancer снова.');}
+      const started=performance.now();let readyOnce=false;
+      // A hidden iframe needs a layout pass before the native drawing buffer is resized.
+      // Wait for the existing renderer; never reload or reconstruct its camera state.
+      while(true){
+        unchanged();renderer=sourceWindow.viewer;display=renderer?.display;
+        const sourceCanvas=display?.canvas;
+        if(sourceCanvas?.offsetWidth&&sourceCanvas.offsetHeight&&sourceWindow.MicronsMarkers){
+          display.resizeCallback();display.draw();
+          if(renderer.isReady()&&sourceCanvas.width&&sourceCanvas.height){if(readyOnce)break;readyOnce=true;}else readyOnce=false;
+        }
+        if(performance.now()-started>15000)throw new Error('Neuroglancer ещё загружает изображения или 3D. Дождитесь загрузки и повторите сохранение.');
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      unchanged();
+      // Native screenshots use draw() followed immediately by copying this canvas.
+      // updateFinished redraws the numbered symbols synchronously inside draw().
+      display.draw();
+      const sourceCanvas=display.canvas,rect=sourceCanvas.getBoundingClientRect();
+      if(!rect.width||!rect.height||!sourceCanvas.width||!sourceCanvas.height)throw new Error('Neuroglancer ещё не виден. Повторите сохранение.');
+      const canvas=document.createElement('canvas');canvas.width=sourceCanvas.width;canvas.height=sourceCanvas.height;
+      const ctx=canvas.getContext('2d');ctx.drawImage(sourceCanvas,0,0);
+      const scaleX=canvas.width/rect.width,scaleY=canvas.height/rect.height;
+      for(const overlay of sourceWindow.document.querySelectorAll('.microns-numbered-marks')){
+        const box=overlay.getBoundingClientRect();
+        if(!overlay.width||!overlay.height||!box.width||!box.height||!overlay.checkVisibility())continue;
+        ctx.drawImage(overlay,(box.left-rect.left)*scaleX,(box.top-rect.top)*scaleY,box.width*scaleX,box.height*scaleY);
+      }
+      unchanged();
       return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Не удалось получить снимок Neuroglancer.')),'image/png'));
-    }catch(error){
-      if(error.name==='NotAllowedError'||error.name==='AbortError')throw new Error('Снимок Neuroglancer отменён. Для ZIP с ним разрешите снимок этой вкладки. Все точки и заметки остаются в браузере.');
-      throw error;
     }finally{
-      stream?.getTracks().forEach(track=>track.stop());
-      if(video){video.pause();video.srcObject=null;}
       pages.forEach(({node,hidden})=>node.hidden=hidden);window.scrollTo({left:scroll[0],top:scroll[1],behavior:'instant'});busy=false;
     }
   }

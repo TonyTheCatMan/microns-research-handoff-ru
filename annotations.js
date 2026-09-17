@@ -9,6 +9,7 @@
   let store, metadata, records = [], caseNotes = [], selectedId = params.get('annotation'), currentCase = '', pending = 0;
   let saveChain = Promise.resolve(), failures = [], deleted = null, refreshGeneration = 0, lastEditorId = null, refreshNeeded = false;
   let exportBusy=false;
+  let notesPeer=null,followingMain=false,followAgain=false,undoImportAction=null;
   let channel; try { channel = new BroadcastChannel('microns-researcher-annotations-v1'); } catch {}
   const now = previous => new Date(Math.max(Date.now(),Date.parse(previous||'')+1||0)).toISOString(), byId = id => records.find(r => r.id === id);
   const changed = () => window.dispatchEvent(new Event('annotations:changed'));
@@ -36,6 +37,48 @@
     return saveChain;
   }
   function broadcast(data) { channel?.postMessage(data); }
+  function mainWindow(){
+    try{const main=window.opener;return notesWindow&&main&&!main.closed&&main.location.origin===location.origin&&main.location.pathname===location.pathname&&!main.HandoffAnnotations?.isNotesWindow?main:null;}catch{return null;}
+  }
+  async function whenSettled(){let chain;do{chain=saveChain;await chain;}while(chain!==saveChain);}
+  async function settleForAction(){await whenSettled();if(failures.length)throw new Error('Сначала повторите сохранение текущих изменений.');}
+  function notifyNotes(){if(!notesWindow&&notesPeer&&!notesPeer.closed)try{notesPeer.HandoffAnnotations?.syncFromMain();}catch{}}
+  function attachNotes(peer){if(!notesWindow&&peer?.opener===window&&notesPeer!==peer){notesPeer=peer;notifyNotes();}}
+  async function syncFromMain(){
+    if(!notesWindow||!store)return;
+    if(followingMain){followAgain=true;return;}followingMain=true;
+    try{do{
+      followAgain=false;const main=mainWindow(),source=main?.HandoffAnnotations;if(!source?.store)break;
+      main.HandoffAnnotations.attachNotes(window);await whenSettled();await source.whenSettled();
+      const different=currentCase!==source.currentCase||selectedId!==source.selectedId;
+      currentCase=source.currentCase;selectedId=source.selectedId;
+      await refresh();renderEditor(different);renderCaseNotes(different);
+      const view=main.ReviewViewer,description=`Основной вид: ${currentCase} · ${view.volume?.volume_id||''}`+(view.ready?` · Z ${view.z}`:' · загрузка…');
+      let hint=$('notesMainView');if(!hint){hint=document.createElement('p');hint.id='notesMainView';hint.className='annotation-storage-note';document.querySelector('.annotation-savebar').before(hint);}hint.textContent=description;
+      for(const id of ['annotationsExportAll','annotationsExportAllImages','annotationsExportCase'])$(id).disabled=exportBusy||source.isExporting||(id!=='annotationsExportAll'&&!view.ready);
+      const url=new URL(location.href);url.searchParams.set('case',currentCase);if(view.volume)url.searchParams.set('volume',view.volume.volume_id);history.replaceState(null,'',url);
+    }while(followAgain);}catch(error){$('annotationSaveStatus').textContent='Не удалось обновить основную страницу: '+error.message;}finally{followingMain=false;}
+  }
+  async function runOnMain(action){
+    if(exportBusy)return;
+    const target=$('restoreResult'),main=mainWindow();
+    if(!main?.HandoffAnnotations?.store){target.textContent='Откройте основную страницу и нажмите «Заметки в отдельном окне», чтобы сохранить её текущий вид.';target.classList.add('save-failed');return;}
+    const buttons=['annotationsExportAll','annotationsExportAllImages','annotationsExportCase','annotationsImport','annotationsImportCase'].map($);
+    const source=main.document.getElementById('restoreResult');
+    const mirror=()=>{
+      target.classList.toggle('save-failed',source.classList.contains('save-failed'));target.textContent=[...source.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('');
+      const undo=main.document.getElementById('annotationsUndoImport');if(undo){const button=document.createElement('button');button.id='annotationsUndoImport';button.textContent=undo.textContent;button.disabled=undo.disabled;button.addEventListener('click',()=>runOnMain(api=>api.undoImport()));target.append(button);}
+    };
+    let observer;
+    try{
+      if(main.HandoffAnnotations.isExporting)throw new Error('Сохранение на основной странице ещё выполняется.');
+      exportBusy=true;buttons.forEach(b=>b.disabled=true);target.classList.remove('save-failed');target.textContent='Синхронизируем с основной страницей…';
+      await settleForAction();await main.HandoffAnnotations.settleForAction();await main.HandoffAnnotations.refresh();
+      observer=new MutationObserver(mirror);observer.observe(source,{childList:true,subtree:true,characterData:true,attributes:true});
+      await action(main.HandoffAnnotations);mirror();await syncFromMain();
+    }catch(error){target.textContent='Не удалось выполнить действие: '+error.message;target.classList.add('save-failed');}
+    finally{observer?.disconnect();exportBusy=false;buttons.forEach(b=>b.disabled=false);await syncFromMain();}
+  }
   function updateLocal(record) { const i=records.findIndex(r=>r.id===record.id);if(i<0)records.push(record);else records[i]=record; }
   function updateLocalCase(record) { const i=caseNotes.findIndex(r=>r.case_id===record.case_id);if(i<0)caseNotes.push(record);else caseNotes[i]=record; }
   async function refresh() {
@@ -43,7 +86,7 @@
     const generation=++refreshGeneration;
     const [nextRecords,nextCases]=await Promise.all([store.getAll(),store.getCases()]);
     if(generation!==refreshGeneration||pending||failures.length)return;
-    records=nextRecords;caseNotes=nextCases;renderList();renderEditor();renderCaseNotes();draw();changed();
+    records=nextRecords;caseNotes=nextCases;renderList();renderEditor();renderCaseNotes();draw();changed();notifyNotes();
   }
   function locationInVolume(record,volume=viewer()?.volume) {
     if(!volume||record.case_id!==viewer()?.currentCase?.case_id)return null;
@@ -91,8 +134,7 @@
     $('annotationEditor').hidden=!valid;$('annotationEditor').disabled=!valid;
     if(!valid){$('annotationSelection').textContent='Выберите отметку в списке или добавьте её в 2D / 3D.';lastEditorId=null;return;}
     $('annotationSelection').textContent=`N${record.number} · ${record.volume_id}${record.object_id?' · '+record.object_id:''}`;
-    const editing=$('annotationEditor').contains(document.activeElement);
-    if(force||lastEditorId!==record.id||!editing)for(const [id,key] of Object.entries(fields))$(id).value=record[key]||'';
+    for(const [id,key] of Object.entries(fields))if(force||lastEditorId!==record.id||document.activeElement!==$(id))$(id).value=record[key]||'';
     $('annotationCoordinates').textContent='Глобальные XYZ (нм): '+fmt(record.point_nm)+(record.segment_id?'\nСегмент v1300: '+record.segment_id:'');lastEditorId=record.id;
     $('previousMarkerProperties').hidden=!record.properties;
   }
@@ -100,7 +142,8 @@
     const record=byId(id);if(!record)return;
     selectedId=id;renderList();renderEditor(true);draw();viewer()?.surface?.setSelectedAnnotation(id);viewer()?.surface?.focusAnnotation(record);
     if(go&&!notesWindow)goToSelected();
-    if(announce)broadcast({type:'focus',case_id:record.case_id,id});
+    if(announce&&notesWindow){const main=mainWindow()?.HandoffAnnotations;if(main?.currentCase===record.case_id)main.select(id,false,false);else syncFromMain();}
+    notifyNotes();
   }
   async function goToSelected() {
     const record=byId(selectedId);if(!record)return;
@@ -150,17 +193,18 @@
   $('contextLimit').addEventListener('change',()=>{viewer()?.surface?.setContextLimit(Number($('contextLimit').value));try{localStorage.setItem('microns-nearby-count',$('contextLimit').value);}catch{}});
   try{const limit=localStorage.getItem('microns-nearby-count');if(['3','5','10'].includes(limit))$('contextLimit').value=limit;}catch{}
   window.addEventListener('annotations:contextstatus',event=>{if(event.detail.volume_id!==viewer()?.volume?.volume_id)return;const node=$('contextLoadStatus');node.textContent=event.detail.message+(event.detail.status==='error'?' Снимите и снова включите флажок, чтобы повторить.':'');node.classList.toggle('save-failed',event.detail.status==='error');});
-  $('annotationGo').addEventListener('click',()=>notesWindow?broadcast({type:'go',id:selectedId}):goToSelected());
+  $('annotationGo').addEventListener('click',()=>notesWindow?runOnMain(main=>main.goTo(selectedId)):goToSelected());
   $('annotationDelete').addEventListener('click',()=>{
     const record=byId(selectedId);if(!record)return;
     enqueue(async()=>{deleted=await store.remove(record.id);viewer()?.surface?.forgetAnnotationFocus(record.number);records=records.filter(r=>r.id!==record.id);selectedId=null;$('annotationUndo').hidden=false;renderList();renderEditor();draw();changed();broadcast({type:'changed'});});
   });
   $('annotationUndo').addEventListener('click',()=>{if(!deleted)return;const record=deleted;enqueue(async()=>{const restored=await store.restore(record);updateLocal(restored);deleted=null;$('annotationUndo').hidden=true;select(restored.id);changed();broadcast({type:'changed'});});});
   let pointer;
-  $('viewport').addEventListener('pointerdown',event=>{if(event.button===0&&viewer()?.ready)pointer={x:event.clientX,y:event.clientY};});
+  $('viewport').addEventListener('pointerdown',event=>{if(event.button===0&&viewer()?.ready)pointer={x:event.clientX,y:event.clientY,moved:false};});
+  $('viewport').addEventListener('pointermove',event=>{if(pointer&&Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)>5)pointer.moved=true;});
   $('viewport').addEventListener('pointercancel',()=>pointer=null);
   $('viewport').addEventListener('pointerup',event=>{
-    const start=pointer;pointer=null;if(!start||Math.hypot(event.clientX-start.x,event.clientY-start.y)>5||!viewer()?.ready||!store)return;
+    const start=pointer;pointer=null;if(!start||start.moved||Math.hypot(event.clientX-start.x,event.clientY-start.y)>5||!viewer()?.ready||!store)return;
     const v=viewer(),image=$('imageCanvas'),rect=image.getBoundingClientRect(),x=(event.clientX-rect.left)/rect.width*image.width,y=(event.clientY-rect.top)/rect.height*image.height;
     if(x<0||y<0||x>=image.width||y>=image.height)return;
     const near=visible()?sectionRecords().find(r=>{const p=locationInVolume(r);return Math.hypot(p[0]-x,p[1]-y)*v.zoom<12;}):null;
@@ -173,12 +217,13 @@
   window.addEventListener('annotations:pick3d-miss',event=>$('annotationModeHelp').textContent=event.detail?.message||'Нажмите на видимую поверхность. При необходимости скройте плоскость XY.');
   window.addEventListener('annotations:surface-ready',()=>{setMode();draw();viewer()?.surface?.setContextLimit(Number($('contextLimit').value));viewer()?.surface?.setContextVisible($('surfaceContext').checked);});
   function syncCase() {
+    if(notesWindow&&mainWindow()?.HandoffAnnotations?.store){syncFromMain();return;}
     const id=viewer()?.currentCase?.case_id||'';
     if(currentCase!==id){currentCase=id;if(byId(selectedId)?.case_id!==id)selectedId=null;lastEditorId=null;renderList();renderEditor(true);renderCaseNotes(true);}
     $('annotationMode').disabled=!store||!viewer()?.ready;
     $('annotationsExportImage').disabled=!store||!viewer()?.ready;
     $('annotationsExportCase').disabled=!store||!viewer()?.ready;
-    draw();
+    draw();notifyNotes();
   }
   window.addEventListener('review:volume',syncCase);
   window.addEventListener('review:position',()=>{
@@ -193,15 +238,17 @@
   watchPixelDensity();
   $('annotationPopout').addEventListener('click',()=>{
     const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);url.hash='viewer';
-    const opened=window.open(url.href,'microns-annotation-properties','width=680,height=900');if(!opened)$('annotationModeHelp').textContent='Разрешите всплывающее окно для свойств или используйте панель ниже.';
+    const opened=notesPeer&&!notesPeer.closed?notesPeer:window.open(url.href,'microns-annotation-properties-'+crypto.randomUUID(),'width=680,height=900');if(!opened)$('annotationModeHelp').textContent='Разрешите всплывающее окно для свойств или используйте панель ниже.';
+    if(opened){attachNotes(opened);notifyNotes();opened.focus();}
   });
   channel?.addEventListener('message',async event=>{
     const message=event.data;if(message?.type==='changed')await refresh();
-    if(message?.type==='focus'&&notesWindow){if(viewer()?.currentCase?.case_id!==message.case_id)window.HandoffUI.choose(message.case_id);await refresh();select(message.id,false,false);}
-    if(message?.type==='go'&&!notesWindow){await refresh();const r=byId(message.id);if(r){select(r.id,false,false);await goToSelected();window.focus();}}
+    if(message?.type==='main-ready'&&notesWindow)syncFromMain();
   });
-  window.addEventListener('focus',()=>refresh());
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
+  window.addEventListener('focus',()=>{refresh();syncFromMain();});
+  window.addEventListener('annotations:ready',()=>{if(notesWindow)syncFromMain();else broadcast({type:'main-ready'});});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){refresh();syncFromMain();}});
+  $('annotationEditor').addEventListener('focusout',()=>setTimeout(async()=>{await whenSettled();await refresh();},0));
   function download(blob,name) { const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000); }
   async function backup(filter={}) {
     let chain;do{chain=saveChain;await chain;}while(chain!==saveChain);
@@ -231,15 +278,18 @@
     return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Не удалось создать PNG.')),'image/png'));
   }
   async function exportFindings(scope,{includeImages=scope!=='all'}={}) {
+    if(notesWindow)return runOnMain(main=>main.exportFindings(scope,{includeImages}));
     if(!store||exportBusy)return;
     exportBusy=true;
+    notifyNotes();
     const exportButtons=['annotationsExportAll','annotationsExportAllImages','annotationsExportCase','neuroglancerExportAll','neuroglancerExportCase'].map($).filter(Boolean);
     exportButtons.forEach(button=>button.disabled=true);
     try{
+      await settleForAction();if(notesPeer&&!notesPeer.closed)await notesPeer.HandoffAnnotations?.settleForAction();await refresh();
       const v=viewer(),frozenCase=currentCase,isCase=scope!=='all',filter=isCase?{case_id:frozenCase}:{};
       const frozenRecords=structuredClone(records),captured=[];
       // Export just these views. Earlier snapshots stay in browser storage but are not added to this ZIP.
-      if(includeImages&&(!notesWindow||isCase)){
+      if(includeImages){
         if(!v?.ready||!v.surface?.modelReady)throw new Error('Дождитесь загрузки 2D и 3D.');
         const panel=$('page-viewer'),wasHidden=panel.hidden;let shot;
         try{panel.hidden=false;shot=v.surface.snapshotEvidence();}finally{panel.hidden=wasHidden;}
@@ -250,10 +300,10 @@
         captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'2d',annotation_ids:sectionIds},annotated:imageBlob(true),raw:imageBlob(false)});
         captured.push({meta:{...base,id:crypto.randomUUID(),source_view:'3d',annotation_ids:shot.view.annotation_ids,view_settings:shot.view},annotated:shot.blob,raw:Promise.resolve(null)});
       }
-      const neuroglancer=includeImages&&scope==='all'&&!notesWindow?window.NeuroglancerLink?.captureCurrent(frozenCase):Promise.resolve(null);
+      const neuroglancer=includeImages&&scope==='all'?window.NeuroglancerLink?.captureCurrent(frozenCase):Promise.resolve(null);
       neuroglancer?.catch(()=>{});
       const pixels=Promise.all(captured.map(async item=>{const [annotated,raw]=await Promise.all([item.annotated,item.raw]);return{...item,annotated,raw};}));pixels.catch(()=>{});
-      const settings=notesWindow?await store.getSettings():{preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
+      const settings={preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
       if(v?.ready){settings.last_view={case_id:frozenCase,volume_id:v.volume.volume_id,z:v.z};settings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)try{settings.surface_view=v.surface.getViewState();}catch{}}
       $('restoreResult').classList.remove('save-failed');$('restoreResult').textContent=includeImages?'Сохраняем результаты и изображения…':'Сохраняем точки и заметки…';
       try{await store.putSettings(settings);}catch{}
@@ -269,21 +319,24 @@
       const ngShot=await neuroglancer;
       if(ngShot)files.push({name:`images/${frozenCase}-Neuroglancer-current.png`,bytes:new Uint8Array(await ngShot.arrayBuffer())});
       download(AnnotationsCore.zip(files),'MICrONS-'+(isCase?frozenCase:includeImages?'all-results-with-images':'all-results')+'-'+new Date().toISOString().slice(0,10)+'.zip');
-      $('restoreResult').textContent=!includeImages?'Все точки и заметки сохранены. ZIP можно загрузить для продолжения работы.':(isCase?'Случай сохранён':'Все результаты сохранены')+`: снимков ${data.evidence.length+(ngShot?1:0)}. `+(notesWindow?'Для снимков сохраняйте из основного просмотрщика.':'Только текущие 2D / 3D'+(ngShot?' и Neuroglancer.':isCase?'.':'. Откройте Neuroglancer перед сохранением, чтобы включить его текущий вид.'));
+      $('restoreResult').textContent=!includeImages?'Все точки и заметки сохранены. ZIP можно загрузить для продолжения работы.':(isCase?'Случай сохранён':'Все результаты сохранены')+`: снимков ${data.evidence.length+(ngShot?1:0)}. Только текущие 2D / 3D`+(ngShot?' и Neuroglancer.':isCase?'.':'. Откройте Neuroglancer перед сохранением, чтобы включить его текущий вид.');
     }catch(error){$('restoreResult').textContent='Не удалось сохранить: '+error.message;$('restoreResult').classList.add('save-failed');}
-    finally{exportBusy=false;exportButtons.forEach(button=>button.disabled=false);}
+    finally{exportBusy=false;exportButtons.forEach(button=>button.disabled=false);notifyNotes();}
   }
   $('annotationsExportAll').addEventListener('click',()=>exportFindings('all'));
   $('annotationsExportAllImages').addEventListener('click',()=>exportFindings('all',{includeImages:true}));
   $('annotationsExportCase').addEventListener('click',()=>exportFindings('case'));
   $('annotationsExportImage').addEventListener('click',()=>exportFindings('image'));
   async function importFindings(event,caseOnly=false){
-    const input=event.target,file=input.files[0];if(!file||!store)return;
+    if(notesWindow)return runOnMain(main=>main.importFindings(event,caseOnly));
+    const input=event.target;let file=input.files[0];if(!file||!store)return;
     const target=$('restoreResult');input.disabled=true;target.classList.remove('save-failed');target.textContent='Загружаем все метки и заметки…';
     const previousSettings={preferences:Object.fromEntries(['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'].map(id=>[id,$(id).checked])),annotation_mode:mode()};
     if(viewer()?.ready){const v=viewer();previousSettings.last_view={case_id:currentCase,volume_id:v.volume.volume_id,z:v.z};previousSettings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)previousSettings.surface_view=v.surface.getViewState();}
     try{
-      let chain;do{chain=saveChain;await chain;}while(chain!==saveChain);if(failures.length)throw new Error('Сначала повторите сохранение текущих изменений.');
+      await settleForAction();if(notesPeer&&!notesPeer.closed)await notesPeer.HandoffAnnotations?.settleForAction();
+      // File objects selected in the notes window belong to a different JavaScript realm.
+      if(!(file instanceof Blob))file=new File([await file.arrayBuffer()],file.name,{type:file.type});
       const result=/\.zip$/i.test(file.name)?await store.importZIP(file,{policy:'restore',caseOnly}):await store.importData(JSON.parse(await file.text()),{policy:'restore',caseOnly});
       selectedId=null;lastEditorId=null;await refresh();await window.HandoffAssessment?.refresh();await window.HandoffEvidence?.refresh();broadcast({type:'changed'});
       const settings=result.settings||{},first=result.case_ids[0];
@@ -294,7 +347,7 @@
       location.hash='viewer';
       target.textContent=`Восстановление завершено: меток ${result.annotations_total}, с заметками ${result.notes_total}, снимков ${result.evidence_total-result.missingEvidence}. Все точки и заметки из файла загружены.`+(result.missingEvidence?' Для восстановления снимков загрузите исходный ZIP.':'')+viewError;
       const undo=document.createElement('button');undo.id='annotationsUndoImport';undo.textContent='Отменить загрузку';target.append(document.createTextNode(' '),undo);
-      undo.addEventListener('click',async()=>{undo.disabled=true;try{await saveChain;await store.undoImport();selectedId=null;lastEditorId=null;await refresh();await window.HandoffEvidence?.refresh();await applySettings(previousSettings);renderEditor(true);renderCaseNotes(true);broadcast({type:'changed'});target.textContent='Загрузка отменена. Восстановлены предыдущие точки и заметки.';}catch(error){target.textContent=error.message;target.classList.add('save-failed');}});
+      undoImportAction=async()=>{undo.disabled=true;try{await settleForAction();await store.undoImport();selectedId=null;lastEditorId=null;await refresh();await window.HandoffEvidence?.refresh();await applySettings(previousSettings);renderEditor(true);renderCaseNotes(true);broadcast({type:'changed'});target.textContent='Загрузка отменена. Восстановлены предыдущие точки и заметки.';}catch(error){target.textContent=error.message;target.classList.add('save-failed');}};undo.addEventListener('click',undoImportAction);
       target.scrollIntoView({block:'center',behavior:'smooth'});
     }catch(error){target.textContent='Файл не восстановлен: '+error.message;target.classList.add('save-failed');target.scrollIntoView({block:'center',behavior:'smooth'});}
     finally{input.disabled=false;input.value='';}
@@ -319,5 +372,5 @@
   }
   window.addEventListener('review:ready',event=>boot(event.detail),{once:true});
   if(viewer()?.metadata)boot(viewer().metadata);
-  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},enqueue,exportFindings,imageBlob,select,refresh,whenSettled:async()=>{let chain;do{chain=saveChain;await chain;}while(chain!==saveChain);}};
+  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},get isExporting(){return exportBusy;},isNotesWindow:notesWindow,enqueue,exportFindings,importFindings,imageBlob,select,refresh,whenSettled,settleForAction,attachNotes,syncFromMain,undoImport:()=>undoImportAction?.(),goTo:async id=>{select(id,false,false);await goToSelected();window.focus();}};
 })();

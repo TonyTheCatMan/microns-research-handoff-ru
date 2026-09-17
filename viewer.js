@@ -3,7 +3,8 @@
   'use strict';
   const byId = id => document.getElementById(id);
   const ui = Object.fromEntries(['status','caseSelect','volumeSelect','volumeDetails','contacts','targetStatus','overlayToggle','prevButton','nextButton','zSlider','zInput','zReadout','zoomSelect','fitButton','blackInput','whiteInput','rawButton','windowButton','exportButton','viewport','emptyState','canvasWrap','imageCanvas','overlayCanvas','scaleCanvas','scaleNote','cursorReadout'].map(id => [id, byId(id)]));
-  const state = { files:[], metadata:null, currentCase:null, volume:null, tiff:null, pixels:null, z:0, zoom:2, black:0, white:255, target:null, generation:0 };
+  const state = { files:[], metadata:null, currentCase:null, volume:null, tiff:null, pixels:null, z:0, zoom:2, black:0, white:255, target:null, generation:0, viewCenter:null };
+  const MIN_ZOOM = .1, MAX_ZOOM = 8;
   const surface = new LocalSurfaceView();
   const fmt = values => values.map(v => Number.isInteger(v) ? String(v) : Number(v.toFixed(3))).join(', ');
   const triple = (a, predicate) => Array.isArray(a) && a.length === 3 && a.every(predicate);
@@ -60,7 +61,7 @@
     surface.clear();
     for(const id of ['orthoToggle','orthoX','orthoY','orthoTarget'])byId(id).disabled=true;
     byId('orthoPanel').hidden=true;
-    state.tiff = null; state.pixels = null; state.target = null;
+    state.tiff = null; state.pixels = null; state.target = null; state.viewCenter = null;
     for (const name of ['prevButton','nextButton','zSlider','zInput','zoomSelect','fitButton','blackInput','whiteInput','rawButton','windowButton','exportButton','overlayToggle']) ui[name].disabled = true;
     ui.canvasWrap.hidden = true; ui.emptyState.hidden = false;
     ui.contacts.replaceChildren();
@@ -169,8 +170,44 @@
     if (!state.tiff) return;
     const width = state.tiff.width * state.zoom, height = state.tiff.height * state.zoom;
     ui.canvasWrap.style.width = width + 'px'; ui.canvasWrap.style.height = height + 'px';
+    // Keep room to pan and hold the cursor's image point fixed, including at small scales.
+    if (ui.viewport.clientWidth && ui.viewport.clientHeight) ui.canvasWrap.style.margin = (ui.viewport.clientHeight / 2) + 'px ' + (ui.viewport.clientWidth / 2) + 'px';
     for (const canvas of [ui.imageCanvas,ui.overlayCanvas]) { canvas.style.width = width + 'px'; canvas.style.height = height + 'px'; }
     drawOverlay(); drawScale();
+  }
+  function viewportCenter() {
+    const rect = ui.viewport.getBoundingClientRect();
+    return {x:rect.left + ui.viewport.clientLeft + ui.viewport.clientWidth / 2, y:rect.top + ui.viewport.clientTop + ui.viewport.clientHeight / 2};
+  }
+  function imagePointAt(anchor) {
+    const rect = ui.imageCanvas.getBoundingClientRect();
+    return {x:(anchor.x - rect.left) / state.zoom, y:(anchor.y - rect.top) / state.zoom};
+  }
+  function placeImagePoint(point, anchor) {
+    const rect = ui.imageCanvas.getBoundingClientRect();
+    ui.viewport.scrollLeft += rect.left + point.x * state.zoom - anchor.x;
+    ui.viewport.scrollTop += rect.top + point.y * state.zoom - anchor.y;
+    rememberViewCenter();
+  }
+  function rememberViewCenter() {
+    if (state.tiff && !byId('page-viewer').hidden && ui.viewport.clientWidth && ui.viewport.clientHeight) state.viewCenter = imagePointAt(viewportCenter());
+  }
+  function syncZoomOption(fit=false) {
+    const preset = !fit && [...ui.zoomSelect.options].find(option => !option.dataset.fit && !option.dataset.custom && Math.abs(Number(option.value) - state.zoom) < 1e-8);
+    if (preset) { ui.zoomSelect.value = preset.value; return; }
+    const kind = fit ? 'fit' : 'custom';
+    let option = ui.zoomSelect.querySelector('[data-' + kind + ']');
+    if (!option) { option = new Option(); option.dataset[kind] = 'true'; ui.zoomSelect.append(option); }
+    option.value = String(state.zoom);
+    option.textContent = (fit ? 'По размеру окна · ' : '') + Math.round(state.zoom * 100) + '%';
+    ui.zoomSelect.value = option.value;
+  }
+  function setZoom(value, anchor=viewportCenter(), fit=false) {
+    if (!state.tiff || !Number.isFinite(value)) return;
+    const point = fit ? {x:state.tiff.width / 2,y:state.tiff.height / 2} : imagePointAt(anchor);
+    state.zoom = Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,value));
+    syncZoomOption(fit); resizeView(); placeImagePoint(point,anchor);
+    if (drag) { drag.left = ui.viewport.scrollLeft; drag.top = ui.viewport.scrollTop; drag.x = drag.currentX; drag.y = drag.currentY; }
   }
   function drawOverlay() {
     surface.setTarget(state.target,false);
@@ -241,12 +278,18 @@
   ui.zInput.addEventListener('input',e=>{if(e.target.value!=='')setZ(e.target.value);});
   ui.zInput.addEventListener('change',e=>setZ(e.target.value));
   ui.prevButton.addEventListener('click',()=>setZ(state.z-1));ui.nextButton.addEventListener('click',()=>setZ(state.z+1));
-  ui.zoomSelect.addEventListener('change',e=>{state.zoom=Number(e.target.value);resizeView();});
+  ui.zoomSelect.addEventListener('change',e=>setZoom(Number(e.target.value)));
   ui.fitButton.addEventListener('click',()=>{
-    state.zoom=Math.max(.1,Math.min((ui.viewport.clientWidth-20)/state.tiff.width,(ui.viewport.clientHeight-20)/state.tiff.height,4));
-    let option=ui.zoomSelect.querySelector('[data-fit]');if(!option){option=new Option('По размеру окна',String(state.zoom));option.dataset.fit='true';ui.zoomSelect.append(option);}
-    option.value=String(state.zoom);option.textContent='По размеру окна · '+Math.round(state.zoom*100)+'%';ui.zoomSelect.value=option.value;resizeView();
+    if (!state.tiff) return;
+    setZoom(Math.min((ui.viewport.clientWidth-20)/state.tiff.width,(ui.viewport.clientHeight-20)/state.tiff.height,4),viewportCenter(),true);
   });
+  ui.viewport.addEventListener('wheel',event=>{
+    if (!state.tiff || ui.canvasWrap.hidden || byId('page-viewer').hidden || !ui.viewport.clientWidth || !ui.viewport.clientHeight || !Number.isFinite(event.deltaY) || event.deltaY === 0) return;
+    event.preventDefault();
+    const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? ui.viewport.clientHeight : 1;
+    const delta = Math.max(-240,Math.min(240,event.deltaY * unit));
+    setZoom(state.zoom * Math.exp(-delta * .002),{x:event.clientX,y:event.clientY});
+  },{passive:false});
   for(const input of [ui.blackInput,ui.whiteInput])input.addEventListener('change',()=>setWindow(Number(ui.blackInput.value),Number(ui.whiteInput.value)));
   ui.rawButton.addEventListener('click',()=>setWindow(0,255));ui.windowButton.addEventListener('click',()=>setWindow(110,160));
   ui.exportButton.addEventListener('click',exportSection);
@@ -288,17 +331,18 @@
     if(['ArrowLeft','ArrowDown','ArrowRight','ArrowUp'].includes(event.key)){event.preventDefault();setZ(state.z+(['ArrowRight','ArrowUp'].includes(event.key)?1:-1));}
   });
   let drag=null;
-  ui.viewport.addEventListener('pointerdown',e=>{if(!state.tiff || e.button!==0 || window.HandoffAnnotations?.captures2D)return;ui.viewport.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,left:ui.viewport.scrollLeft,top:ui.viewport.scrollTop};ui.viewport.setPointerCapture(e.pointerId);});
-  ui.viewport.addEventListener('pointerup',()=>{drag=null;});ui.viewport.addEventListener('pointercancel',()=>{drag=null;});
+  ui.viewport.addEventListener('pointerdown',e=>{if(!state.tiff || e.button!==0)return;ui.viewport.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,currentX:e.clientX,currentY:e.clientY,left:ui.viewport.scrollLeft,top:ui.viewport.scrollTop,moved:false};ui.viewport.setPointerCapture(e.pointerId);});
+  ui.viewport.addEventListener('pointerup',()=>{drag=null;});ui.viewport.addEventListener('pointercancel',()=>{drag=null;});ui.viewport.addEventListener('lostpointercapture',()=>{drag=null;});
   ui.viewport.addEventListener('pointermove',event=>{
     if(!state.tiff)return;
-    if(drag){ui.viewport.scrollLeft=drag.left-(event.clientX-drag.x);ui.viewport.scrollTop=drag.top-(event.clientY-drag.y);}
+    if(drag){drag.currentX=event.clientX;drag.currentY=event.clientY;if(drag.moved||Math.hypot(event.clientX-drag.x,event.clientY-drag.y)>5){drag.moved=true;ui.viewport.scrollLeft=drag.left-(event.clientX-drag.x);ui.viewport.scrollTop=drag.top-(event.clientY-drag.y);rememberViewCenter();}}
     const rect=ui.imageCanvas.getBoundingClientRect(),x=Math.floor((event.clientX-rect.left)/rect.width*state.tiff.width),y=Math.floor((event.clientY-rect.top)/rect.height*state.tiff.height);
     if(x<0||y<0||x>=state.tiff.width||y>=state.tiff.height)return;
     const local=[x,y,state.z],global=local.map((v,i)=>v+state.volume.begin_vox_xyz[i]),nm=global.map((v,i)=>v*state.volume.resolution_nm[i]);
     ui.cursorReadout.textContent='Исходное значение пикселя: '+state.pixels[y*state.tiff.width+x]+' / 255\nЛокальные XYZ: '+fmt(local)+' · глобальные координаты вокселя: '+fmt(global)+'\nНачало вокселя (нм): '+fmt(nm);
   });
-  window.addEventListener('resize',()=>{if(state.tiff){if(state.needsFit&&!byId('page-viewer').hidden){ui.fitButton.click();state.needsFit=false;}drawScale();renderOrthos();}});
+  ui.viewport.addEventListener('scroll',rememberViewCenter,{passive:true});
+  window.addEventListener('resize',()=>{if(state.tiff&&!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight){if(state.needsFit){ui.fitButton.click();state.needsFit=false;}else{const anchor=viewportCenter(),point=state.viewCenter||imagePointAt(anchor);resizeView();placeImagePoint(point,anchor);}renderOrthos();}});
   window.ReviewViewer={
     get metadata(){return state.metadata;},get currentCase(){return state.currentCase;},get volume(){return state.volume;},
     get ready(){return Boolean(state.tiff);},get z(){return state.z;},get target(){return state.target;},get zoom(){return state.zoom;},get surface(){return surface;},get displayWindow(){return [state.black,state.white];},
@@ -309,8 +353,8 @@
       if(!state.tiff||state.currentCase?.case_id!==caseId||state.volume?.volume_id!==volumeId)await window.ReviewViewer.select(caseId,volumeId);
       if(!state.tiff||state.currentCase?.case_id!==caseId||state.volume?.volume_id!==volumeId)throw new Error('Не удалось открыть объём метки. Повторите переход.');
       const local=toLocal(pointNm);if(!inBounds(local))throw new Error('Метка находится вне выбранного объёма.');
-      state.zoom=Math.max(2,state.zoom);ui.zoomSelect.value=String(state.zoom);setZ(local[2]);resizeView();
-      ui.viewport.scrollLeft=Math.max(0,(local[0]+.5)*state.zoom-ui.viewport.clientWidth/2);ui.viewport.scrollTop=Math.max(0,(local[1]+.5)*state.zoom-ui.viewport.clientHeight/2);
+      setZoom(Math.max(2,state.zoom));setZ(local[2]);
+      placeImagePoint({x:local[0]+.5,y:local[1]+.5},viewportCenter());
       return local;
     },
     async select(id,volumeId,z){
