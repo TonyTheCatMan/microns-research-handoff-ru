@@ -212,22 +212,34 @@
   function drawOverlay() {
     surface.setTarget(state.target,false);
     byId('orthoTarget').disabled=!state.target;
-    const ctx=ui.overlayCanvas.getContext('2d');ctx.clearRect(0,0,ui.overlayCanvas.width,ui.overlayCanvas.height);
+    const canvas=ui.overlayCanvas,ctx=canvas.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);
+    const width=ui.imageCanvas.width*state.zoom,height=ui.imageCanvas.height*state.zoom,ratio=window.devicePixelRatio||1;
+    const pixelsWide=Math.max(1,Math.round(width*ratio)),pixelsHigh=Math.max(1,Math.round(height*ratio));
+    if(canvas.width!==pixelsWide)canvas.width=pixelsWide;if(canvas.height!==pixelsHigh)canvas.height=pixelsHigh;
+    canvas.style.width=width+'px';canvas.style.height=height+'px';
+    // Draw symbols and text at screen resolution, independently of the EM pixel grid.
+    ctx.save();ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
     const points=[];
     if(state.currentCase&&state.volume)for(const contact of state.currentCase.contacts)for(const [key,filter,suffix] of [['ctr_nm','tCenter',''],['pre_nm','tPre',' пре'],['post_nm','tPost',' пост']]){
       if(!contact[key]||!byId(filter).checked)continue;
       const local=toLocal(contact[key]);if(!inBounds(local))continue;
       const point={id:contact.contact_id,key,label:contact.contact_id+suffix,nm:contact[key],local};points.push(point);
       if(!ui.overlayToggle.checked||local[2]!==state.z)continue;
-      const x=local[0]+.5,y=local[1]+.5,r=5/state.zoom;
-      MarkerStyles.draw(ctx,x,y,r,key,'',false,1/state.zoom);
-      ctx.font='bold '+(13/state.zoom)+'px system-ui';ctx.lineWidth=3/state.zoom;ctx.strokeStyle='#172632';ctx.strokeText(point.label,x+8/state.zoom,y-8/state.zoom);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(point.label,x+8/state.zoom,y-8/state.zoom);
+      const x=(local[0]+.5)*state.zoom,y=(local[1]+.5)*state.zoom;
+      MarkerStyles.draw(ctx,x,y,5,key);
+      ctx.font='bold 13px system-ui';ctx.lineWidth=3;ctx.strokeStyle='#172632';ctx.strokeText(point.label,x+8,y-8);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(point.label,x+8,y-8);
     }
+    ctx.restore();
     surface.setTargets?.(points,ui.overlayToggle.checked);
     const target=state.target;
     ui.targetStatus.textContent=(target?target.id+' '+target.label.toLowerCase()+': локальные XYZ '+fmt(target.local)+'. ':'')+(ui.overlayToggle.checked?'Все включённые T-точки показаны на своих срезах; в 3D — вместе.':'Точки T скрыты. Кнопки контактов по-прежнему перемещают к их срезам.');
     window.dispatchEvent(new Event('review:display'));
   }
+  function watchPixelDensity(){
+    matchMedia(`(resolution: ${window.devicePixelRatio||1}dppx)`).addEventListener('change',()=>{if(state.tiff)drawOverlay();watchPixelDensity();},{once:true});
+  }
+  watchPixelDensity();
   function drawScale() {
     const cssLength = 500 / state.volume.resolution_nm[0] * state.zoom;
     const cssWidth = Math.max(135, Math.ceil(cssLength + 24));
