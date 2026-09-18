@@ -266,6 +266,8 @@
     ctx.fillText(state.currentCase.case_id+' · '+state.volume.volume_id,16,27);
     ctx.font='14px system-ui';ctx.fillText('Локальная Z '+state.z+' / '+(state.tiff.depth-1)+' · глобальная Z '+globalZ+' · '+globalZ*state.volume.resolution_nm[2]+' нм',16,49);
     ctx.imageSmoothingEnabled=false;ctx.drawImage(ui.imageCanvas,left,top,imageWidth,imageHeight);
+    const segmentation=window.SliceSegmentation?.captureFor(state.volume.volume_id,state.z);
+    if(segmentation)ctx.drawImage(segmentation.canvas,left,top,imageWidth,imageHeight);
     if(markerIncluded)ctx.drawImage(ui.overlayCanvas,left,top,imageWidth,imageHeight);
     if(window.HandoffAnnotations?.visible)ctx.drawImage(byId('annotationCanvas'),left,top,imageWidth,imageHeight);
     let y=top+imageHeight+20;
@@ -273,7 +275,7 @@
     ctx.beginPath();ctx.moveTo(16,y);ctx.lineTo(16+bar,y);ctx.moveTo(16,y-4);ctx.lineTo(16,y+4);ctx.moveTo(16+bar,y-4);ctx.lineTo(16+bar,y+4);ctx.stroke();ctx.fillText('500 нм',25+bar,y+5);
     y+=28;ctx.fillText('Отображение: '+state.black+'–'+state.white+' · ближайший сосед, 2× · выбранная метка '+(markerIncluded?'включена':'не включена'),16,y);
     y+=22;const target=state.target;ctx.fillText(target?'Стартовая точка '+target.id+' '+target.label+': локальные XYZ '+fmt(target.local)+'; floor(нм / размер вокселя) − начало.':'Точка контакта не выбрана. Координаты: floor(нм / размер вокселя) − начало.',16,y);
-    y+=22;ctx.fillText('Стартовая анатомическая точка не проверена. Исходные пиксели TIFF не изменены.',16,y);
+    y+=22;ctx.fillText('Стартовая анатомическая точка не проверена. '+(segmentation?'Цвета seg_m1300 — для навигации. ':'')+'Исходные пиксели TIFF не изменены.',16,y);
     y+=22;ctx.font='12px system-ui';ctx.fillText('MICrONS Consortium (2025) · doi:10.1038/s41586-025-08790-w · CC BY 4.0',16,y);
     y+=19;ctx.fillText('Условия: https://www.microns-explorer.org/terms-and-conditions',16,y);
     const name=(state.volume.volume_id+'_local-z'+state.z+'_global-z'+globalZ+'_window-'+state.black+'-'+state.white+(markerIncluded?'_pointer':'_no-pointer')+'.png').replace(/[^a-zA-Z0-9_.-]/g,'_');

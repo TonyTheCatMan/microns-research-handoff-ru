@@ -1,7 +1,7 @@
 /* Durable, case-scoped researcher findings. Coordinates are global physical nm. */
 (() => {
   'use strict';
-  const SCHEMA_VERSION=2, FORMAT='microns-researcher-findings', MAX_RECORDS=100000;
+  const SCHEMA_VERSION=3, FORMAT='microns-researcher-findings', MAX_RECORDS=100000;
   const FORM_FIELDS={CASE_REVIEW:['case_id','reviewer_name','review_date','minutes_spent','common_head','neck_to_shaft','unitary_spine','at_least_two_contacts_same_spine','bounded_no_additional_contact','confidence','evidence_refs','limitations','prior_verdicts_seen','functional_results_seen','exposure_notes'],CONTACT_REVIEW:['case_id','contact_id','synaptic_junction','belongs_to_target_spine','location_head_neck_shaft','evidence_refs','reason_or_uncertainty'],ADDITIONAL_CONTACTS:['case_id','new_contact_id','volume_id','x_nm','y_nm','z_nm','synaptic_junction','belongs_to_target_spine','location_head_neck_shaft','evidence_refs','reason_or_uncertainty'],COVERAGE_LOG:['case_id','volume_id','inspected_local_z_inclusive','inspected_global_z_inclusive','inspected_xy_global_bounds','head_fully_included','neck_to_shaft_fully_included','all_relevant_available_sections_inspected','complete_membrane_inspected','continuous_boundary_resolved','missing_regions_or_defects','extra_crop_request_nm_bounds','evidence_refs']};
   const EXTRA_FIELDS={CASE_REVIEW:['combined_head_included','combined_neck_included','combined_all_sections_inspected','combined_complete_membrane','combined_boundary_resolved'],CONTACT_REVIEW:['junction_morphology','presynaptic_ownership','postsynaptic_ownership','ownership_notes'],ADDITIONAL_CONTACTS:['annotation_id','junction_morphology','presynaptic_ownership','postsynaptic_ownership','ownership_notes'],COVERAGE_LOG:[]};
   const REVIEWER_FIELDS=['package_id','reviewer_name','affiliation','professional_contact','relevant_serial_EM_experience','review_dates','software_and_version','assigned_cases','completed_cases','prior_verdicts_seen','functional_results_seen','exposure_notes','independent_initial_assessment','consultation_or_reconciliation','limitations_and_next_steps','signed_or_confirmed_by','confirmation_date'];
@@ -12,6 +12,7 @@
   for(const key of ['prior_verdicts_seen','functional_results_seen','independent_initial_assessment'])ENUM_FIELDS[key]=['','yes','no'];
   ENUM_FIELDS.location_head_neck_shaft=['','head','neck','shaft','other','uncertain'];ENUM_FIELDS.confidence=['','high','moderate','low'];
   const kinds=['contact','point','object','region'], statuses=['uncertain','supported','rejected','note'], locations=['head','neck','shaft','other','uncertain'];
+  const observationCategories=['unclassified','suspected_synapse','possible_adhesion','unresolved_other'];
   const encoder=new TextEncoder();
   const clone=value=>JSON.parse(JSON.stringify(value));
   const now=previous=>new Date(Math.max(Date.now(),previous?Date.parse(previous)+1:0)).toISOString();
@@ -45,6 +46,8 @@
       kind:choice(value.kind,kinds,'тип'),label:plain(value.label??'','название',1000),
       segment_id:value.segment_id??null,object_id:value.object_id??null,
       status:choice(value.status,statuses,'статус'),location:choice(value.location,locations,'часть структуры'),
+      observation_category:choice(value.observation_category??'unclassified',observationCategories,'категория наблюдения'),
+      evidence_refs:plain(value.evidence_refs??'','ссылки на доказательства'),
       properties:plain(value.properties??'','свойства'),notes:plain(value.notes??'','заметки'),
       source_view:choice(value.source_view||'2d',['2d','3d'],'источник точки'),
       created_at:timestamp(value.created_at),updated_at:timestamp(value.updated_at)};
@@ -101,7 +104,10 @@
     if(!value||typeof value!=='object'||Array.isArray(value))fail('Неверные настройки интерфейса.');
     const allowed=['preferences','last_view','annotation_mode','display','surface_view'],result={};
     if(Object.keys(value).some(k=>!allowed.includes(k)))fail('Неизвестный раздел настроек.');
-    if(value.preferences!==undefined){const prefs=value.preferences,keys=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext'];if(!prefs||typeof prefs!=='object'||Array.isArray(prefs)||Object.entries(prefs).some(([k,v])=>!keys.includes(k)||typeof v!=='boolean'))fail('Неверные настройки видимости.');result.preferences={...prefs};}
+    if(value.preferences!==undefined){
+      const prefs=value.preferences,keys=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext','segmentation2D','segmentationBorders','surfaceSegmentation'],numbers={segmentationOpacity:70,surfaceContextOpacity:100,surfaceSegmentationOpacity:100};
+      if(!prefs||typeof prefs!=='object'||Array.isArray(prefs)||Object.entries(prefs).some(([k,v])=>keys.includes(k)?typeof v!=='boolean':Object.hasOwn(numbers,k)?typeof v!=='number'||!Number.isFinite(v)||v<0||v>numbers[k]:k==='surfaceContextMode'?!['slice','full'].includes(v):true))fail('Неверные настройки видимости.');result.preferences={...prefs};
+    }
     if(value.last_view!==undefined){const v=value.last_view;if(!v||typeof v!=='object')fail('Неверный последний вид.');const {v:volume}=volumeInfo(ctx,v.case_id,v.volume_id);if(!Number.isSafeInteger(v.z)||v.z<0||v.z>=volume.shape_xyz[2])fail('Последний срез вне объёма.');result.last_view={case_id:v.case_id,volume_id:v.volume_id,z:v.z};}
     if(value.annotation_mode!==undefined)result.annotation_mode=choice(value.annotation_mode,['navigate','contact2d','point2d','point3d','object3d'],'инструмент');
     if(value.display!==undefined){const d=value.display;if(!d||typeof d!=='object'||Object.keys(d).some(k=>!['zoom','black','white'].includes(k))||Object.values(d).some(n=>typeof n!=='number'||!Number.isFinite(n)))fail('Неверные настройки изображения.');if(d.zoom!==undefined&&(d.zoom<=0||d.zoom>128)||d.black!==undefined&&(d.black<0||d.black>255)||d.white!==undefined&&(d.white<0||d.white>255)||d.black!==undefined&&d.white!==undefined&&d.black>=d.white)fail('Настройки изображения вне диапазона.');result.display={...d};}
@@ -115,12 +121,18 @@
     if(!Number.isSafeInteger(value.local_z)||value.local_z<0||value.local_z>=v.shape_xyz[2]||value.global_z!==v.begin_vox_xyz[2]+value.local_z)fail('Срез доказательства не соответствует объёму.');
     const source_view=choice(value.source_view||'2d',['2d','3d'],'вид доказательства');
     if(value.point_nm!==undefined&&value.point_nm!==null&&(!point(value.point_nm)||value.point_nm.some((n,i)=>n<min[i]||n>=max[i])||source_view==='2d'&&Math.floor(value.point_nm[2]/res[2])-v.begin_vox_xyz[2]!==value.local_z))fail('Точка доказательства не соответствует срезу.');
-    const result={id:value.id,case_id:value.case_id,volume_id:value.volume_id,annotation_id:value.annotation_id??null,contact_id:value.contact_id??null,local_z:value.local_z,global_z:value.global_z,point_nm:value.point_nm?[...value.point_nm]:null,caption:plain(value.caption??'','подпись доказательства'),created_at:timestamp(value.created_at),updated_at:timestamp(value.updated_at),source_view,linked_to_slice:source_view==='2d'||value.linked_to_slice===true,annotated_file:'evidence/'+value.id+(source_view==='3d'?'/3d-navigation.png':'/annotated.png'),raw_file:source_view==='3d'?null:'evidence/'+value.id+'/raw.png'};
+    const result={id:value.id,case_id:value.case_id,volume_id:value.volume_id,annotation_id:value.annotation_id??null,contact_id:value.contact_id??null,local_z:value.local_z,global_z:value.global_z,point_nm:value.point_nm?[...value.point_nm]:null,caption:plain(value.caption??'','подпись доказательства'),created_at:timestamp(value.created_at),updated_at:timestamp(value.updated_at),source_view,capture_origin:choice(value.capture_origin??'legacy_unknown',['manual','current_export','legacy_unknown'],'происхождение снимка'),linked_to_slice:source_view==='2d'||value.linked_to_slice===true,annotated_file:'evidence/'+value.id+(source_view==='3d'?'/3d-navigation.png':'/annotated.png'),raw_file:source_view==='3d'?null:'evidence/'+value.id+'/raw.png'};
     if(value.annotated_file?.startsWith('images/')){if(!/^images\/[A-Za-z0-9_.-]+\.png$/.test(value.annotated_file))fail('Неверное имя снимка.');result.annotated_file=value.annotated_file;}
     if(value.capture_signature!==undefined){if(!/^[0-9a-f]{64}$/.test(value.capture_signature))fail('Неверная подпись снимка.');result.capture_signature=value.capture_signature;}
     if(result.annotation_id!==null&&(typeof result.annotation_id!=='string'||!/^[0-9a-f-]{36}$/i.test(result.annotation_id)))fail('Неверная ссылка на аннотацию.');
     if(result.contact_id!==null&&!ctx.cases.get(value.case_id).contacts.some(r=>r.contact_id===result.contact_id)&&!/^N[1-9]\d*$/.test(result.contact_id))fail('Неверная ссылка на контакт.');
     if(value.display_window!==undefined){if(!Array.isArray(value.display_window)||value.display_window.length!==2||!value.display_window.every(Number.isFinite)||value.display_window[0]>=value.display_window[1])fail('Неверная яркость доказательства.');result.display_window=[...value.display_window];}
+    if(value.segmentation2d!==undefined){
+      const s=value.segmentation2d,keys=['included','source_version','volume_id','local_z','fill','borders','opacity','boundary_method'];
+      if(source_view!=='2d'||!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(k=>!keys.includes(k))||typeof s.included!=='boolean'||s.volume_id!==value.volume_id||s.local_z!==value.local_z||s.source_version!=='seg_m1300')fail('Настройки сегментации не соответствуют снимку.');
+      if(s.included&&(typeof s.fill!=='boolean'||typeof s.borders!=='boolean'||typeof s.opacity!=='number'||!Number.isFinite(s.opacity)||s.opacity<0||s.opacity>1||s.boundary_method!=='native_xy_label_transition_pixels'))fail('Неверные настройки слоя сегментации.');
+      result.segmentation2d=clone(s);
+    }
     if(value.t_points_visible!==undefined)result.t_points_visible=!!value.t_points_visible;
     if(value.annotation_numbers!==undefined){if(!Array.isArray(value.annotation_numbers)||!value.annotation_numbers.every(n=>Number.isSafeInteger(n)&&n>0))fail('Неверные номера меток.');result.annotation_numbers=[...value.annotation_numbers];}
     if(value.review_id!==undefined&&value.review_id!==null)result.review_id=plain(value.review_id,'ID формы',1000);
@@ -137,7 +149,7 @@
   }
   const evidenceMatches=(r,filter)=>!filter.section||(r.source_view!=='3d'||r.linked_to_slice)&&filter.section.axis==='z'&&filter.section.index===r.local_z;
   function validatePackage(value,ctx){
-    if(!value||value.format!==FORMAT||![1,SCHEMA_VERSION].includes(value.schema_version)||value.package_id!==ctx.package_id)fail('Этот файл не является резервной копией аннотаций данного пакета MICrONS.');
+    if(!value||value.format!==FORMAT||![1,2,SCHEMA_VERSION].includes(value.schema_version)||value.package_id!==ctx.package_id)fail('Этот файл не является резервной копией аннотаций данного пакета MICrONS.');
     for(const key of ['annotations','cases','counters','deleted'])if(!Array.isArray(value[key])||value[key].length>MAX_RECORDS)fail('Неверный список: '+key);
     for(const key of ['review_records','evidence'])if(value[key]!==undefined&&(!Array.isArray(value[key])||value[key].length>MAX_RECORDS))fail('Неверный список: '+key);
     const result={...value,annotations:value.annotations.map(v=>validateRecord(v,ctx)),cases:value.cases.map(v=>validateCase(v,ctx)),counters:value.counters.map(v=>validateCounter(v,ctx)),deleted:value.deleted.map(v=>validateDeleted(v,ctx)),review_records:(value.review_records||[]).map(v=>validateReview(v,ctx)),reviewer:validateReviewer(value.reviewer||{}),reviewer_updated_at:value.reviewer_updated_at?timestamp(value.reviewer_updated_at):null,evidence:(value.evidence||[]).map(v=>validateEvidence(v,ctx)),settings:validateSettings(value.settings||{},ctx),settings_updated_at:value.settings_updated_at?timestamp(value.settings_updated_at):null};
@@ -172,7 +184,7 @@
   class Store {
     constructor(db,ctx){this.db=db;this.context=ctx;this.storagePersistent=null;}
     close(){this.db.close();}
-    async getAll(filter={}){const rows=await transaction(this.db,['annotations'],'readonly',tx=>request(tx.objectStore('annotations').getAll()));return rows.filter(row=>match(row,filter,this.context)).sort((a,b)=>a.case_id.localeCompare(b.case_id)||a.number-b.number);}
+    async getAll(filter={}){const rows=await transaction(this.db,['annotations'],'readonly',tx=>request(tx.objectStore('annotations').getAll()));return rows.filter(row=>match(row,filter,this.context)).map(row=>validateRecord(row,this.context)).sort((a,b)=>a.case_id.localeCompare(b.case_id)||a.number-b.number);}
     async getCases(filter={}){return (await transaction(this.db,['cases'],'readonly',tx=>request(tx.objectStore('cases').getAll()))).filter(row=>!filter.case_id||row.case_id===filter.case_id);}
     async add(input){
       return transaction(this.db,['annotations','counters'],'readwrite',async tx=>{
@@ -222,24 +234,28 @@
     }
     async getEvidence(filter={}, {blobs=false}={}){
       const rows=await transaction(this.db,['evidence'],'readonly',tx=>request(tx.objectStore('evidence').getAll()));
-      return rows.filter(r=>(!filter.case_id||r.case_id===filter.case_id)&&(!filter.volume_id||r.volume_id===filter.volume_id)&&(!filter.annotation_id||r.annotation_id===filter.annotation_id)&&evidenceMatches(r,filter)).map(r=>blobs?r:validateEvidence(r,this.context));
+      return rows.filter(r=>(!filter.case_id||r.case_id===filter.case_id)&&(!filter.volume_id||r.volume_id===filter.volume_id)&&(!filter.annotation_id||r.annotation_id===filter.annotation_id)&&evidenceMatches(r,filter)).map(r=>blobs?{...validateEvidence(r,this.context),annotated:r.annotated,raw:r.raw}:validateEvidence(r,this.context));
     }
     async addEvidence(input,{annotated,raw}){
       const created_at=now(),row=validateEvidence({...input,id:input.id||uuid(),created_at,updated_at:created_at},this.context);
       await validatePNG(annotated);if(row.source_view==='2d')await validatePNG(raw);else raw=null;
       return transaction(this.db,['evidence','annotations'],'readwrite',async tx=>{
-        if(row.capture_signature){const existing=(await request(tx.objectStore('evidence').getAll())).find(e=>e.case_id===row.case_id&&e.volume_id===row.volume_id&&e.source_view===row.source_view&&e.capture_signature===row.capture_signature);if(existing)return validateEvidence(existing,this.context);}
+        if(row.capture_signature){
+          const comparable=value=>{const normalized=validateEvidence(value,this.context);for(const key of ['id','created_at','updated_at','annotated_file','raw_file'])delete normalized[key];return JSON.stringify(normalized);};
+          const signature=comparable(row),existing=(await request(tx.objectStore('evidence').getAll())).find(e=>e.capture_signature===row.capture_signature&&comparable(e)===signature);
+          if(existing)return validateEvidence(existing,this.context);
+        }
         if(row.annotation_id){const a=await request(tx.objectStore('annotations').get(row.annotation_id));if(!a||a.case_id!==row.case_id)fail('Доказательство не связано с существующей аннотацией этого случая.');}
         await request(tx.objectStore('evidence').add({...row,annotated,raw}));return row;
       });
     }
     async updateEvidence(id,patch){
-      return transaction(this.db,['evidence'],'readwrite',async tx=>{const s=tx.objectStore('evidence'),old=await request(s.get(id));if(!old)fail('Изображение уже удалено.');const immutable=['id','case_id','volume_id','source_view','local_z','global_z','created_at','view_settings','display_window','point_nm','resolution_nm'];for(const key of immutable)if(key in patch&&JSON.stringify(patch[key])!==JSON.stringify(old[key]))fail('Нельзя изменить исходный вид доказательства.');const row=validateEvidence({...old,...patch,updated_at:now(old.updated_at)},this.context);await request(s.put({...row,annotated:old.annotated,raw:old.raw}));return row;});
+      return transaction(this.db,['evidence'],'readwrite',async tx=>{const s=tx.objectStore('evidence'),old=await request(s.get(id));if(!old)fail('Изображение уже удалено.');const normalized=validateEvidence(old,this.context),immutable=['id','case_id','volume_id','source_view','capture_origin','segmentation2d','local_z','global_z','created_at','view_settings','display_window','point_nm','resolution_nm'];for(const key of immutable)if(key in patch&&JSON.stringify(patch[key])!==JSON.stringify(normalized[key]))fail('Нельзя изменить исходный вид доказательства.');const row=validateEvidence({...old,...patch,updated_at:now(old.updated_at)},this.context);await request(s.put({...row,annotated:old.annotated,raw:old.raw}));return row;});
     }
     async removeEvidence(id){return transaction(this.db,['evidence'],'readwrite',tx=>request(tx.objectStore('evidence').delete(id)));}
     async exportData(filter={}){
       return transaction(this.db,['annotations','cases','counters','deleted','reviews','evidence','meta'],'readonly',async tx=>{
-        const annotations=(await request(tx.objectStore('annotations').getAll())).filter(row=>match(row,filter,this.context)).sort((a,b)=>a.case_id.localeCompare(b.case_id)||a.number-b.number);
+        const annotations=(await request(tx.objectStore('annotations').getAll())).filter(row=>match(row,filter,this.context)).map(row=>validateRecord(row,this.context)).sort((a,b)=>a.case_id.localeCompare(b.case_id)||a.number-b.number);
         const belongs=row=>!filter.case_id||row.case_id===filter.case_id;
         const cases=(await request(tx.objectStore('cases').getAll())).filter(belongs),counters=(await request(tx.objectStore('counters').getAll())).filter(belongs),deleted=filter.volume_id?[]:(await request(tx.objectStore('deleted').getAll())).filter(belongs);
         const review_records=(await request(tx.objectStore('reviews').getAll())).filter(belongs),reviewerRecord=await request(tx.objectStore('meta').get('reviewer'));
@@ -351,8 +367,8 @@
     }
     async exportFiles(filter={}, {backup,extraEvidence=[],includeImages=true}={}){
       const data=backup?validatePackage(backup,this.context):await this.exportData(filter);
-      const headers=['Случай','Метка','Тип','Заметка','Объём','Срез Z','X нм','Y нм','Z нм'],types={contact:'Контакт',point:'Особенность',object:'Объект',region:'Область'};
-      const rows=data.annotations.map(r=>{const {v,res}=volumeInfo(this.context,r.case_id,r.volume_id);return{'Случай':r.case_id,'Метка':r.number,'Тип':types[r.kind],'Заметка':[r.properties,r.notes].filter(Boolean).join('\n'),'Объём':r.volume_id,'Срез Z':Math.floor(r.point_nm[2]/res[2])-v.begin_vox_xyz[2],'X нм':r.point_nm[0],'Y нм':r.point_nm[1],'Z нм':r.point_nm[2]};});
+      const headers=['Случай','Метка','Тип метки','Категория наблюдения','Уверенность в синаптической природе','Часть структуры','Ссылки на доказательства','Заметка','Объём','Срез Z','X нм','Y нм','Z нм'],types={contact:'Контакт',point:'Особенность',object:'Объект',region:'Область'},categories={unclassified:'Не классифицировано',suspected_synapse:'Предполагаемый синапс',possible_adhesion:'Возможная адгезия',unresolved_other:'Другое / не разрешено'},certainty={supported:'Признаки синапса поддержаны',uncertain:'Неопределённо',rejected:'Признаки против синапса',note:'Не оценено'},locations={head:'Головка',neck:'Шейка',shaft:'Ствол дендрита',other:'Другое',uncertain:'Не определено'};
+      const rows=data.annotations.map(r=>{const {v,res}=volumeInfo(this.context,r.case_id,r.volume_id);return{'Случай':r.case_id,'Метка':r.number,'Тип метки':types[r.kind],'Категория наблюдения':categories[r.observation_category],'Уверенность в синаптической природе':certainty[r.status],'Часть структуры':locations[r.location],'Ссылки на доказательства':r.evidence_refs,'Заметка':[r.properties,r.notes].filter(Boolean).join('\n'),'Объём':r.volume_id,'Срез Z':Math.floor(r.point_nm[2]/res[2])-v.begin_vox_xyz[2],'X нм':r.point_nm[0],'Y нм':r.point_nm[1],'Z нм':r.point_nm[2]};});
       const files=[{name:'results.csv',text:makeCSV(headers,rows)}];
       if(!includeImages){data.evidence=[];delete data.raw_images;files.push({name:'backup.json',text:JSON.stringify(data)});return files;}
       const all=new Map((await this.getEvidence({}, {blobs:true})).map(r=>[r.id,r]));
@@ -390,7 +406,7 @@
     return '\ufeff'+[headers,...rows.map(r=>headers.map(h=>r[h]??''))].map(row=>row.map(cell).join(',')).join('\r\n')+'\r\n';
   }
   function csv(records){
-    const headers=['id','number','case_id','volume_id','x_nm','y_nm','z_nm','kind','label','segment_id','object_id','status','location','properties','notes','source_view','bounds_nm','created_at','updated_at'];
+    const headers=['id','number','case_id','volume_id','x_nm','y_nm','z_nm','kind','observation_category','status','location','evidence_refs','label','segment_id','object_id','properties','notes','source_view','bounds_nm','created_at','updated_at'];
     return makeCSV(headers,records.map(r=>({...r,number:'N'+r.number,x_nm:r.point_nm[0],y_nm:r.point_nm[1],z_nm:r.point_nm[2],bounds_nm:r.bounds_nm?JSON.stringify(r.bounds_nm):'',segment_id:r.segment_id===null?'':"'"+r.segment_id})));
   }
   const casesCSV=records=>makeCSV(['case_id','coverage','notes','inspected_regions','extra_extent','updated_at'],records);

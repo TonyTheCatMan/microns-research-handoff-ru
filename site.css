@@ -15,3 +15,19 @@
 .slice-stage{position:relative}
 
 #overlayCanvas{image-rendering:auto}
+
+.review-workflow{margin:8px 0;color:#234c66;font-size:14px}
+.export-help{font-size:13px;color:var(--muted);margin:8px 0 14px;max-width:1150px}
+.export-help summary,.complete-export summary{cursor:pointer}
+.export-help li{margin:7px 0}
+.complete-export{font-size:14px;border:1px solid #adbfcd;border-radius:7px;padding:8px 11px;background:#fff;max-width:100%}
+.complete-export>div{display:flex;gap:8px;flex-wrap:wrap;padding-top:9px}
+.segmentation-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 15px;background:#f7fafc;border-bottom:1px solid var(--line);font-size:13px}
+.segmentation-tools label{display:flex;gap:6px;align-items:center}
+.segmentation-tools input[type=range],.context-main input[type=range]{width:85px;min-width:60px}
+.segmentation-tools .hint{font-size:12px;flex-basis:100%;margin:0}
+.surface-section-tools{min-height:54px}
+.context-main #surfaceContextMode{width:auto;max-width:190px}
+.observation-form select{max-width:100%}
+.privacy-note{border-left:3px solid #598dad;background:#edf5fa;padding:10px 14px;font-size:13px;color:#2b4d65}
+.notes-window .review-workflow{display:none}

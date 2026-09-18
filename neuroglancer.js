@@ -21,6 +21,8 @@
       }
     }
     const kinds=[['contact','Контакты','#166ac7'],['point','Особенности','#8844bd'],['object','Объекты','#c86b06'],['region','Области','#8844bd']];
+    const categories={unclassified:'Не классифицировано',suspected_synapse:'Предполагаемый синаптический контакт',possible_adhesion:'Возможная несинаптическая адгезия',unresolved_other:'Неясный контакт / другая особенность'};
+    const certainty={note:'Не оценено',uncertain:'Недостаточно / неясно',supported:'Поддерживают синапс',rejected:'Свидетельства против синапса'};
     const records=(findings.records||[]).filter(r=>r.case_id===currentCase.case_id).sort((a,b)=>a.number-b.number);
     const selected=records.find(r=>r.id===findings.focusId);
     if(selected)position=selected.point_nm.map((n,i)=>n/resolution[i]);
@@ -32,7 +34,10 @@
         annotationProperties:[{id:'number',type:'uint32',description:'Номер метки',default:0}],
         shader:'void main(){setColor(defaultColor());setPointMarkerSize(16.0);setPointMarkerBorderColor(vec4(1.0));setPointMarkerBorderWidth(2.0);}',
         annotations:points.map(r=>({type:'point',id:r.id,point:r.point_nm.map((n,i)=>n/resolution[i]),props:[r.number],
-          description:[`№${r.number} · ${label} · ${r.case_id} · ${r.volume_id}`,r.notes,r.properties].filter(Boolean).join('\n')}))}];
+          description:[`№${r.number} · ${label} · ${r.case_id} · ${r.volume_id}`,
+            'Наблюдение: '+(categories[r.observation_category]||categories.unclassified),
+            'Свидетельства синапса: '+(certainty[r.status]||certainty.note),r.notes,r.properties,
+            r.evidence_refs?'Свидетельства: '+r.evidence_refs:''].filter(Boolean).join('\n')}))}];
     });
     return {
       title: `MICrONS · ${volume.volume_id} · Z ${localZ}`,

@@ -30,12 +30,14 @@
       const volume=structuredClone(v.volume),local_z=v.z,case_id=v.currentCase.case_id;
       const currentMarks=api().records.filter(r=>r.case_id===case_id&&r.point_nm.every((n,i)=>n>=volume.begin_vox_xyz[i]*volume.resolution_nm[i]&&n<volume.end_vox_xyz_exclusive[i]*volume.resolution_nm[i])&&(source==='3d'||Math.floor(r.point_nm[2]/volume.resolution_nm[2])-volume.begin_vox_xyz[2]===local_z));
       const snapshot=source==='3d'?v.surface.snapshotEvidence():null;
-      const annotated=snapshot?.blob||api().imageBlob(true),raw=source==='2d'?api().imageBlob(false):Promise.resolve(null);
-      const meta={id:crypto.randomUUID(),case_id,volume_id:volume.volume_id,local_z,global_z:volume.begin_vox_xyz[2]+local_z,source_view:source,
+      const segmentation=source==='2d'?window.SliceSegmentation?.captureFor(volume.volume_id,local_z)||null:null;
+      const annotated=snapshot?.blob||api().imageBlob(true,{segmentation}),raw=source==='2d'?api().imageBlob(false):Promise.resolve(null);
+      const meta={id:crypto.randomUUID(),case_id,volume_id:volume.volume_id,local_z,global_z:volume.begin_vox_xyz[2]+local_z,source_view:source,capture_origin:'manual',
         ...(link||association()),caption:$('evidenceCaption').value,display_window:[...v.displayWindow],resolution_nm:[...volume.resolution_nm],
         annotation_ids:currentMarks.map(r=>r.id),annotation_numbers:currentMarks.map(r=>r.number),t_points_visible:$('overlayToggle').checked,
         linked_to_slice:source==='2d'||$('evidenceLinkSlice').checked,...(snapshot?{view_settings:snapshot.view}:{}),
         ...(source==='3d'&&$('evidencePair').value?{linked_evidence_id:$('evidencePair').value}:{})};
+      if(source==='2d')meta.segmentation2d=segmentation?{...segmentation.settings,included:true}:{included:false,source_version:'seg_m1300',volume_id:volume.volume_id,local_z};
       if(volume.tiff_sha256)meta.tiff_sha256=volume.tiff_sha256;
       status('Сохраняем выбранное изображение…');
       const pixels=Promise.all([annotated,raw]);pixels.catch(()=>{});
@@ -70,7 +72,8 @@
     const current=rows.filter(r=>r.case_id===viewer()?.currentCase?.case_id).sort((a,b)=>a.created_at.localeCompare(b.created_at));
     const nodes=current.map(row=>{
       const article=document.createElement('article');article.className='evidence-row';article.dataset.evidenceId=row.id;
-      const label=document.createElement('span'),small=document.createElement('small');label.textContent=(row.source_view==='3d'?'3D · ':'2D · ')+row.volume_id+' · Z '+row.local_z+(row.caption?' · '+row.caption:'');small.textContent=new Date(row.created_at).toLocaleString('ru-RU');label.append(small);article.append(label);
+      const linked=api().records.find(r=>r.id===row.annotation_id),origin=row.capture_origin==='manual'?'выбрано исследователем':row.capture_origin==='current_export'?'из экспорта текущего вида':'снимок прежней версии';
+      const label=document.createElement('span'),small=document.createElement('small');label.textContent=(row.source_view==='3d'?'3D · ':'2D · ')+row.volume_id+' · Z '+row.local_z+(row.caption?' · '+row.caption:'');small.textContent=new Date(row.created_at).toLocaleString('ru-RU')+' · '+origin+(linked?' · связано с N'+linked.number:row.contact_id?' · '+row.contact_id:'')+' · E:'+row.id;label.append(small);article.append(label);
       article.append(button('Посмотреть',async()=>{const old=article.querySelector('img');if(old){old.remove();return;}const e=await get(row.id),url=URL.createObjectURL(e.annotated);urls.push(url);const img=document.createElement('img');img.className='evidence-preview';img.alt=row.caption||'Сохранённый вид '+row.volume_id;img.src=url;article.append(img);}),
         button('Скачать PNG',async()=>download((await get(row.id)).annotated,row.volume_id+'-'+row.source_view+'-'+row.id.slice(0,8)+'.png')),
         button(row.source_view==='3d'?'Восстановить вид 3D':'Перейти к срезу',()=>restoreView(row)));
