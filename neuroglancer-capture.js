@@ -9,8 +9,9 @@
     const source=frame.src;
     if(busy)throw new Error('Дождитесь завершения снимка Neuroglancer.');
     busy=true;
-    const pages=[...document.querySelectorAll('.page')].map(node=>({node,hidden:node.hidden})),scroll=[scrollX,scrollY];
+    const pages=[...document.querySelectorAll('.page')].map(node=>({node,hidden:node.hidden})),scroll=[scrollX,scrollY],initialHash=location.hash;
     const unchanged=()=>{
+      if(location.hash!==initialHash)throw new Error('Вкладка изменилась во время снимка. Повторите сохранение в Neuroglancer.');
       if(window.NeuroglancerLink.captureFrame(caseId)!==frame||frame.src!==source)throw new Error('Случай или метки изменились во время снимка. Повторите сохранение.');
     };
     try{
@@ -49,10 +50,25 @@
       unchanged();
       return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Не удалось получить снимок Neuroglancer.')),'image/png'));
     }finally{
-      pages.forEach(({node,hidden})=>node.hidden=hidden);window.scrollTo({left:scroll[0],top:scroll[1],behavior:'instant'});busy=false;
+      if(location.hash===initialHash){pages.forEach(({node,hidden})=>node.hidden=hidden);window.scrollTo({left:scroll[0],top:scroll[1],behavior:'instant'});}busy=false;
     }
   }
   window.NeuroglancerLink.captureCurrent=captureCurrent;
+  const screenshotButton=$('neuroglancerScreenshot');
+  screenshotButton.addEventListener('click',async()=>{
+    if(busy||window.HandoffAnnotations?.isExporting){$('neuroglancerStatus').textContent='Дождитесь завершения текущего сохранения.';return;}
+    screenshotButton.disabled=true;
+    try{
+      const caseId=window.ReviewViewer?.currentCase?.case_id;
+      const blob=await captureCurrent(caseId);
+      if(!blob)throw new Error('Откройте текущий случай в Neuroglancer и дождитесь загрузки.');
+      const url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;link.download=`MICrONS-${caseId}-Neuroglancer-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.png`;
+      document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+      $('neuroglancerStatus').textContent='Снимок текущего вида Neuroglancer с видимыми метками сохранён в PNG.';
+    }catch(error){$('neuroglancerStatus').textContent=error.message;}
+    finally{screenshotButton.disabled=false;}
+  });
   for(const [id,scope] of [['neuroglancerExportCase','case'],['neuroglancerExportAll','all']])$(id).addEventListener('click',async()=>{
     if(!window.HandoffAnnotations?.store)return;
     await HandoffAnnotations.exportFindings(scope,{includeImages:true});
