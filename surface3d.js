@@ -239,7 +239,7 @@
     setAnnotationMode(mode) {
       this.annotationMode=['point','object'].includes(mode)?mode:'off';this.stage.style.cursor=this.annotationMode==='off'?'grab':'crosshair';this.stage.dataset.annotationMode=this.annotationMode;
     }
-    setContextLimit(number){this.contextLimit=[3,5,10].includes(number)?number:5;this.updateNearby();}
+    setContextLimit(number){this.contextLimit=Number.isFinite(number)?Math.max(1,Math.min(30,Math.round(number))):5;if($('contextLimit'))$('contextLimit').value=String(this.contextLimit);if($('contextLimitReadout'))$('contextLimitReadout').textContent=String(this.contextLimit);this.updateNearby();}
     setContextMode(mode){this.contextMode=mode==='full'?'full':'slice';if($('surfaceContextMode'))$('surfaceContextMode').value=this.contextMode;this.contextShown.clear();this.updateSliceTextures();this.setContextVisible(this.contextVisible);this.visibilityChanged();this.schedule();}
     focusAnnotation(annotation,centerView=false){const point=this.annotationPosition(annotation);if(point){this.setContextFocus(point,'метка '+annotation.number);if(centerView){this.center=[...point];this.zoom=Math.min(this.zoom,.55);this.schedule();}}}
     forgetAnnotationFocus(number){if(this.contextFocusLabel==='метка '+number){this.contextFocus=null;this.contextFocusLabel='центр среза';this.updateNearby();this.visibilityChanged();}}
@@ -514,7 +514,7 @@
       if(this.segmentationVisible||view.context_visible&&this.contextMode==='slice'){const data=await window.SliceSegmentation.ensure();if(token!==this.token)throw new Error('Объём изменился во время восстановления 3D-вида.');this.setSliceSegmentation(data);if(!this.validSliceSegmentation())throw new Error('Сегментация не соответствует сохранённому срезу.');}
       if(view.context_visible&&this.contextMode==='full'&&!this.contextLoaded){const ready=waitFor(()=>this.contextLoaded);this.setContextVisible(true);await ready;}else await this.setContextVisible(!!view.context_visible);
       if(token!==this.token)throw new Error('Объём изменился во время восстановления 3D-вида.');
-      this.contextLimit=[3,5,10].includes(view.context_limit)?view.context_limit:5;this.contextFocus=finite3(view.context_focus)?[...view.context_focus]:null;this.contextFocusLabel=typeof view.context_focus_label==='string'?view.context_focus_label:'центр среза';if($('contextLimit'))$('contextLimit').value=String(this.contextLimit);this.updateNearby();
+      this.contextFocus=finite3(view.context_focus)?[...view.context_focus]:null;this.contextFocusLabel=typeof view.context_focus_label==='string'?view.context_focus_label:'центр среза';this.setContextLimit(view.context_limit);
       if(Array.isArray(view.context_shown)){this.contextShown=new Set(view.context_shown.filter(id=>this.meshes.some(m=>m.context&&m.id===id)));for(const m of this.meshes)if(m.context&&m.control)m.control.hidden=!this.contextVisible||!this.contextShown.has(m.id);}
       for(const mesh of this.meshes){const setting=view.objects.find(o=>o.segment_id&&mesh.segment_id?o.segment_id===mesh.segment_id:o.object_id===mesh.id);mesh.visible=setting?.visible??(mesh.context&&view.context_mode===undefined);if(mesh.control){const input=mesh.control.querySelector('input');if(input)input.checked=mesh.visible;}}
       this.yaw=cam.yaw;this.pitch=cam.pitch;this.zoom=cam.zoom;this.center=[...cam.center_nm];this.frameHeight=cam.frame_height_nm;this.radius=cam.radius_nm;this.alpha=view.opacity;

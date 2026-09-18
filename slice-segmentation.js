@@ -4,6 +4,7 @@
   const $=id=>document.getElementById(id),base=new URL('.',document.currentScript.src);
   let manifestPromise,worker,entry,labels,colorTable,volumeId=null,generation=0,requestId=0,wantedZ=null,current={ready:false,canvas:null,bordersCanvas:null};
   const waiters=[],volumeColors=new Map();
+  let selectionCache=null,displayCache=null;
   function colorForSegment(id){
     const override=volumeColors.get(volumeId)?.[String(id)];if(override)return [...override];
     let hash=2166136261;for(const ch of String(id)){hash^=ch.charCodeAt(0);hash=Math.imul(hash,16777619);}
@@ -18,18 +19,48 @@
     if(c)Object.assign(c.style,{position:'absolute',left:'0',top:'0',pointerEvents:'none',imageRendering:'pixelated'});return c;
   }
   function opacityValue(){const input=$('segmentationOpacity'),n=Number(input?.value??.18);return Math.max(0,Math.min(1,Number(input?.max)>1?n/100:n));}
+  function limitValue(){
+    const value=Number($('segmentationLimit')?.value??5),limit=Number.isFinite(value)?Math.max(1,Math.min(30,Math.round(value))):5;
+    if($('segmentationLimit'))$('segmentationLimit').value=String(limit);if($('segmentationLimitReadout'))$('segmentationLimitReadout').textContent=String(limit);return limit;
+  }
+  function selection2D(){
+    if(!current.ready||!entry)return null;
+    const scope=$('segmentationScope')?.value==='all'?'all':'nearby',limit=limitValue(),surface=window.ReviewViewer?.surface;
+    const matches=surface?.caseId===entry.case_id&&surface?.volume?.volume_id===entry.volume_id,point=matches&&surface.contextFocus;
+    const focus=Array.isArray(point)&&point.length===3&&point.every(Number.isFinite)?[...point]:[entry.shape_xyz[0]*entry.resolution_nm[0]/2,entry.shape_xyz[1]*entry.resolution_nm[1]/2,(wantedZ+.5)*entry.resolution_nm[2]];
+    const key=JSON.stringify([scope,limit,focus]);
+    // Zoom and brightness updates reuse the native selection and its painted canvases.
+    if(!selectionCache||selectionCache.labels!==labels||selectionCache.key!==key){
+      const present=new Set(current.objects.map(o=>o.segment_id)),seeds=entry.seed_objects.map(o=>o.segment_id).filter(id=>present.has(id));
+      const neighbors=scope==='nearby'?nearest({point_local_nm:focus,limit,exclude_segment_ids:entry.seed_objects.map(o=>o.segment_id)}):current.objects.filter(o=>!seeds.includes(o.segment_id));
+      const ids=scope==='all'?current.objects.map(o=>o.segment_id):[...seeds,...neighbors.map(o=>o.segment_id)];
+      selectionCache={labels,key,settings:{scope,nearby_limit:limit,segment_ids:ids,focus_local_nm:focus},neighborCount:neighbors.length,seedCount:seeds.length,source:null,fillCanvas:null,bordersCanvas:null};
+    }
+    if(selectionCache.source!==current.canvas){
+      const ids=selectionCache.settings.segment_ids;selectionCache.source=current.canvas;
+      selectionCache.fillCanvas=scope==='all'?current.canvas:paint({segment_ids:ids});
+      selectionCache.bordersCanvas=scope==='all'?current.bordersCanvas:paint({segment_ids:ids,fill:false,borders:true});
+    }
+    const focusLabel=point?(surface.contextFocusLabel||'выбранная точка'):'центр среза';
+    status(scope==='all'?`Все: ${selectionCache.settings.segment_ids.length} · Z ${wantedZ}`:`Рядом: ${selectionCache.neighborCount} · основных: ${selectionCache.seedCount} · ${focusLabel} · Z ${wantedZ}`);
+    return selectionCache;
+  }
   function display(){
     const c=overlay(),image=$('imageCanvas');if(!c||!image)return;
     c.style.width=image.style.width;c.style.height=image.style.height;
+    limitValue();const all=$('segmentationScope')?.value==='all';if($('segmentationLimitControl'))$('segmentationLimitControl').hidden=all;if($('segmentationLimit'))$('segmentationLimit').disabled=all;const selection=selection2D();
     const fill=!!$('segmentation2D')?.checked,borders=!!$('segmentationBorders')?.checked;
     c.hidden=!current.ready||(!fill&&!borders);if(c.hidden)return;
-    if(c.width!==image.width)c.width=image.width;if(c.height!==image.height)c.height=image.height;
-    const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);const opacity=opacityValue();
-    if(fill){ctx.globalAlpha=opacity;ctx.drawImage(current.canvas,0,0);}
-    if(borders){ctx.globalAlpha=Math.max(.4,opacity);ctx.drawImage(current.bordersCanvas,0,0);}ctx.globalAlpha=1;
+    if(c.width!==image.width){c.width=image.width;displayCache=null;}if(c.height!==image.height){c.height=image.height;displayCache=null;}
+    const opacity=opacityValue(),key=JSON.stringify([fill,borders,opacity]);
+    if(displayCache?.selection===selection&&displayCache.source===selection.source&&displayCache.key===key)return;
+    const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);
+    if(fill){ctx.globalAlpha=opacity;ctx.drawImage(selection.fillCanvas,0,0);}
+    if(borders){ctx.globalAlpha=Math.max(.4,opacity);ctx.drawImage(selection.bordersCanvas,0,0);}ctx.globalAlpha=1;
+    displayCache={selection,source:selection.source,key};
   }
   function invalidate(detail={}){
-    labels=null;colorTable=null;current={...detail,ready:false,canvas:null,bordersCanvas:null};display();announce();
+    labels=null;colorTable=null;selectionCache=null;displayCache=null;current={...detail,ready:false,canvas:null,bordersCanvas:null};display();announce();
   }
   function boundaryAt(data,x,y,width,height){
     const at=y*width+x,id=data[at];return id!==0&&((x>0&&data[at-1]!==id)||(x+1<width&&data[at+1]!==id)||(y>0&&data[at-width]!==id)||(y+1<height&&data[at+width]!==id));
@@ -100,7 +131,23 @@
     const fill=!!$('segmentation2D')?.checked,borders=!!$('segmentationBorders')?.checked;
     if(!current.ready||current.volume_id!==volume_id||current.local_z!==local_z||(!fill&&!borders))return null;
     display();const source=$('segmentationCanvas'),copy=canvas(source.width,source.height);copy.getContext('2d').drawImage(source,0,0);
-    return{canvas:copy,settings:{source_version:'seg_m1300',volume_id,local_z,fill,borders,opacity:opacityValue(),boundary_method:'native_xy_label_transition_pixels'}};
+    const selected=selection2D().settings;
+    return{canvas:copy,settings:{source_version:'seg_m1300',volume_id,local_z,fill,borders,opacity:opacityValue(),boundary_method:'native_xy_label_transition_pixels',scope:selected.scope,nearby_limit:selected.nearby_limit,segment_ids:[...selected.segment_ids],focus_local_nm:[...selected.focus_local_nm]}};
+  }
+  async function restore(settings){
+    const data=await ensure(),s=settings;
+    if(!s||data.volume_id!==s.volume_id||data.local_z!==s.local_z||s.source_version!=='seg_m1300')throw new Error('Сегментация не соответствует сохранённому срезу.');
+    const scope=s.scope??'all',limit=s.nearby_limit??5;
+    if(!['nearby','all'].includes(scope)||!Number.isInteger(limit)||limit<1||limit>30||s.focus_local_nm!==undefined&&(!Array.isArray(s.focus_local_nm)||s.focus_local_nm.length!==3||!s.focus_local_nm.every(Number.isFinite)))throw new Error('Неверные настройки сохранённой сегментации.');
+    if($('segmentationScope'))$('segmentationScope').value=scope;if($('segmentationLimit'))$('segmentationLimit').value=String(limit);
+    for(const [id,value]of [['segmentation2D',s.fill],['segmentationBorders',s.borders]])if($(id))$(id).checked=!!value;
+    if($('segmentationOpacity')&&Number.isFinite(s.opacity))$('segmentationOpacity').value=String(s.opacity*100);
+    if(s.focus_local_nm)window.ReviewViewer?.surface?.setContextFocus(s.focus_local_nm,'сохранённый вид');
+    selectionCache=null;displayCache=null;display();
+    const actual=selection2D().settings.segment_ids;
+    if(s.segment_ids!==undefined&&(!Array.isArray(s.segment_ids)||JSON.stringify([...s.segment_ids].sort())!==JSON.stringify([...actual].sort())))throw new Error('Сохранённый набор сегментов не совпадает с текущим срезом.');
+    for(const id of ['segmentationScope','segmentationLimit','segmentation2D','segmentationBorders','segmentationOpacity'])$(id)?.dispatchEvent(new Event('change'));
+    return captureFor(s.volume_id,s.local_z);
   }
   function setColors(colors,forVolume=volumeId){
     if(typeof forVolume!=='string'||!colors)return;
@@ -109,9 +156,10 @@
     if(JSON.stringify(volumeColors.get(forVolume)||{})===JSON.stringify(next))return;volumeColors.set(forVolume,next);
     if(current.ready&&forVolume===volumeId){colorTable=entry.palette.map(colorForSegment);current={...current,canvas:paint(),bordersCanvas:paint({fill:false,borders:true})};display();announce();}
   }
-  window.SliceSegmentation={get current(){return current;},ensure,render:paint,captureFor,setColors,colorForSegment,segmentAt,lookup:segmentAt,nearest};
+  window.SliceSegmentation={get current(){return current;},get selection(){return selection2D()?.settings||null;},ensure,render:paint,captureFor,restore,setColors,colorForSegment,segmentAt,lookup:segmentAt,nearest};
   window.addEventListener('review:volume',()=>{worker?.terminate();worker=null;volumeId=null;generation++;for(const waiter of waiters.splice(0))waiter.reject(new Error('Выбран другой объём.'));invalidate();status('Подготавливаем сегментацию…');});
   window.addEventListener('review:position',sync);window.addEventListener('review:display',display);window.addEventListener('resize',display);
-  function start(){for(const id of ['segmentation2D','segmentationBorders','segmentationOpacity'])for(const event of ['change','input'])$(id)?.addEventListener(event,display);sync();}
+  window.addEventListener('surface:visibility',event=>{if(event.detail?.volume_id===volumeId)display();});
+  function start(){for(const id of ['segmentation2D','segmentationBorders','segmentationOpacity','segmentationScope','segmentationLimit'])for(const event of ['change','input'])$(id)?.addEventListener(event,display);sync();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();

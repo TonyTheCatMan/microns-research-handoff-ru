@@ -28,6 +28,12 @@
 .segmentation-tools .hint{font-size:12px;flex-basis:100%;margin:0}
 .surface-section-tools{min-height:54px}
 .context-main #surfaceContextMode{width:auto;max-width:190px}
+.context-main #contextLimit{width:150px}
+#contextLimitReadout{min-width:2ch;font-weight:650;font-variant-numeric:tabular-nums}
+.segmentation-tools #segmentationLimit{width:150px}
+#segmentationLimitReadout{min-width:2ch;font-weight:650;font-variant-numeric:tabular-nums}
+.slice-scale{position:absolute;left:10px;bottom:10px;pointer-events:none;background:#0a1720cc}
+.slice-scale canvas{display:block;image-rendering:auto}
 .observation-form select{max-width:100%}
 .privacy-note{border-left:3px solid #598dad;background:#edf5fa;padding:10px 14px;font-size:13px;color:#2b4d65}
 .notes-window .review-workflow{display:none}

@@ -25,10 +25,12 @@
     const result=Object.fromEntries(booleanPreferences.filter(id=>$(id)).map(id=>[id,$(id).checked]));
     for(const [id,max] of Object.entries(numberPreferences))if($(id))result[id]=Math.max(0,Math.min(max,Number($(id).value)));
     if($('surfaceContextMode'))result.surfaceContextMode=$('surfaceContextMode').value;
+    if($('segmentationScope'))result.segmentationScope=$('segmentationScope').value;
+    if($('segmentationLimit'))result.segmentationLimit=Math.max(1,Math.min(30,Math.round(Number($('segmentationLimit').value)||5)));
     return result;
   }
   function prefsSave() { try { localStorage.setItem(PREFS,JSON.stringify(readPreferences())); } catch {} }
-  try { const preferences=JSON.parse(localStorage.getItem(PREFS)||'{}'); for(const [id,value] of Object.entries(preferences))if($(id)){if(booleanPreferences.includes(id)&&typeof value==='boolean')$(id).checked=value;else if(id in numberPreferences&&typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=numberPreferences[id])$(id).value=value;else if(id==='surfaceContextMode'&&['slice','full'].includes(value))$(id).value=value;} } catch {}
+  try { const preferences=JSON.parse(localStorage.getItem(PREFS)||'{}'); for(const [id,value] of Object.entries(preferences))if($(id)){if(booleanPreferences.includes(id)&&typeof value==='boolean')$(id).checked=value;else if(id in numberPreferences&&typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=numberPreferences[id])$(id).value=value;else if(id==='surfaceContextMode'&&['slice','full'].includes(value)||id==='segmentationScope'&&['nearby','all'].includes(value)||id==='segmentationLimit'&&Number.isSafeInteger(value)&&value>=1&&value<=30)$(id).value=value;} } catch {}
   const recoveryKey = (type,id) => JOURNAL + type + ':' + id;
   function journal(type,record) {
     const value = JSON.stringify({type,record,stamp:crypto.randomUUID()});
@@ -203,10 +205,12 @@
   $('annotationMode').addEventListener('change',setMode);
   $('annotationsVisible').addEventListener('change',()=>{prefsSave();draw();});
   for(const id of ['overlayToggle','tCenter','tPre','tPost'])$(id).addEventListener('change',prefsSave);
-  for(const id of ['segmentation2D','segmentationBorders','segmentationOpacity','surfaceContextMode','surfaceContextOpacity','surfaceSegmentation','surfaceSegmentationOpacity'])for(const event of ['change','input'])$(id)?.addEventListener(event,prefsSave);
+  for(const id of ['segmentation2D','segmentationBorders','segmentationOpacity','segmentationScope','segmentationLimit','surfaceContextMode','surfaceContextOpacity','surfaceSegmentation','surfaceSegmentationOpacity'])for(const event of ['change','input'])$(id)?.addEventListener(event,prefsSave);
   $('surfaceContext').addEventListener('change',()=>{prefsSave();viewer()?.surface?.setContextVisible($('surfaceContext').checked);});
-  $('contextLimit').addEventListener('change',()=>{viewer()?.surface?.setContextLimit(Number($('contextLimit').value));try{localStorage.setItem('microns-nearby-count',$('contextLimit').value);}catch{}});
-  try{const limit=localStorage.getItem('microns-nearby-count');if(['3','5','10'].includes(limit))$('contextLimit').value=limit;}catch{}
+  const updateNearbyLimit=()=>{viewer()?.surface?.setContextLimit(Number($('contextLimit').value));$('contextLimitReadout').textContent=$('contextLimit').value;try{localStorage.setItem('microns-nearby-count',$('contextLimit').value);}catch{}};
+  for(const event of ['input','change'])$('contextLimit').addEventListener(event,updateNearbyLimit);
+  try{const limit=Number(localStorage.getItem('microns-nearby-count'));if(Number.isInteger(limit)&&limit>=1&&limit<=30)$('contextLimit').value=String(limit);}catch{}
+  $('contextLimitReadout').textContent=$('contextLimit').value;
   window.addEventListener('annotations:contextstatus',event=>{if(event.detail.volume_id!==viewer()?.volume?.volume_id)return;const node=$('contextLoadStatus');node.textContent=event.detail.message+(event.detail.status==='error'?' Снимите и снова включите флажок, чтобы повторить.':'');node.classList.toggle('save-failed',event.detail.status==='error');});
   $('annotationGo').addEventListener('click',()=>notesWindow?runOnMain(main=>main.goTo(selectedId)):goToSelected());
   $('annotationDelete').addEventListener('click',()=>{

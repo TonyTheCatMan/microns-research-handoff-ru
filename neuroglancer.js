@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=20260918-tpoints',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
 
@@ -50,7 +50,9 @@
         {type: 'image', name: 'ЭМ MICrONS', source: EM, shaderControls: {normalized: {range: [0, 255]}}},
         {type: 'segmentation', name: 'Объекты · v1300', source: SEG, segments: objects.map(o => o.segment), segmentColors: Object.fromEntries(objects.map(o => [o.segment, o.color])), selectedAlpha: 0.2, notSelectedAlpha: 0, objectAlpha: records.length ? 0.3 : 1},
         {type: 'annotation', name: `Границы ${volume.volume_id}`, source: {url: 'local://annotations', transform: {outputDimensions: dimensions}}, annotationColor: '#48d4f2', annotations: [{type: 'axis_aligned_bounding_box', id: 'volume-bounds', pointA: begin, pointB: volume.end_vox_xyz_exclusive, description: volume.volume_id}]},
-        {type: 'annotation', name: 'Заданные точки · не проверены', source: {url: 'local://annotations', transform: {outputDimensions: dimensions}}, annotationColor: '#ffca64', annotations},
+        {type: 'annotation', name: 'Заданные точки · не проверены', source: {url: 'local://annotations', transform: {outputDimensions: dimensions}}, annotationColor: '#ffca64',
+          // The shared high-DPI overlay draws the real center/pre/post symbols and labels.
+          shader:'void main(){setPointMarkerSize(0.0);setPointMarkerBorderWidth(0.0);}', annotations},
         ...userLayers
       ],
       showSlices: true,

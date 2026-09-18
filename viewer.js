@@ -68,6 +68,7 @@
     ui.targetStatus.textContent = 'Изображение не загружено.';
     ui.emptyState.querySelector('h2').textContent='Подготавливаем изображения';ui.emptyState.querySelector('p').textContent='Выбранный объём загружается с сайта.';
     ui.scaleNote.textContent = '';
+    byId('sliceScale').hidden = true;
     ui.zReadout.textContent = '—';
     ui.cursorReadout.textContent = 'Наведите указатель на изображение, чтобы увидеть значение пикселя и координаты.';
     ui.scaleCanvas.getContext('2d').clearRect(0,0,ui.scaleCanvas.width,ui.scaleCanvas.height);
@@ -237,18 +238,23 @@
     window.dispatchEvent(new Event('review:display'));
   }
   function watchPixelDensity(){
-    matchMedia(`(resolution: ${window.devicePixelRatio||1}dppx)`).addEventListener('change',()=>{if(state.tiff)drawOverlay();watchPixelDensity();},{once:true});
+    matchMedia(`(resolution: ${window.devicePixelRatio||1}dppx)`).addEventListener('change',()=>{if(state.tiff){drawOverlay();drawScale();}watchPixelDensity();},{once:true});
   }
   watchPixelDensity();
   function drawScale() {
-    const cssLength = 500 / state.volume.resolution_nm[0] * state.zoom;
-    const cssWidth = Math.max(135, Math.ceil(cssLength + 24));
+    const pixelsPerNm=state.zoom/state.volume.resolution_nm[0],target=Math.min(100,Math.max(50,ui.viewport.clientWidth*.2));
+    const power=10**Math.floor(Math.log10(target/pixelsPerNm)),options=[.5,1,2,5,10].map(n=>n*power);
+    const nm=options.reduce((best,n)=>Math.abs(n*pixelsPerNm-target)<Math.abs(best*pixelsPerNm-target)?n:best),cssLength=nm*pixelsPerNm;
+    const label=nm>=1000?(nm/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' мкм':nm.toLocaleString('ru-RU',{maximumFractionDigits:3})+' нм';
+    const cssWidth = Math.max(100, Math.ceil(cssLength + 20));
     const ratio = window.devicePixelRatio || 1;
-    ui.scaleCanvas.width = Math.round(cssWidth * ratio); ui.scaleCanvas.height = Math.round(42 * ratio); ui.scaleCanvas.style.width = cssWidth + 'px';
-    const ctx = ui.scaleCanvas.getContext('2d'); ctx.scale(ratio,ratio);ctx.strokeStyle='#17313d';ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(8,17);ctx.lineTo(8+cssLength,17);ctx.moveTo(8,13);ctx.lineTo(8,21);ctx.moveTo(8+cssLength,13);ctx.lineTo(8+cssLength,21);ctx.stroke();
-    ctx.fillStyle='#17313d';ctx.font='12px system-ui';ctx.fillText('500 нм',8,37);
-    ui.scaleNote.textContent = (500/state.volume.resolution_nm[0]).toFixed(1) + ' исходных пикселей по X · масштаб ' + Math.round(state.zoom*100) + '%';
+    ui.scaleCanvas.width = Math.round(cssWidth * ratio); ui.scaleCanvas.height = Math.round(44 * ratio); ui.scaleCanvas.style.width = cssWidth + 'px';ui.scaleCanvas.style.height='44px';
+    const ctx = ui.scaleCanvas.getContext('2d'); ctx.scale(ratio,ratio);ctx.strokeStyle='#e4edf0';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(10,14);ctx.lineTo(10+cssLength,14);ctx.moveTo(10,10);ctx.lineTo(10,18);ctx.moveTo(10+cssLength,10);ctx.lineTo(10+cssLength,18);ctx.stroke();
+    ctx.fillStyle='#e4edf0';ctx.font='11px system-ui';ctx.fillText(label,10,35);
+    ui.scaleCanvas.setAttribute('aria-label','Масштаб '+label);ui.scaleCanvas.dataset.scaleNm=String(nm);ui.scaleCanvas.dataset.scalePixels=String(cssLength);
+    byId('sliceScale').hidden=false;
+    ui.scaleNote.textContent = '1 исходный пиксель = '+state.volume.resolution_nm[0]+' нм · масштаб ' + Math.round(state.zoom*100) + '%';
   }
   function setWindow(black,white) {
     if (!integer(black) || !integer(white) || black < 0 || white > 255 || black >= white) { status('Диапазон яркости должен соответствовать условию 0 ≤ чёрный < белый ≤ 255. Значения пикселей не изменены.', 'error'); return; }
