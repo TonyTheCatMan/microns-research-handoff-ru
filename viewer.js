@@ -404,20 +404,26 @@
   });
   ui.viewport.addEventListener('scroll',()=>{rememberViewCenter();navigationChanged('pan');},{passive:true});
   window.addEventListener('resize',()=>{if(state.tiff&&!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight){if(state.needsFit){ui.fitButton.click();state.needsFit=false;}else{const anchor=viewportCenter(),point=state.viewCenter||imagePointAt(anchor);resizeView();placeImagePoint(point,anchor);}renderOrthos();navigationChanged('resize');}});
-  async function applyNavigationState(value,{emit=false}={}){
+  async function applyNavigationState(value,{emit=false,signal}={}){
+    const abortError=()=>new DOMException('Синхронизация отменена.','AbortError');
+    const checkAborted=()=>{if(signal?.aborted)throw abortError();};
+    checkAborted();
     if(!value||typeof value!=='object')throw new Error('Неверное положение синхронизированного вида.');
     const caseId=value.case_id||state.currentCase?.case_id,volumeId=value.volume_id||state.volume?.volume_id,requested=state.metadata?.cases.find(c=>c.case_id===caseId),volume=requested?.volumes.find(v=>v.volume_id===volumeId);
     if(!volume||value.position_nm!==undefined&&!triple(value.position_nm,finite)||value.zoom!==undefined&&(!finite(value.zoom)||value.zoom<=0))throw new Error('Неверные координаты синхронизированного вида.');
     const applyToken=++navigationApplyToken,beforeNavigation=navigationSignature(getNavigationState());navigationMute++;if(navigationFrame){cancelAnimationFrame(navigationFrame);navigationFrame=0;}
     try{
       if(!state.tiff||state.currentCase.case_id!==caseId||state.volume.volume_id!==volumeId)await window.ReviewViewer.select(caseId,volumeId,value.local_z);
+      checkAborted();
       if(applyToken!==navigationApplyToken||!state.tiff||state.currentCase.case_id!==caseId||state.volume.volume_id!==volumeId)throw new Error('Объём изменился во время синхронизации.');
       if(value.surface&&!surface.modelReady)await new Promise((resolve,reject)=>{
         const generation=state.generation;let timer;
-        const cleanup=()=>{clearTimeout(timer);for(const name of ['annotations:surface-ready','annotations:surface-error','review:volume'])window.removeEventListener(name,check);};
+        const cleanup=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);for(const name of ['annotations:surface-ready','annotations:surface-error','review:volume'])window.removeEventListener(name,check);};
+        const abort=()=>{cleanup();reject(abortError());};
         const check=event=>{if(applyToken!==navigationApplyToken||generation!==state.generation||state.currentCase.case_id!==caseId||state.volume.volume_id!==volumeId){cleanup();reject(new Error('Объём изменился во время синхронизации.'));}else if(event?.type==='annotations:surface-error'&&event.detail.volume_id===volumeId){cleanup();reject(new Error(event.detail.message));}else if(surface.modelReady&&surface.caseId===caseId&&surface.volume?.volume_id===volumeId){cleanup();resolve();}};
-        timer=setTimeout(()=>{cleanup();reject(new Error('Время ожидания 3D-вида истекло.'));},60000);for(const name of ['annotations:surface-ready','annotations:surface-error','review:volume'])window.addEventListener(name,check);check();
+        timer=setTimeout(()=>{cleanup();reject(new Error('Время ожидания 3D-вида истекло.'));},60000);for(const name of ['annotations:surface-ready','annotations:surface-error','review:volume'])window.addEventListener(name,check);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();else check();
       });
+      checkAborted();
       if(applyToken!==navigationApplyToken)throw new Error('Выбрано новое положение во время синхронизации.');
       const position=value.position_nm||getNavigationState().position_nm,local=position.map((n,i)=>n/volume.resolution_nm[i]-volume.begin_vox_xyz[i]);
       const z=value.local_z??Math.floor(local[2]);if(!integer(z)||z<0||z>=volume.shape_xyz[2])throw new Error('Срез синхронизации находится вне текущего объёма.');

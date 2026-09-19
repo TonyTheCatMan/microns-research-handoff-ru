@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/?v=20260919-delete1',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=20260919-toggle1',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
 
@@ -69,6 +69,15 @@
   window.NeuroglancerLink = {buildState, urlFor};
 
   const $=id=>document.getElementById(id),bus=window.HandoffSync;
+  const syncInputs=[...document.querySelectorAll('[data-neuroglancer-sync]')];
+  function updateSyncControls(){
+    const enabled=bus.enabled;
+    for(const input of syncInputs){input.checked=enabled;input.closest('.viewer-sync-control')?.classList.toggle('is-paused',!enabled);}
+    for(const note of document.querySelectorAll('[data-neuroglancer-sync-status]'))note.textContent=enabled?'Виды синхронизируются в открытых окнах.':'Синхронизация выключена. Виды можно перемещать и настраивать независимо.';
+    const link=$('openNeuroglancerMain');if(link)link.textContent=enabled?'Открыть текущий случай в Neuroglancer':'Открыть Neuroglancer';
+  }
+  for(const input of syncInputs)input.addEventListener('change',()=>bus.setEnabled(input.checked));
+  window.addEventListener('handoff:sync-mode',updateSyncControls);updateSyncControls();
   if(bus?.role==='notes'){window.NeuroglancerLink.captureFrame=()=>null;return;}
   const frame=$('neuroglancerFrame'),external=$('neuroglancerExternal'),reset=$('neuroglancerReset'),markerSelect=$('neuroglancerMarker');
   const controlIds=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext','surfaceContextMode','contextLimit','surfaceOpacity','surfaceContextOpacity','surfacePlane','surfaceBox','surfaceSegmentation','surfaceSegmentationOpacity','segmentation2D','segmentationBorders','segmentationOpacity','segmentationScope','segmentationLimit','blackInput','whiteInput'];
@@ -77,10 +86,12 @@
   let navigationRevision=crypto.randomUUID(),appliedNavigationRevision=null,navigationFocus=null;
   let localControls={},localNavigation=null,localFocus=null,localClear=false,normalizeNative=false;
   let boundaryCache=null;
+  let resumePending=false,nativeApplication=null;
   const active=()=>location.hash==='#neuroglancer';
   const status=text=>$('neuroglancerStatus').textContent=text;
   const controls=()=>Object.fromEntries(controlIds.map(id=>{const input=$(id);return[id,input.type==='checkbox'?input.checked:input.type==='number'||input.type==='range'?Number(input.value):input.value];}));
   const valid3=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
+  const frameCaseId=()=>frame.contentWindow?.MicronsViewSync?.caseId||loadedCaseId;
   const color=id=>'#'+(window.SliceSegmentation?.colorForSegment(id)||[128,184,196]).map(v=>v.toString(16).padStart(2,'0')).join('');
   function sectionLayers(settings){
     const data=window.SliceSegmentation?.current,selection=window.SliceSegmentation?.selection;
@@ -117,13 +128,21 @@
   }
   function showLink(payload){
     currentState=payload.state;currentUrl=urlFor(currentState);external.href=currentUrl;external.removeAttribute('aria-disabled');reset.disabled=false;
+    reset.disabled=!bus.enabled;$('neuroglancerMarkerGo').disabled=!bus.enabled;
+    $('neuroglancerMarkers').hidden=!bus.enabled;
+    if(!bus.enabled&&frame.hasAttribute('src')){
+      const native=frame.contentWindow?.MicronsViewSync,caseId=native?.caseId||loadedCaseId,volumeId=native?.volumeId||caseId;
+      $('neuroglancerTabCase').textContent='· '+caseId;$('neuroglancerHeading').textContent='· '+caseId;
+      $('neuroglancerLocation').textContent=`${volumeId} · синхронизация выключена`;
+      frame.title='Neuroglancer — '+volumeId;return;
+    }
     $('neuroglancerTabCase').textContent='· '+payload.caseId;$('neuroglancerHeading').textContent='· '+payload.caseId;
     frame.title='Neuroglancer — '+payload.volumeId;
     const records=(window.HandoffAnnotations?.records||[]).filter(r=>r.case_id===payload.caseId),selected=payload.main?.selectedId||'';
     markerSelect.replaceChildren(new Option('Не выбрана',''),...records.map(r=>new Option(`№${r.number} · ${r.volume_id}`,r.id)));
     if(records.some(r=>r.id===selected))markerSelect.value=selected;
-    $('neuroglancerMarkers').hidden=!records.length;
-    $('neuroglancerLocation').textContent=`${payload.volumeId} · локальный Z ${ReviewViewer.z} · моих меток ${records.length} · открытые окна синхронизированы`;
+    $('neuroglancerMarkers').hidden=!records.length||!bus.enabled;
+    $('neuroglancerLocation').textContent=`${payload.volumeId} · локальный Z ${ReviewViewer.z} · моих меток ${records.length} · ${bus.enabled?'открытые окна синхронизированы':'синхронизация выключена'}`;
     if(frame.hasAttribute('src'))loadedCaseId=payload.caseId;
   }
   function ensureFrame(){
@@ -140,13 +159,14 @@
   function publish(force=false){
     clearTimeout(timer);timer=null;
     if(applying||!started)return;
+    if(resumePending){navigationPending=true;navigationSource='all';navigationFocus=null;focusPending=null;reasonPending='sync-resume';}
     const payload=snapshot();if(!payload)return;
     if(focusPending?.point_nm)payload.state.position=focusPending.point_nm.map((n,i)=>n/ReviewViewer.volume.resolution_nm[i]);
     const fingerprint=JSON.stringify({state:payload.state,main:payload.main});
-    showLink(payload);if(active()||focusPending)ensureFrame();
+    showLink(payload);if(active()||bus.enabled&&focusPending)ensureFrame();
     if(force||payload.reason==='clear'||focusPending||navigationPending||fingerprint!==lastFingerprint){lastFingerprint=fingerprint;latest=bus.send('host-state',payload);appliedNavigationRevision=navigationRevision;}
-    lastNavigation=payload.main.navigation;navigationPending=false;focusPending=null;localClear=false;reasonPending='settings';
-    status('Случай, навигация, метки и настройки синхронизируются с открытыми окнами.');
+    lastNavigation=payload.main.navigation;navigationPending=false;focusPending=null;localClear=false;reasonPending='settings';resumePending=false;
+    status(bus.enabled?'Случай, навигация, метки и настройки синхронизируются с открытыми окнами.':'Синхронизация выключена. Neuroglancer и 2D / 3D работают независимо.');
   }
   function applyControls(values){
     for(const id of controlIds){if(!(id in (values||{})))continue;const input=$(id),value=values[id];
@@ -183,6 +203,9 @@
     return result;
   }
   async function applyNative(payload,type){
+    const revision=bus.syncRevision,allowed=()=>bus.enabled&&bus.syncRevision===revision;
+    if(!allowed())return;
+    const controller=new AbortController();nativeApplication=controller;
     if(type==='ng-deselect'){
       if(payload.caseId!==ReviewViewer.currentCase?.case_id||payload.volumeId!==ReviewViewer.volume?.volume_id)return;
       HandoffAnnotations.clearSelection({announce:false,source:'neuroglancer'});
@@ -198,15 +221,18 @@
     const dest=volume||expected;
     normalizeNative=dest.volume_id!==payload.volumeId?'volume':'derived';
     if(ReviewViewer.currentCase?.case_id!==c.case_id||ReviewViewer.volume?.volume_id!==dest.volume_id)await ReviewViewer.select(c.case_id,dest.volume_id);
+    if(!allowed())return;
     const navigation=ReviewViewer.getNavigationState();
     if(nm){navigation.position_nm=nm;navigation.local_z=Math.floor(nm[2]/dest.resolution_nm[2]-dest.begin_vox_xyz[2]);}
     if(Number.isFinite(state.crossSectionScale)&&state.crossSectionScale>0)navigation.zoom=1/state.crossSectionScale;
     if(payload.navigationCamera)navigation.surface={...navigation.surface,...payload.navigationCamera};
     if(nm&&navigation.surface)navigation.surface.center_nm=nm.map((n,i)=>n-dest.begin_vox_xyz[i]*dest.resolution_nm[i]);
-    await ReviewViewer.applyNavigationState(navigation,{emit:false});
+    await ReviewViewer.applyNavigationState(navigation,{emit:false,signal:controller.signal});
+    if(!allowed())return;
     if(type==='ng-focus'){
-      if(!payload.seed){await HandoffAnnotations.refresh();await HandoffAnnotations.applySelection(payload.id,{focus:false});}
-      else{await HandoffAnnotations.applySelection(null,{focus:false});const target=/^(.+)-(ctr_nm|pre_nm|post_nm)$/.exec(payload.id);if(target)ReviewViewer.applyTarget?.(target[1],target[2]);}
+      if(!payload.seed){await HandoffAnnotations.refresh();if(!allowed())return;await HandoffAnnotations.applySelection(payload.id,{focus:false});}
+      else{await HandoffAnnotations.applySelection(null,{focus:false});if(!allowed())return;const target=/^(.+)-(ctr_nm|pre_nm|post_nm)$/.exec(payload.id);if(target)ReviewViewer.applyTarget?.(target[1],target[2]);}
+      if(!allowed())return;
       ReviewViewer.surface.setContextFocus(nm.map((n,i)=>n-dest.begin_vox_xyz[i]*dest.resolution_nm[i]),payload.seed?payload.id:'выбранная метка');
     }else{
       applyControls(nativeControls(state));
@@ -229,7 +255,8 @@
       if(message.type==='host-state')await applyHost(message.payload);else await applyNative(message.payload,message.type);
       lastNavigation=ReviewViewer.getNavigationState?.();
       const baseline=snapshot();if(baseline)lastFingerprint=JSON.stringify({state:baseline.state,main:baseline.main});
-    }}catch(error){status('Синхронизация: '+error.message);}finally{applying=false;}
+    }}catch(error){if(error.name!=='AbortError')status('Синхронизация: '+error.message);}finally{applying=false;}
+    if(pending)return drain();
     if(localClear){
       localClear=false;localFocus=null;HandoffAnnotations.clearSelection({source:'queued-clear'});
     }
@@ -237,8 +264,10 @@
       const values=localControls,nav=localNavigation,focus=localFocus;localControls={};localNavigation=null;localFocus=null;
       if(nav)await ReviewViewer.applyNavigationState(nav,{emit:false});applyControls(values);schedule('local',!!nav||!!focus,focus);
     }else if(normalizeNative){const reason=normalizeNative;normalizeNative=false;schedule(reason,reason==='volume');}
+    if(resumePending)schedule('sync-resume',true);
   }
   function receive(message){
+    if(message.role==='neuroglancer'&&!bus.enabled)return;
     if(message.type==='hello'){if(latest)bus.send('state-reply',{message:latest},message.source);return;}
     if(message.type==='state-reply'){const nested=message.payload?.message;if(nested)receive(nested);return;}
     if(!['host-state','ng-state','ng-focus','ng-deselect'].includes(message.type)||message.source===bus.id||!bus.newer(message,latest))return;
@@ -248,6 +277,17 @@
     clearTimeout(timer);timer=null;navigationPending=false;focusPending=null;drain();
   }
   bus.subscribe(receive);bus.send('hello');
+  window.addEventListener('handoff:sync-mode',event=>{
+    nativeApplication?.abort();nativeApplication=null;
+    if(pending?.type!=='host-state')pending=null;
+    normalizeNative=false;localFocus=null;focusPending=null;navigationFocus=null;
+    clearTimeout(timer);timer=null;
+    resumePending=event.detail.enabled;
+    if(resumePending){navigationRevision=crypto.randomUUID();navigationPending=true;navigationSource='all';lastFingerprint='';}
+    if(currentState)showLink({state:currentState,caseId:ReviewViewer.currentCase?.case_id,volumeId:ReviewViewer.volume?.volume_id,main:{selectedId:window.HandoffAnnotations?.selectedId}});
+    status(bus.enabled?'Синхронизируем с текущим видом 2D / 3D…':'Синхронизация выключена. Neuroglancer и 2D / 3D работают независимо.');
+    schedule(resumePending?'sync-resume':'settings',resumePending);
+  });
   async function loadIndex(){
     if(indexPromise)return indexPromise;
     indexPromise=(async()=>{try{const data=JSON.parse(await HandoffAssets.read('neuroglancer-segments.json',true));if(data.source_version!==1300||!data.volumes)throw new Error('Нет данных объектов Neuroglancer.');segmentIndex=data;await begin();}catch(error){status(error.message);}finally{indexPromise=null;}})();return indexPromise;
@@ -274,8 +314,9 @@
   for(const id of controlIds)for(const event of ['input','change'])$(id).addEventListener(event,e=>{if(applying&&e.isTrusted)localControls[id]=controls()[id];else schedule('settings');});
   async function openCurrent(force=false){await window.HandoffAnnotations?.whenSettled();await begin();if(!currentUrl)publish(true);ensureFrame();if(force){navigationPending=true;publish(true);}else if(latest)bus.send('state-reply',{message:latest});}
   window.addEventListener('hashchange',()=>{if(active())openCurrent();});
-  reset.addEventListener('click',()=>openCurrent(true));
+  reset.addEventListener('click',()=>{if(bus.enabled)openCurrent(true);});
   $('neuroglancerMarkerGo').addEventListener('click',async()=>{
+    if(!bus.enabled)return;
     const record=HandoffAnnotations.records.find(r=>r.id===markerSelect.value);if(!record)return;
     try{if(record.volume_id!==ReviewViewer.volume.volume_id){const v=ReviewViewer.currentCase.volumes.find(v=>v.volume_id===record.volume_id);await ReviewViewer.applyNavigationState({case_id:record.case_id,volume_id:v.volume_id,position_nm:record.point_nm,local_z:Math.floor(record.point_nm[2]/v.resolution_nm[2]-v.begin_vox_xyz[2])},{emit:false});}
       await HandoffAnnotations.applySelection(record.id,{focus:false});schedule('focus',true,{id:record.id,case_id:record.case_id,volume_id:ReviewViewer.volume.volume_id,point_nm:record.point_nm});
@@ -283,7 +324,8 @@
   });
   external.addEventListener('click',event=>{if(!currentUrl)return;if(event.button===0&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&!event.altKey){event.preventDefault();const opened=window.open(currentUrl,'_blank','noopener');/* BroadcastChannel also reaches tabs opened with Ctrl/Cmd-click. */}});
   frame.addEventListener('load',()=>{if(latest)bus.send('state-reply',{message:latest});});
-  window.NeuroglancerLink.captureFrame=caseId=>frame.hasAttribute('src')&&loadedCaseId===caseId&&!frame.hidden?frame:null;
-  window.NeuroglancerLink.sync={get latest(){return latest;},get applying(){return applying;},publish:()=>publish(true)};
+  window.NeuroglancerLink.captureFrame=caseId=>frame.hasAttribute('src')&&(bus.enabled?loadedCaseId:frameCaseId())===caseId&&!frame.hidden?frame:null;
+  window.NeuroglancerLink.frameCaseId=frameCaseId;
+  window.NeuroglancerLink.sync={get latest(){return bus.enabled?latest:null;},get applying(){return applying;},publish:()=>publish(true)};
   loadIndex();
 })();

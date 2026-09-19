@@ -8,6 +8,9 @@
   const params=new URLSearchParams(location.search),waiters=[];
   let caseId=params.get('case')||'',volumeId=params.get('volume')||'',latest=null,applied=null,pending=null,applying=false,started=false,timer=null,lastNative='',lastNav='',hostPayload=null,lastNavigationRevision=null;
   let clearButton=null,pointSelected=false,clearMessage=null,selectedPointId=null,mainOwner=null,deleteConfirmationPending=false;
+  let modeGeneration=0,awaitingMain=false;
+  const syncEnabled=()=>bus.enabled!==false;
+  const currentApplication=generation=>syncEnabled()&&generation===modeGeneration;
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b),clone=value=>value===undefined?undefined:structuredClone(value),valid3=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
   const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const units={m:1e9,cm:1e7,mm:1e6,um:1e3,'µm':1e3,nm:1};
@@ -25,6 +28,7 @@
   }
   function requestDeselect(){
     if(!caseId||!volumeId)return;
+    if(!syncEnabled()||awaitingMain){clearNativeSelection();return;}
     acceptDeselect(bus.send('ng-deselect',{caseId,volumeId}));
   }
   function acceptDeselect(message){
@@ -58,6 +62,19 @@
     try{
       if(await PointActions.confirmDelete({number:point.number}))bus.send('annotation-delete',{id:point.id,caseId:point.caseId},owner);
     }finally{deleteConfirmationPending=false;}
+  }
+  function acceptDeleteResult(message){
+    const p=message.payload;
+    if(message.source!==mainOwner||!p?.removed||p.caseId!==caseId||typeof p.id!=='string')return;
+    // This is the result of an explicit saved-record deletion, including while
+    // view synchronization is paused. It changes no camera or unrelated layers.
+    for(const managed of viewer.layerManager.managedLayers){
+      const local=managed.name.startsWith('Мои метки · ')&&managed.layer?.localAnnotations;
+      if(local?.annotationMap?.has(p.id))local.restoreState(clone(local.toJSON().filter(row=>row.id!==p.id)));
+    }
+    if(hostPayload?.caseId===caseId&&hostPayload.state?.layers)hostPayload={...hostPayload,state:{...hostPayload.state,layers:hostPayload.state.layers.map(layer=>layer.name?.startsWith('Мои метки · ')?{...layer,annotations:(layer.annotations||[]).filter(row=>row.id!==p.id)}:layer)}};
+    if(selectedPointId===p.id)clearNativeSelection();
+    viewer.layerManager.layersChanged.dispatch();window.MicronsMarkers?.redraw();markBaseline();
   }
   function installDeselectControls(){
     clearButton=document.createElement('button');clearButton.id='micronsClearSelection';clearButton.type='button';clearButton.textContent='Снять выбор';
@@ -136,8 +153,9 @@
     try{managed.layer.restoreState(clone(spec));managed.layer.initializationDone();}catch(error){viewer.layerManager.removeManagedLayer(managed);throw error;}
     return managed;
   }
-  async function applyLayers(specs){
-    if(!Array.isArray(specs))return;
+  async function applyLayers(specs,generation){
+    if(!currentApplication(generation))return false;
+    if(!Array.isArray(specs))return true;
     const desired=new Set(specs.filter(s=>ownLayer(s.name)).map(s=>s.name));
     // Add new layer types before removing obsolete layers, retaining a constructor template.
     for(const spec of specs){if(!ownLayer(spec.name))continue;let managed=viewer.layerManager.managedLayers.find(l=>l.name===spec.name);
@@ -146,12 +164,16 @@
     }
     for(const managed of [...viewer.layerManager.managedLayers])if(ownLayer(managed.name)&&!desired.has(managed.name))viewer.layerManager.removeManagedLayer(managed);
     const start=performance.now();while(specs.some(s=>s.type==='annotation'&&ownLayer(s.name)&&!viewer.layerManager.managedLayers.find(l=>l.name===s.name)?.layer?.localAnnotations)){
+      if(!currentApplication(generation))return false;
       if(performance.now()-start>10000)throw new Error('Слой меток ещё загружается.');await pause(20);
     }
+    if(!currentApplication(generation))return false;
     viewer.layerManager.layersChanged.dispatch();window.MicronsMarkers?.redraw();
+    return true;
   }
   async function applyMessage(message){
-    if(!bus.newer(message,clearMessage))return false;
+    const generation=modeGeneration;
+    if(!currentApplication(generation)||!bus.newer(message,clearMessage))return false;
     const p=message.payload;if(!p||!p.caseId||!p.volumeId)return;
     const changedCase=caseId!==p.caseId||volumeId!==p.volumeId;caseId=p.caseId;volumeId=p.volumeId;
     if(changedCase){const url=new URL(location.href);url.searchParams.set('case',caseId);url.searchParams.set('volume',volumeId);history.replaceState(history.state,'',url.href);}
@@ -168,7 +190,7 @@
       if(p.main&&!pointSelected)clearNativeSelection();else updateClearButton();
     }
     if(state.dimensions)restore('dimensions',state.dimensions);
-    await applyLayers(state.layers);
+    if(await applyLayers(state.layers,generation)===false||!currentApplication(generation))return false;
     // A clear may arrive while an annotation layer is loading. Never replay that
     // older point's navigation after the user has cleared it in another window.
     if(!bus.newer(message,clearMessage)){clearNativeSelection();return false;}
@@ -191,12 +213,17 @@
   }
   function finishWaiters(){if(!applying&&!pending)while(waiters.length)waiters.shift()(applied);}
   async function drain(){
-    if(!started||applying)return;applying=true;clearTimeout(timer);timer=null;
-    try{while(pending){const message=pending;pending=null;const didApply=await applyMessage(message);const display=viewer.display;if(display.canvas.offsetWidth&&display.canvas.offsetHeight){display.resizeCallback();display.draw();}if(didApply!==false)applied=message;markBaseline();}}
+    if(!started||applying||!syncEnabled())return;applying=true;clearTimeout(timer);timer=null;
+    try{while(pending&&syncEnabled()){const message=pending;pending=null;const didApply=await applyMessage(message);if(didApply!==false){const display=viewer.display;if(display.canvas.offsetWidth&&display.canvas.offsetHeight){display.resizeCallback();display.draw();}applied=message;}markBaseline();}}
     catch(error){window.dispatchEvent(new CustomEvent('microns:sync-error',{detail:{message:error.message}}));console.error('Neuroglancer synchronization:',error);}
     finally{markBaseline();applying=false;finishWaiters();}
   }
   function receive(message){
+    if(message.type==='annotation-delete-result'){acceptDeleteResult(message);return;}
+    if(!syncEnabled())return;
+    // Rejoining begins with the main viewer's current snapshot. A native peer's
+    // old independent camera must never win this first synchronization.
+    if(awaitingMain&&message.type!=='state-reply'&&!(message.type==='host-state'&&message.role==='main'))return;
     if(message.type==='hello'){if(bus.newer(latest,clearMessage))bus.send('state-reply',{message:latest},message.source);return;}
     if(message.type==='state-reply'){const nested=message.payload?.message;if(nested)receive(nested);return;}
     if(message.type==='ng-deselect'){
@@ -204,15 +231,24 @@
       return;
     }
     if(!['host-state','ng-state','ng-focus'].includes(message.type)||message.source===bus.id||!bus.newer(message,latest)||!bus.newer(message,clearMessage))return;
+    if(message.type==='host-state'&&message.role==='main')awaitingMain=false;
     latest=message;pending=message;drain();
   }
   function publish(){
-    timer=null;if(applying||pending||!caseId||!volumeId)return;
+    timer=null;if(!syncEnabled()||awaitingMain||applying||pending||!caseId||!volumeId)return;
     const state=stateSnapshot(),fingerprint=JSON.stringify(state);if(fingerprint===lastNative)return;
     const nav=JSON.stringify(NAV.map(key=>state[key])),reason=nav!==lastNav?'navigation':'settings';lastNative=fingerprint;lastNav=nav;
     latest=bus.send('ng-state',{caseId,volumeId,state,navigationCamera:navigationCamera(),reason});applied=latest;
   }
-  function schedule(){if(applying||!started)return;if(timer!==null)clearTimeout(timer);timer=setTimeout(publish,90);}
+  function schedule(){if(!syncEnabled()||awaitingMain||applying||!started)return;if(timer!==null)clearTimeout(timer);timer=setTimeout(publish,90);}
+  window.addEventListener('handoff:sync-mode',()=>{
+    ++modeGeneration;clearTimeout(timer);timer=null;
+    // Forget work from the former mode, but retain the current scene and saved
+    // record owner so an explicit Delete still edits the correct research record.
+    pending=null;latest=null;applied=null;clearMessage=null;lastNavigationRevision=null;
+    awaitingMain=syncEnabled();
+    if(started){markBaseline();finishWaiters();if(syncEnabled())bus.send('hello');}
+  });
   // Native xy-3d normally shares a single section texture. The two section renderers below
   // share navigation and data chunks, but each asks for its own named segmentation layers.
   const splitSlices=new Map();
@@ -241,11 +277,12 @@
     if(!window.viewer?.display||!window.MicronsMarkers){setTimeout(start,50);return;}
     started=true;syncSectionPanels();markBaseline();installDeselectControls();viewer.state.changed.add(schedule);viewer.display.updateFinished.add(syncSectionPanels);
     window.addEventListener('microns:focus',event=>{
-      const d=event.detail;if(applying||!d?.id||!valid3(d.point)||!caseId||!volumeId)return;
+      const d=event.detail;if(applying&&syncEnabled()||!d?.id||!valid3(d.point)||!caseId||!volumeId)return;
       pointSelected=true;selectedPointId=d.seed?null:d.id;updateClearButton();
-      restore('position',d.point);markBaseline();latest=bus.send('ng-focus',{caseId,volumeId,id:d.id,point:d.point,seed:!!d.seed,navigationCamera:navigationCamera()});applied=latest;
+      restore('position',d.point);markBaseline();
+      if(syncEnabled()&&!awaitingMain){latest=bus.send('ng-focus',{caseId,volumeId,id:d.id,point:d.point,seed:!!d.seed,navigationCamera:navigationCamera()});applied=latest;}
     });
-    bus.subscribe(receive);bus.send('hello');drain();
+    bus.subscribe(receive);if(syncEnabled())bus.send('hello');drain();
     window.MicronsViewSync={get latest(){return latest;},get applied(){return applied;},get applying(){return applying||!!pending;},get caseId(){return caseId;},get volumeId(){return volumeId;},navigationCamera,whenSettled(){return applying||pending?new Promise(resolve=>waiters.push(resolve)):Promise.resolve(applied);}};
   }
   start();

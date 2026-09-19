@@ -6,11 +6,12 @@
   async function captureCurrent(caseId){
     const frame=window.NeuroglancerLink.captureFrame(caseId);
     if(!frame)return null;
-    const source=frame.src;let requestedSync=null;
+    const source=frame.src,modeRevision=window.HandoffSync?.syncRevision;let requestedSync=null;
     if(busy)throw new Error('Дождитесь завершения снимка Neuroglancer.');
     busy=true;
     const pages=[...document.querySelectorAll('.page')].map(node=>({node,hidden:node.hidden})),scroll=[scrollX,scrollY],initialHash=location.hash;
     const unchanged=()=>{
+      if(window.HandoffSync?.syncRevision!==modeRevision)throw new Error('Синхронизация изменилась во время снимка. Повторите сохранение.');
       if(location.hash!==initialHash)throw new Error('Вкладка изменилась во время снимка. Повторите сохранение в Neuroglancer.');
       if(window.NeuroglancerLink.captureFrame(caseId)!==frame||frame.src!==source)throw new Error('Случай или метки изменились во время снимка. Повторите сохранение.');
       if(requestedSync&&window.NeuroglancerLink.sync?.latest!==requestedSync)throw new Error('Вид изменился во время синхронизации. Повторите сохранение снимка.');
@@ -63,7 +64,7 @@
     if(busy||window.HandoffAnnotations?.isExporting){$('neuroglancerStatus').textContent='Дождитесь завершения текущего сохранения.';return;}
     screenshotButton.disabled=true;
     try{
-      const caseId=window.ReviewViewer?.currentCase?.case_id;
+      const caseId=window.HandoffSync?.enabled?window.ReviewViewer?.currentCase?.case_id:window.NeuroglancerLink.frameCaseId?.();
       const blob=await captureCurrent(caseId);
       if(!blob)throw new Error('Откройте текущий случай в Neuroglancer и дождитесь загрузки.');
       const url=URL.createObjectURL(blob),link=document.createElement('a');

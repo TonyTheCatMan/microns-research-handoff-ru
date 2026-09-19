@@ -171,7 +171,7 @@
   }
   function updateClearButtons(){
     const main=notesWindow?mainWindow():window,active=Boolean(main?.HandoffAnnotations?.selectedId||main?.ReviewViewer?.target||main?.ReviewViewer?.surface?.contextFocus);
-    document.querySelectorAll('[data-clear-point-selection]').forEach(button=>button.disabled=!active);
+    document.querySelectorAll('[data-clear-point-selection]').forEach(button=>button.disabled=!active||button.id==='neuroglancerClearSelection'&&!window.HandoffSync?.enabled);
   }
   function clearSelection({announce=true,source='clear'}={}){
     if(notesWindow){const main=mainWindow()?.HandoffAnnotations;if(main){main.clearSelection({announce,source});syncFromMain();return true;}return false;}
@@ -186,9 +186,10 @@
   window.addEventListener('review:deselect',event=>clearSelection({source:event.detail?.source||'background'}));
   window.addEventListener('review:focus',event=>{if(event.detail?.target_id&&selectedId)select(null,false,true,'target');updateClearButtons();});
   window.addEventListener('surface:visibility',updateClearButtons);
+  window.addEventListener('handoff:sync-mode',updateClearButtons);
   document.addEventListener('keydown',event=>{
     if(event.key!=='Escape'||event.defaultPrevented||window.PointActions?.isOpen||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.target.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"]),[role="dialog"]'))return;
-    if(!notesWindow&&$('page-viewer').hidden&&$('page-neuroglancer').hidden)return;
+    if(!notesWindow&&$('page-viewer').hidden&&($('page-neuroglancer').hidden||!window.HandoffSync?.enabled))return;
     clearSelection({source:'escape'});event.preventDefault();
   });
   function select(id,go=false,announce=true,source='api') {
@@ -283,11 +284,14 @@
   $('annotationDelete').addEventListener('click',()=>requestDelete());
   document.addEventListener('keydown',event=>{
     if(event.key!=='Delete'||event.defaultPrevented||event.repeat||event.isComposing||window.PointActions?.isOpen||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.target.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"]),dialog,[role="dialog"]'))return;
-    if(!byId(selectedId)||!notesWindow&&$('page-viewer').hidden&&$('page-neuroglancer').hidden)return;
+    if(!byId(selectedId)||!notesWindow&&$('page-viewer').hidden&&($('page-neuroglancer').hidden||!window.HandoffSync?.enabled))return;
     event.preventDefault();requestDelete();
   });
-  window.HandoffSync?.subscribe(message=>{
-    if(!notesWindow&&message.type==='annotation-delete'&&message.role==='neuroglancer'&&message.target===HandoffSync.id)deleteConfirmed(message.payload||{});
+  window.HandoffSync?.subscribe(async message=>{
+    if(!notesWindow&&message.type==='annotation-delete'&&message.role==='neuroglancer'&&message.target===HandoffSync.id){
+      const target=message.payload||{},removed=await deleteConfirmed(target);
+      HandoffSync.send('annotation-delete-result',{id:target.id,caseId:target.caseId,removed},message.source);
+    }
   });
   async function undoDeletion(){
     const main=notesWindow?mainWindow()?.HandoffAnnotations:null;
@@ -336,7 +340,7 @@
   }
   watchPixelDensity();
   $('annotationPopout').addEventListener('click',()=>{
-    const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('v','20260919-delete1');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);else url.searchParams.delete('annotation');url.hash='viewer';
+    const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('v','20260919-toggle1');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);else url.searchParams.delete('annotation');url.hash='viewer';
     const opened=activeNotes()[0]||window.open(url.href,'microns-annotation-properties-'+crypto.randomUUID(),'width=680,height=900');if(!opened)$('annotationModeHelp').textContent='Разрешите всплывающее окно для свойств или используйте панель ниже.';
     if(opened){attachNotes(opened);notifyNotes();opened.focus();}
   });
