@@ -7,7 +7,7 @@
   const ownLayer=name=>name==='ЭМ MICrONS'||name==='Объекты · v1300'||name==='Соседние структуры · v1300'||name==='Заданные точки · не проверены'||name?.startsWith('Границы ')||name?.startsWith('Мои метки · ')||['Сегментация 2D · v1300','Сегментация среза 3D · v1300','Соседние на срезе 3D · v1300'].includes(name);
   const params=new URLSearchParams(location.search),waiters=[];
   let caseId=params.get('case')||'',volumeId=params.get('volume')||'',latest=null,applied=null,pending=null,applying=false,started=false,timer=null,lastNative='',lastNav='',hostPayload=null,lastNavigationRevision=null;
-  let clearButton=null,pointSelected=false,clearMessage=null;
+  let clearButton=null,pointSelected=false,clearMessage=null,selectedPointId=null,mainOwner=null,deleteConfirmationPending=false;
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b),clone=value=>value===undefined?undefined:structuredClone(value),valid3=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
   const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const units={m:1e9,cm:1e7,mm:1e6,um:1e3,'µm':1e3,nm:1};
@@ -15,7 +15,7 @@
   function nativePointSelected(){return viewer.selectionDetailsState?.value?.layers?.some(row=>row.state?.annotationId&&ownAnnotation(row.layer))||false;}
   function updateClearButton(){if(clearButton)clearButton.disabled=!pointSelected&&!nativePointSelected();}
   function clearNativeSelection(){
-    pointSelected=false;
+    pointSelected=false;selectedPointId=null;
     // Clear the pinned inspection state without resizing panels, moving the camera,
     // changing visible segments, or deleting annotations. Keep it pinned empty so
     // the former point under the pointer does not immediately become selected again.
@@ -33,6 +33,32 @@
     if(pending&&!bus.newer(pending,clearMessage))pending=null;
     clearNativeSelection();finishWaiters();
   }
+  function selectedSavedPoint(){
+    if(!selectedPointId||!mainOwner||hostPayload?.caseId!==caseId)return null;
+    for(const layer of hostPayload.state?.layers||[]){
+      if(layer.type!=='annotation'||!layer.name?.startsWith('Мои метки · '))continue;
+      const point=layer.annotations?.find(row=>row.id===selectedPointId&&row.type==='point');
+      const number=Number(point?.props?.[0]||point?.description?.match(/^№(\d+)/)?.[1]);
+      if(point&&Number.isSafeInteger(number)&&number>0)return{id:point.id,number,caseId};
+    }
+    return null;
+  }
+  async function requestDelete(event){
+    const target=event.target;
+    if(event.key!=='Delete'||event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||target?.isContentEditable||target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.CodeMirror,.cm-editor'))return;
+    const inspected=viewer.selectionDetailsState?.value?.layers?.filter(row=>row.state?.annotationId)||[];
+    if(inspected.length&&inspected.every(row=>!ownAnnotation(row.layer)))return;
+    const point=selectedSavedPoint();
+    if(!point&&!pointSelected&&!nativePointSelected()&&!deleteConfirmationPending&&!window.PointActions?.isOpen)return;
+    // Never pass Delete through to the native annotation editor for research
+    // points or prescribed T/boundary annotations. Only the saved record is deleted.
+    event.preventDefault();event.stopImmediatePropagation();
+    if(!point||event.repeat||deleteConfirmationPending||window.PointActions?.isOpen||!window.PointActions?.confirmDelete)return;
+    const owner=mainOwner;deleteConfirmationPending=true;
+    try{
+      if(await PointActions.confirmDelete({number:point.number}))bus.send('annotation-delete',{id:point.id,caseId:point.caseId},owner);
+    }finally{deleteConfirmationPending=false;}
+  }
   function installDeselectControls(){
     clearButton=document.createElement('button');clearButton.id='micronsClearSelection';clearButton.type='button';clearButton.textContent='Снять выбор';
     clearButton.title='Снять выбор точки и вернуть обычный набор соседних структур (Esc)';
@@ -40,9 +66,10 @@
     clearButton.addEventListener('click',requestDeselect);document.body.append(clearButton);
     document.addEventListener('keydown',event=>{
       const target=event.target;
-      if(event.key!=='Escape'||event.defaultPrevented||target?.isContentEditable||target?.closest?.('input,textarea,select,[contenteditable="true"],.CodeMirror,.cm-editor')||!pointSelected&&!nativePointSelected())return;
+      if(event.key!=='Escape'||event.defaultPrevented||deleteConfirmationPending||window.PointActions?.isOpen||target?.isContentEditable||target?.closest?.('input,textarea,select,[contenteditable="true"],.CodeMirror,.cm-editor')||!pointSelected&&!nativePointSelected())return;
       event.preventDefault();event.stopImmediatePropagation();requestDeselect();
     },true);
+    document.addEventListener('keydown',requestDelete,true);
     viewer.selectionDetailsState.changed.add(updateClearButton);updateClearButton();
   }
   function resolution(state=viewer.state.toJSON()){
@@ -129,13 +156,14 @@
     const changedCase=caseId!==p.caseId||volumeId!==p.volumeId;caseId=p.caseId;volumeId=p.volumeId;
     if(changedCase){const url=new URL(location.href);url.searchParams.set('case',caseId);url.searchParams.set('volume',volumeId);history.replaceState(history.state,'',url.href);}
     if(message.type==='ng-focus'){
-      pointSelected=true;updateClearButton();
+      pointSelected=true;selectedPointId=p.seed?null:p.id||null;updateClearButton();
       if(valid3(p.point))restore('position',p.point);return;
     }
     const state=p.state;if(!state)return;
     if(state.title)restore('title',state.title);
     if(message.type==='host-state'){
-      hostPayload=p;
+      hostPayload=p;if(message.role==='main')mainOwner=message.source;
+      selectedPointId=p.main&&'deleteSelectionId'in p.main?p.main.deleteSelectionId:p.focus?.target_id?null:p.main?.selectedId||null;
       pointSelected=!!(p.main?.selectedId||p.main?.target||p.main?.contextFocus||p.focus);
       if(p.main&&!pointSelected)clearNativeSelection();else updateClearButton();
     }
@@ -214,7 +242,7 @@
     started=true;syncSectionPanels();markBaseline();installDeselectControls();viewer.state.changed.add(schedule);viewer.display.updateFinished.add(syncSectionPanels);
     window.addEventListener('microns:focus',event=>{
       const d=event.detail;if(applying||!d?.id||!valid3(d.point)||!caseId||!volumeId)return;
-      pointSelected=true;updateClearButton();
+      pointSelected=true;selectedPointId=d.seed?null:d.id;updateClearButton();
       restore('position',d.point);markBaseline();latest=bus.send('ng-focus',{caseId,volumeId,id:d.id,point:d.point,seed:!!d.seed,navigationCamera:navigationCamera()});applied=latest;
     });
     bus.subscribe(receive);bus.send('hello');drain();

@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/?v=20260919-deselect1',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=20260919-delete1',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
 
@@ -113,7 +113,7 @@
     if(navigation?.position_nm)state.position=navigation.position_nm.map((n,i)=>n/volume.resolution_nm[i]);
     state.crossSectionScale=1/v.zoom;
     if(navigationFocus?.point_nm)state.position=navigationFocus.point_nm.map((n,i)=>n/volume.resolution_nm[i]);
-    return{caseId:c.case_id,volumeId:volume.volume_id,state,main:{navigation,controls:settings,selectedId:selection,objects:surface.meshes.map(m=>({id:m.id,segment_id:m.segment_id,visible:m.visible})),contextFocus:surface.contextFocus,contextFocusLabel:surface.contextFocusLabel,target:v.target,boundaryOverlay:boundaryOverlay(settings)},navigate:navigationPending,navigationSource,navigationRevision,focus:navigationFocus,reason:reasonPending};
+    return{caseId:c.case_id,volumeId:volume.volume_id,state,main:{navigation,controls:settings,selectedId:selection,deleteSelectionId:selection||null,objects:surface.meshes.map(m=>({id:m.id,segment_id:m.segment_id,visible:m.visible})),contextFocus:surface.contextFocus,contextFocusLabel:surface.contextFocusLabel,target:v.target,boundaryOverlay:boundaryOverlay(settings)},navigate:navigationPending,navigationSource,navigationRevision,focus:navigationFocus,reason:reasonPending};
   }
   function showLink(payload){
     currentState=payload.state;currentUrl=urlFor(currentState);external.href=currentUrl;external.removeAttribute('aria-disabled');reset.disabled=false;
@@ -206,7 +206,7 @@
     await ReviewViewer.applyNavigationState(navigation,{emit:false});
     if(type==='ng-focus'){
       if(!payload.seed){await HandoffAnnotations.refresh();await HandoffAnnotations.applySelection(payload.id,{focus:false});}
-      else{const target=/^(.+)-(ctr_nm|pre_nm|post_nm)$/.exec(payload.id);if(target)ReviewViewer.applyTarget?.(target[1],target[2]);}
+      else{await HandoffAnnotations.applySelection(null,{focus:false});const target=/^(.+)-(ctr_nm|pre_nm|post_nm)$/.exec(payload.id);if(target)ReviewViewer.applyTarget?.(target[1],target[2]);}
       ReviewViewer.surface.setContextFocus(nm.map((n,i)=>n-dest.begin_vox_xyz[i]*dest.resolution_nm[i]),payload.seed?payload.id:'выбранная метка');
     }else{
       applyControls(nativeControls(state));

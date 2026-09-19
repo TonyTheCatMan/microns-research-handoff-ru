@@ -11,6 +11,7 @@
   let store, metadata, records = [], caseNotes = [], selectedId = params.get('annotation'), currentCase = '', pending = 0;
   let saveChain = Promise.resolve(), failures = [], deleted = null, refreshGeneration = 0, lastEditorId = null, refreshNeeded = false;
   let exportBusy=false;
+  const deletingIds=new Set();
   const notesPeers=new Set();let followingMain=false,followAgain=false,undoImportAction=null;
   let channel; try { channel = new BroadcastChannel('microns-researcher-annotations-v1'); } catch {}
   const now = previous => new Date(Math.max(Date.now(),Date.parse(previous||'')+1||0)).toISOString(), byId = id => records.find(r => r.id === id);
@@ -66,6 +67,7 @@
       main.HandoffAnnotations.attachNotes(window);await whenSettled();await source.whenSettled();
       const different=currentCase!==source.currentCase||selectedId!==source.selectedId;
       currentCase=source.currentCase;selectedId=source.selectedId;
+      deleted=source.deletedRecord;$('annotationUndo').hidden=!deleted;
       await refresh();renderEditor(different);renderCaseNotes(different);
       const view=main.ReviewViewer,description=`Основной вид: ${currentCase} · ${view.volume?.volume_id||''}`+(view.ready?` · Z ${view.z}`:' · загрузка…');
       let hint=$('notesMainView');if(!hint){hint=document.createElement('p');hint.id='notesMainView';hint.className='annotation-storage-note';document.querySelector('.annotation-savebar').before(hint);}hint.textContent=description;
@@ -100,7 +102,7 @@
     const generation=++refreshGeneration;
     const [nextRecords,nextCases]=await Promise.all([store.getAll(),store.getCases()]);
     if(generation!==refreshGeneration||pending||failures.length)return;
-    records=nextRecords;caseNotes=nextCases;const removed=selectedId&&!byId(selectedId);if(removed)selectedId=null;renderList();renderEditor();renderCaseNotes();draw();if(removed&&announce&&!notesWindow)announceSelection(null,'select','delete');changed();notifyNotes();
+    records=nextRecords;caseNotes=nextCases;const removed=selectedId&&!byId(selectedId);if(removed)selectedId=null;renderList();renderEditor();renderCaseNotes();draw();if(removed&&announce&&!notesWindow)clearSelection({source:'delete'});changed();notifyNotes();
   }
   function locationInVolume(record,volume=viewer()?.volume) {
     if(!volume||record.case_id!==viewer()?.currentCase?.case_id)return null;
@@ -182,15 +184,16 @@
   }
   for(const button of document.querySelectorAll('[data-clear-point-selection]'))button.addEventListener('click',()=>clearSelection({source:'button'}));
   window.addEventListener('review:deselect',event=>clearSelection({source:event.detail?.source||'background'}));
-  window.addEventListener('review:focus',updateClearButtons);
+  window.addEventListener('review:focus',event=>{if(event.detail?.target_id&&selectedId)select(null,false,true,'target');updateClearButtons();});
   window.addEventListener('surface:visibility',updateClearButtons);
   document.addEventListener('keydown',event=>{
-    if(event.key!=='Escape'||event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.target.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"]),[role="dialog"]'))return;
+    if(event.key!=='Escape'||event.defaultPrevented||window.PointActions?.isOpen||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.target.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"]),[role="dialog"]'))return;
     if(!notesWindow&&$('page-viewer').hidden&&$('page-neuroglancer').hidden)return;
     clearSelection({source:'escape'});event.preventDefault();
   });
   function select(id,go=false,announce=true,source='api') {
     const record=byId(id);if(id!==null&&!record)return;
+    if(record&&!notesWindow)viewer()?.applyTarget(null);
     selectedId=id;renderList();renderEditor(true);draw();viewer()?.surface?.setSelectedAnnotation(id);if(record)viewer()?.surface?.focusAnnotation(record);
     if(go&&!notesWindow){goToSelected({announce,source});return;}
     if(announce&&notesWindow){const main=mainWindow()?.HandoffAnnotations;if(main?.currentCase===(record?.case_id||currentCase))main.select(id,false,true,source);else syncFromMain();}
@@ -243,7 +246,7 @@
   function setMode() {
     const value=mode();viewer()?.surface?.setAnnotationMode(value==='point3d'?'point':value==='object3d'?'object':'off');
     $('viewport').classList.toggle('marking-2d',value.endsWith('2d'));
-    $('annotationModeHelp').textContent={navigate:'Нажмите на метку, чтобы открыть свойства. Снять выбор: щелчок вне меток или Esc. Окружение вернётся к центру среза.',contact2d:'Нажмите на контакт в 2D: появится следующий номер. При необходимости добавьте заметку ниже.',point2d:'Нажмите на особенность в 2D и заполните её свойства в панели ниже.',point3d:'Нажмите на видимую поверхность в 3D. Перетаскивание по-прежнему вращает модель.',object3d:'Нажмите на объект в 3D для выбора и записи его свойств. При необходимости скройте плоскость XY.'}[value];
+    $('annotationModeHelp').textContent={navigate:'Нажмите на метку, чтобы открыть свойства. Снять выбор: щелчок вне меток или Esc. Delete — удалить выбранную метку.',contact2d:'Нажмите на контакт в 2D: появится следующий номер. При необходимости добавьте заметку ниже.',point2d:'Нажмите на особенность в 2D и заполните её свойства в панели ниже.',point3d:'Нажмите на видимую поверхность в 3D. Перетаскивание по-прежнему вращает модель.',object3d:'Нажмите на объект в 3D для выбора и записи его свойств. При необходимости скройте плоскость XY.'}[value];
   }
   $('annotationMode').addEventListener('change',setMode);
   $('annotationsVisible').addEventListener('change',()=>{prefsSave();draw();});
@@ -256,11 +259,43 @@
   $('contextLimitReadout').textContent=$('contextLimit').value;
   window.addEventListener('annotations:contextstatus',event=>{if(event.detail.volume_id!==viewer()?.volume?.volume_id)return;const node=$('contextLoadStatus');node.textContent=event.detail.message+(event.detail.status==='error'?' Снимите и снова включите флажок, чтобы повторить.':'');node.classList.toggle('save-failed',event.detail.status==='error');});
   $('annotationGo').addEventListener('click',()=>notesWindow?runOnMain(main=>main.goTo(selectedId)):goToSelected());
-  $('annotationDelete').addEventListener('click',()=>{
-    const record=byId(selectedId);if(!record)return;
-    enqueue(async()=>{deleted=await store.remove(record.id);viewer()?.surface?.forgetAnnotationFocus(record.number);records=records.filter(r=>r.id!==record.id);if(selectedId===record.id)select(null,false,true,'delete');else{renderList();renderEditor();draw();}$('annotationUndo').hidden=false;changed();broadcast({type:'changed'});});
+  async function deleteConfirmed({id,caseId}){
+    const main=notesWindow?mainWindow()?.HandoffAnnotations:null;
+    if(main){await whenSettled();const result=await main.deleteConfirmed({id,caseId});await syncFromMain();return result;}
+    const record=byId(id);if(!store||!record||record.case_id!==caseId||deletingIds.has(id))return false;
+    deletingIds.add(id);let removed=false;
+    try{await enqueue(async()=>{
+      const saved=await store.remove(id);if(!saved)return;
+      deleted=saved;removed=true;viewer()?.surface?.forgetAnnotationFocus(saved.number);records=records.filter(r=>r.id!==id);
+      if(selectedId===id){
+        if(notesWindow){select(null,false,false);const main=mainWindow()?.HandoffAnnotations;if(main?.selectedId===id)main.clearSelection({source:'delete'});}
+        else clearSelection({source:'delete'});
+      }else{renderList();renderEditor();draw();}
+      $('annotationUndo').hidden=false;changed();broadcast({type:'changed'});notifyNotes();
+    });}finally{deletingIds.delete(id);}return removed;
+  }
+  async function requestDelete(id=selectedId){
+    const record=byId(id);if(!record||record.case_id!==currentCase||deletingIds.has(id)||window.PointActions?.isOpen)return false;
+    const target={id:record.id,caseId:record.case_id},number=record.number;
+    if(!await PointActions.confirmDelete({number}))return false;
+    return deleteConfirmed(target);
+  }
+  $('annotationDelete').addEventListener('click',()=>requestDelete());
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Delete'||event.defaultPrevented||event.repeat||event.isComposing||window.PointActions?.isOpen||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.target.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"]),dialog,[role="dialog"]'))return;
+    if(!byId(selectedId)||!notesWindow&&$('page-viewer').hidden&&$('page-neuroglancer').hidden)return;
+    event.preventDefault();requestDelete();
   });
-  $('annotationUndo').addEventListener('click',()=>{if(!deleted)return;const record=deleted;enqueue(async()=>{const restored=await store.restore(record);updateLocal(restored);deleted=null;$('annotationUndo').hidden=true;select(restored.id);changed();broadcast({type:'changed'});});});
+  window.HandoffSync?.subscribe(message=>{
+    if(!notesWindow&&message.type==='annotation-delete'&&message.role==='neuroglancer'&&message.target===HandoffSync.id)deleteConfirmed(message.payload||{});
+  });
+  async function undoDeletion(){
+    const main=notesWindow?mainWindow()?.HandoffAnnotations:null;
+    if(main){await main.undoDeletion();await syncFromMain();return;}
+    if(!deleted)return;const record=deleted;
+    await enqueue(async()=>{const restored=await store.restore(record);updateLocal(restored);if(deleted?.id===record.id)deleted=null;$('annotationUndo').hidden=!deleted;select(restored.id);changed();broadcast({type:'changed'});notifyNotes();});
+  }
+  $('annotationUndo').addEventListener('click',undoDeletion);
   let pointer;
   $('viewport').addEventListener('pointerdown',event=>{if(event.button===0&&viewer()?.ready)pointer={x:event.clientX,y:event.clientY,moved:false};});
   $('viewport').addEventListener('pointermove',event=>{if(pointer&&Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)>5)pointer.moved=true;});
@@ -301,7 +336,7 @@
   }
   watchPixelDensity();
   $('annotationPopout').addEventListener('click',()=>{
-    const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('v','20260919-deselect1');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);else url.searchParams.delete('annotation');url.hash='viewer';
+    const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('v','20260919-delete1');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);else url.searchParams.delete('annotation');url.hash='viewer';
     const opened=activeNotes()[0]||window.open(url.href,'microns-annotation-properties-'+crypto.randomUUID(),'width=680,height=900');if(!opened)$('annotationModeHelp').textContent='Разрешите всплывающее окно для свойств или используйте панель ниже.';
     if(opened){attachNotes(opened);notifyNotes();opened.focus();}
   });
@@ -453,5 +488,5 @@
   }
   window.addEventListener('review:ready',event=>boot(event.detail),{once:true});
   if(viewer()?.metadata)boot(viewer().metadata);
-  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},get isExporting(){return exportBusy;},isNotesWindow:notesWindow,enqueue,exportFindings,importFindings,imageBlob,select,applySelection,clearSelection,refresh,whenSettled,settleForAction,attachNotes,syncFromMain,undoImport:()=>undoImportAction?.(),goTo:async id=>{select(id,false,false);await goToSelected();window.focus();}};
+  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},get deletedRecord(){return deleted;},get isExporting(){return exportBusy;},isNotesWindow:notesWindow,enqueue,exportFindings,importFindings,imageBlob,select,applySelection,clearSelection,requestDelete,deleteConfirmed,undoDeletion,refresh,whenSettled,settleForAction,attachNotes,syncFromMain,undoImport:()=>undoImportAction?.(),goTo:async id=>{select(id,false,false);await goToSelected();window.focus();}};
 })();
