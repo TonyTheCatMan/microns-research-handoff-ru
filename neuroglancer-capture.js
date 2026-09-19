@@ -6,13 +6,14 @@
   async function captureCurrent(caseId){
     const frame=window.NeuroglancerLink.captureFrame(caseId);
     if(!frame)return null;
-    const source=frame.src;
+    const source=frame.src;let requestedSync=null;
     if(busy)throw new Error('Дождитесь завершения снимка Neuroglancer.');
     busy=true;
     const pages=[...document.querySelectorAll('.page')].map(node=>({node,hidden:node.hidden})),scroll=[scrollX,scrollY],initialHash=location.hash;
     const unchanged=()=>{
       if(location.hash!==initialHash)throw new Error('Вкладка изменилась во время снимка. Повторите сохранение в Neuroglancer.');
       if(window.NeuroglancerLink.captureFrame(caseId)!==frame||frame.src!==source)throw new Error('Случай или метки изменились во время снимка. Повторите сохранение.');
+      if(requestedSync&&window.NeuroglancerLink.sync?.latest!==requestedSync)throw new Error('Вид изменился во время синхронизации. Повторите сохранение снимка.');
     };
     try{
       pages.forEach(({node})=>node.hidden=node.id!=='page-neuroglancer');
@@ -20,7 +21,7 @@
       $('neuroglancerStatus').textContent='Сохраняем текущий вид Neuroglancer с метками…';
       let sourceWindow,renderer,display;
       try{sourceWindow=frame.contentWindow;renderer=sourceWindow.viewer;display=renderer?.display;}catch{throw new Error('Не удалось прочитать текущий вид Neuroglancer. Обновите сайт и откройте Neuroglancer снова.');}
-      const started=performance.now();let readyOnce=false;
+      const started=performance.now();let readyOnce=false,previousSync=null;
       // A hidden iframe needs a layout pass before the native drawing buffer is resized.
       // Wait for the existing renderer; never reload or reconstruct its camera state.
       while(true){
@@ -28,7 +29,9 @@
         const sourceCanvas=display?.canvas;
         if(sourceCanvas?.offsetWidth&&sourceCanvas.offsetHeight&&sourceWindow.MicronsMarkers){
           display.resizeCallback();display.draw();
-          if(renderer.isReady()&&sourceCanvas.width&&sourceCanvas.height){if(readyOnce)break;readyOnce=true;}else readyOnce=false;
+          const sync=sourceWindow.MicronsViewSync,applied=sync?.applied,expected=window.NeuroglancerLink.sync?.latest;
+          const synchronized=!expected||!!sync&&!sync.applying&&sync.caseId===caseId&&applied&&(applied.source===expected.source&&applied.clock===expected.clock||window.HandoffSync.newer(applied,expected));
+          if(synchronized&&renderer.isReady()&&sourceCanvas.width&&sourceCanvas.height){if(readyOnce&&previousSync===expected){requestedSync=expected;break;}readyOnce=true;previousSync=expected;}else readyOnce=false;
         }
         if(performance.now()-started>15000)throw new Error('Neuroglancer ещё загружает изображения или 3D. Дождитесь загрузки и повторите сохранение.');
         await new Promise(resolve=>setTimeout(resolve,100));
@@ -42,7 +45,8 @@
       const canvas=document.createElement('canvas');canvas.width=sourceCanvas.width;canvas.height=sourceCanvas.height;
       const ctx=canvas.getContext('2d');ctx.drawImage(sourceCanvas,0,0);
       const scaleX=canvas.width/rect.width,scaleY=canvas.height/rect.height;
-      for(const overlay of sourceWindow.document.querySelectorAll('.microns-numbered-marks')){
+      const overlays=[...sourceWindow.document.querySelectorAll('.microns-segmentation-borders,.microns-numbered-marks')].sort((a,b)=>Number(a.classList.contains('microns-numbered-marks'))-Number(b.classList.contains('microns-numbered-marks')));
+      for(const overlay of overlays){
         const box=overlay.getBoundingClientRect();
         if(!overlay.width||!overlay.height||!box.width||!box.height||!overlay.checkVisibility())continue;
         ctx.drawImage(overlay,(box.left-rect.left)*scaleX,(box.top-rect.top)*scaleY,box.width*scaleX,box.height*scaleY);

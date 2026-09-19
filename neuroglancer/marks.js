@@ -90,6 +90,7 @@
     if(!state)return;
     event.preventDefault();event.stopImmediatePropagation();
     layer.selectAnnotation(state,h.record.id,true);
+    window.dispatchEvent(new CustomEvent('microns:focus',{detail:{id:h.record.id,point:[...h.record.point],seed:!!h.record.seed}}));
   }
   function schedule(){if(!queued){queued=true;requestAnimationFrame(draw);}}
   function start(){

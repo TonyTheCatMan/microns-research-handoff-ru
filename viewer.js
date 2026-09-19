@@ -6,10 +6,24 @@
   const state = { files:[], metadata:null, currentCase:null, volume:null, tiff:null, pixels:null, z:0, zoom:2, black:0, white:255, target:null, generation:0, viewCenter:null };
   const MIN_ZOOM = .1, MAX_ZOOM = 8;
   const surface = new LocalSurfaceView();
+  let navigationMute=0,navigationFrame=0,navigationLast='',navigationPending=null,navigationApplyToken=0;
   const fmt = values => values.map(v => Number.isInteger(v) ? String(v) : Number(v.toFixed(3))).join(', ');
   const triple = (a, predicate) => Array.isArray(a) && a.length === 3 && a.every(predicate);
   const finite = x => typeof x === 'number' && Number.isFinite(x);
   const integer = x => Number.isSafeInteger(x);
+  function getNavigationState(){
+    if(!state.tiff||!state.volume)return null;
+    const shown=!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight;
+    const center=shown?imagePointAt(viewportCenter()):state.viewCenter||{x:state.tiff.width/2,y:state.tiff.height/2};
+    const res=state.volume.resolution_nm,begin=state.volume.begin_vox_xyz;
+    return {schema_version:1,case_id:state.currentCase.case_id,volume_id:state.volume.volume_id,position_nm:[(begin[0]+center.x)*res[0],(begin[1]+center.y)*res[1],(begin[2]+state.z+.5)*res[2]],local_z:state.z,zoom:state.zoom,viewport_css_px:shown?[ui.viewport.clientWidth,ui.viewport.clientHeight]:state.viewSize||[0,0],surface:surface.getNavigationState()};
+  }
+  function navigationSignature(value){return JSON.stringify(value);}
+  function navigationChanged(reason,source='2d'){
+    if(navigationMute||!state.tiff)return;navigationPending={reason,source};if(navigationFrame)return;
+    navigationFrame=requestAnimationFrame(()=>{navigationFrame=0;if(navigationMute)return;const view=getNavigationState();if(!view)return;const signature=navigationSignature(view);if(signature===navigationLast)return;navigationLast=signature;window.dispatchEvent(new CustomEvent('review:view',{detail:{...view,...navigationPending}}));});
+  }
+  window.addEventListener('surface:view',event=>{if(event.detail.case_id===state.currentCase?.case_id&&event.detail.volume_id===state.volume?.volume_id)navigationChanged(event.detail.reason,'3d');});
   const normalPath = s => String(s).replace(/\\/g, '/').replace(/^\.\//, '');
   const filePath = f => normalPath(f.webkitRelativePath || f.name);
   function status(message, kind='') { ui.status.textContent = message; ui.status.className = 'status ' + kind; }
@@ -113,7 +127,7 @@
       ui.imageCanvas.width = ui.overlayCanvas.width = tiff.width;
       ui.imageCanvas.height = ui.overlayCanvas.height = tiff.height;
       ui.canvasWrap.hidden = false; ui.emptyState.hidden = true;
-      renderContacts(); render(); state.needsFit=true;if(!byId('page-viewer').hidden){ui.fitButton.click();state.needsFit=false;}
+      renderContacts(); render(); state.needsFit=true;if(!byId('page-viewer').hidden){ui.fitButton.click();state.needsFit=false;}navigationChanged('load');
       status('MICrONS · ' + state.metadata.cases.length + ' случаев · ' + volume.volume_id + ' · ' + tiff.depth + ' срезов TIFF · исходный диапазон яркости 0–255', 'success');
     } catch (error) { if (generation === state.generation && error.name!=='AbortError') {status(error.message,'error');byId('retryLoad').hidden=false;ui.emptyState.querySelector('h2').textContent='Объём не загружен';ui.emptyState.querySelector('p').textContent='Проверьте соединение и нажмите «Повторить загрузку».';} }
   }
@@ -131,21 +145,47 @@
         const button = document.createElement('button'); button.textContent = label; button.disabled = !valid;
         button.dataset.target = contact.contact_id + ':' + key;
         button.title = (valid ? 'Перейти к' : 'За границами этого фрагмента:') + ' локальным XYZ ' + fmt(local) + '; глобальные координаты (нм) ' + fmt(contact[key]);
-        button.addEventListener('click', () => {
-          state.target = {id:contact.contact_id,key,label,nm:contact[key],local};
-          ui.contacts.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === button));
-          setZ(local[2]);
-        });
+        button.addEventListener('click', () => chooseTarget(contact.contact_id,key));
         buttons.append(button);
       }
       card.append(title,buttons); ui.contacts.append(card);
     }
     if (!state.currentCase.contacts.length) { const p = document.createElement('p'); p.textContent = 'Стартовые точки не предоставлены.'; ui.contacts.append(p); }
   }
+  function applyTarget(id,key){
+    let target=null;
+    if(id!==null){
+      const label={ctr_nm:'Центр',pre_nm:'Пре',post_nm:'Пост'}[key];
+      const contact=state.currentCase?.contacts.find(c=>c.contact_id===id),nm=contact?.[key];
+      if(!label||!Array.isArray(nm)||nm.length!==3||!nm.every(Number.isFinite)||!state.tiff)return false;
+      const local=toLocal(nm);if(!inBounds(local))return false;
+      target={id,key,label,nm:[...nm],local};
+    }
+    state.target=target;
+    ui.contacts.querySelectorAll('button').forEach(button=>button.classList.toggle('active',Boolean(target)&&button.dataset.target===target.id+':'+target.key));
+    if(state.tiff)drawOverlay();else{surface.setTarget(null,false);byId('orthoTarget').disabled=true;}
+    return true;
+  }
+  function chooseTarget(id,key){
+    if(!applyTarget(id,key))return false;
+    setZ(state.target.local[2]);
+    if(!navigationMute)window.dispatchEvent(new CustomEvent('review:focus',{detail:{case_id:state.currentCase.case_id,volume_id:state.volume.volume_id,point_nm:[...state.target.nm],target_id:id,target_key:key}}));return true;
+  }
+  window.addEventListener('surface:targetclick',event=>{const d=event.detail;if(d.case_id===state.currentCase?.case_id&&d.volume_id===state.volume?.volume_id)chooseTarget(d.target_id,d.target_key);});
+  function clickTarget(event){
+    if(!state.tiff||!ui.overlayToggle.checked)return false;const rect=ui.imageCanvas.getBoundingClientRect();
+    // Existing user marks retain selection priority where symbols overlap.
+    if(window.HandoffAnnotations?.visible&&window.HandoffAnnotations.records.some(record=>{if(record.case_id!==state.currentCase.case_id)return false;const p=record.point_nm.map((n,i)=>n/state.volume.resolution_nm[i]-state.volume.begin_vox_xyz[i]);return inBounds(p)&&Math.floor(p[2])===state.z&&Math.hypot(event.clientX-rect.left-p[0]*state.zoom,event.clientY-rect.top-p[1]*state.zoom)<12;}))return false;
+    for(const contact of state.currentCase.contacts)for(const [key,filter]of [['ctr_nm','tCenter'],['pre_nm','tPre'],['post_nm','tPost']]){
+      if(!contact[key]||!byId(filter).checked)continue;const local=toLocal(contact[key]);if(!inBounds(local)||local[2]!==state.z)continue;
+      if(Math.hypot(event.clientX-rect.left-(local[0]+.5)*state.zoom,event.clientY-rect.top-(local[1]+.5)*state.zoom)<=12)return chooseTarget(contact.contact_id,key);
+    }return false;
+  }
   function setZ(value) {
     if (!state.tiff || !Number.isFinite(Number(value))) return;
+    const previous=state.z;
     state.z = Math.max(0, Math.min(state.tiff.depth - 1, Math.floor(Number(value))));
-    render();
+    render();if(state.z!==previous)navigationChanged('slice');
   }
   function render() {
     if (!state.tiff) return;
@@ -165,7 +205,7 @@
     ui.zReadout.textContent = 'из ' + (state.tiff.depth - 1) + ' · глобальная Z ' + globalZ + ' · ' + (globalZ * state.volume.resolution_nm[2]) + ' нм';
     resizeView();
     renderOrthos();
-    window.dispatchEvent(new CustomEvent('review:position'));
+    window.dispatchEvent(new CustomEvent('review:position',{detail:{remote:navigationMute>0}}));
   }
   function resizeView() {
     if (!state.tiff) return;
@@ -191,7 +231,7 @@
     rememberViewCenter();
   }
   function rememberViewCenter() {
-    if (state.tiff && !byId('page-viewer').hidden && ui.viewport.clientWidth && ui.viewport.clientHeight) state.viewCenter = imagePointAt(viewportCenter());
+    if (state.tiff && !byId('page-viewer').hidden && ui.viewport.clientWidth && ui.viewport.clientHeight){state.viewCenter = imagePointAt(viewportCenter());state.viewSize=[ui.viewport.clientWidth,ui.viewport.clientHeight];}
   }
   function syncZoomOption(fit=false) {
     const preset = !fit && [...ui.zoomSelect.options].find(option => !option.dataset.fit && !option.dataset.custom && Math.abs(Number(option.value) - state.zoom) < 1e-8);
@@ -209,6 +249,7 @@
     state.zoom = Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,value));
     syncZoomOption(fit); resizeView(); placeImagePoint(point,anchor);
     if (drag) { drag.left = ui.viewport.scrollLeft; drag.top = ui.viewport.scrollTop; drag.x = drag.currentX; drag.y = drag.currentY; }
+    navigationChanged(fit?'fit':'zoom');
   }
   function drawOverlay() {
     surface.setTarget(state.target,false);
@@ -235,7 +276,7 @@
     surface.setTargets?.(points,ui.overlayToggle.checked);
     const target=state.target;
     ui.targetStatus.textContent=(target?target.id+' '+target.label.toLowerCase()+': локальные XYZ '+fmt(target.local)+'. ':'')+(ui.overlayToggle.checked?'Все включённые T-точки показаны на своих срезах; в 3D — вместе.':'Точки T скрыты. Кнопки контактов по-прежнему перемещают к их срезам.');
-    window.dispatchEvent(new Event('review:display'));
+    window.dispatchEvent(new CustomEvent('review:display',{detail:{remote:navigationMute>0}}));
   }
   function watchPixelDensity(){
     matchMedia(`(resolution: ${window.devicePixelRatio||1}dppx)`).addEventListener('change',()=>{if(state.tiff){drawOverlay();drawScale();}watchPixelDensity();},{once:true});
@@ -352,7 +393,7 @@
   });
   let drag=null;
   ui.viewport.addEventListener('pointerdown',e=>{if(!state.tiff || e.button!==0)return;ui.viewport.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,currentX:e.clientX,currentY:e.clientY,left:ui.viewport.scrollLeft,top:ui.viewport.scrollTop,moved:false};ui.viewport.setPointerCapture(e.pointerId);});
-  ui.viewport.addEventListener('pointerup',()=>{drag=null;});ui.viewport.addEventListener('pointercancel',()=>{drag=null;});ui.viewport.addEventListener('lostpointercapture',()=>{drag=null;});
+  ui.viewport.addEventListener('pointerup',event=>{const clicked=drag&&!drag.moved;drag=null;if(clicked&&clickTarget(event))event.micronsTargetHandled=true;});ui.viewport.addEventListener('pointercancel',()=>{drag=null;});ui.viewport.addEventListener('lostpointercapture',()=>{drag=null;});
   ui.viewport.addEventListener('pointermove',event=>{
     if(!state.tiff)return;
     if(drag){drag.currentX=event.clientX;drag.currentY=event.clientY;if(drag.moved||Math.hypot(event.clientX-drag.x,event.clientY-drag.y)>5){drag.moved=true;ui.viewport.scrollLeft=drag.left-(event.clientX-drag.x);ui.viewport.scrollTop=drag.top-(event.clientY-drag.y);rememberViewCenter();}}
@@ -361,12 +402,37 @@
     const local=[x,y,state.z],global=local.map((v,i)=>v+state.volume.begin_vox_xyz[i]),nm=global.map((v,i)=>v*state.volume.resolution_nm[i]);
     ui.cursorReadout.textContent='Исходное значение пикселя: '+state.pixels[y*state.tiff.width+x]+' / 255\nЛокальные XYZ: '+fmt(local)+' · глобальные координаты вокселя: '+fmt(global)+'\nНачало вокселя (нм): '+fmt(nm);
   });
-  ui.viewport.addEventListener('scroll',rememberViewCenter,{passive:true});
-  window.addEventListener('resize',()=>{if(state.tiff&&!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight){if(state.needsFit){ui.fitButton.click();state.needsFit=false;}else{const anchor=viewportCenter(),point=state.viewCenter||imagePointAt(anchor);resizeView();placeImagePoint(point,anchor);}renderOrthos();}});
+  ui.viewport.addEventListener('scroll',()=>{rememberViewCenter();navigationChanged('pan');},{passive:true});
+  window.addEventListener('resize',()=>{if(state.tiff&&!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight){if(state.needsFit){ui.fitButton.click();state.needsFit=false;}else{const anchor=viewportCenter(),point=state.viewCenter||imagePointAt(anchor);resizeView();placeImagePoint(point,anchor);}renderOrthos();navigationChanged('resize');}});
+  async function applyNavigationState(value,{emit=false}={}){
+    if(!value||typeof value!=='object')throw new Error('Неверное положение синхронизированного вида.');
+    const caseId=value.case_id||state.currentCase?.case_id,volumeId=value.volume_id||state.volume?.volume_id,requested=state.metadata?.cases.find(c=>c.case_id===caseId),volume=requested?.volumes.find(v=>v.volume_id===volumeId);
+    if(!volume||value.position_nm!==undefined&&!triple(value.position_nm,finite)||value.zoom!==undefined&&(!finite(value.zoom)||value.zoom<=0))throw new Error('Неверные координаты синхронизированного вида.');
+    const applyToken=++navigationApplyToken,beforeNavigation=navigationSignature(getNavigationState());navigationMute++;if(navigationFrame){cancelAnimationFrame(navigationFrame);navigationFrame=0;}
+    try{
+      if(!state.tiff||state.currentCase.case_id!==caseId||state.volume.volume_id!==volumeId)await window.ReviewViewer.select(caseId,volumeId,value.local_z);
+      if(applyToken!==navigationApplyToken||!state.tiff||state.currentCase.case_id!==caseId||state.volume.volume_id!==volumeId)throw new Error('Объём изменился во время синхронизации.');
+      if(value.surface&&!surface.modelReady)await new Promise((resolve,reject)=>{
+        const generation=state.generation;let timer;
+        const cleanup=()=>{clearTimeout(timer);for(const name of ['annotations:surface-ready','annotations:surface-error','review:volume'])window.removeEventListener(name,check);};
+        const check=event=>{if(applyToken!==navigationApplyToken||generation!==state.generation||state.currentCase.case_id!==caseId||state.volume.volume_id!==volumeId){cleanup();reject(new Error('Объём изменился во время синхронизации.'));}else if(event?.type==='annotations:surface-error'&&event.detail.volume_id===volumeId){cleanup();reject(new Error(event.detail.message));}else if(surface.modelReady&&surface.caseId===caseId&&surface.volume?.volume_id===volumeId){cleanup();resolve();}};
+        timer=setTimeout(()=>{cleanup();reject(new Error('Время ожидания 3D-вида истекло.'));},60000);for(const name of ['annotations:surface-ready','annotations:surface-error','review:volume'])window.addEventListener(name,check);check();
+      });
+      if(applyToken!==navigationApplyToken)throw new Error('Выбрано новое положение во время синхронизации.');
+      const position=value.position_nm||getNavigationState().position_nm,local=position.map((n,i)=>n/volume.resolution_nm[i]-volume.begin_vox_xyz[i]);
+      const z=value.local_z??Math.floor(local[2]);if(!integer(z)||z<0||z>=volume.shape_xyz[2])throw new Error('Срез синхронизации находится вне текущего объёма.');
+      if(value.zoom!==undefined){state.zoom=Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,value.zoom));syncZoomOption();}
+      setZ(z);state.viewCenter={x:local[0],y:local[1]};state.needsFit=false;
+      if(!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight)placeImagePoint(state.viewCenter,viewportCenter());
+      if(value.surface)surface.applyNavigationState(value.surface,{emit:false});
+      navigationLast=navigationSignature(getNavigationState());
+    }finally{navigationMute--;}
+    if(emit){navigationLast=beforeNavigation;navigationChanged('remote');}return getNavigationState();
+  }
   window.ReviewViewer={
     get metadata(){return state.metadata;},get currentCase(){return state.currentCase;},get volume(){return state.volume;},
     get ready(){return Boolean(state.tiff);},get z(){return state.z;},get target(){return state.target;},get zoom(){return state.zoom;},get surface(){return surface;},get displayWindow(){return [state.black,state.white];},
-    setZ,
+    setZ,getNavigationState,applyNavigationState,applyTarget,
     async gotoPoint(caseId,volumeId,pointNm){
       const requested=state.metadata?.cases.find(c=>c.case_id===caseId),volume=requested?.volumes.find(v=>v.volume_id===volumeId);
       if(!volume)throw new Error('Не найден объём для этой метки.');
@@ -375,6 +441,7 @@
       const local=toLocal(pointNm);if(!inBounds(local))throw new Error('Метка находится вне выбранного объёма.');
       setZoom(Math.max(2,state.zoom));setZ(local[2]);
       placeImagePoint({x:local[0]+.5,y:local[1]+.5},viewportCenter());
+      navigationChanged('go');
       return local;
     },
     async select(id,volumeId,z){

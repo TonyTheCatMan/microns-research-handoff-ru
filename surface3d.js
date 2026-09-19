@@ -24,6 +24,12 @@
   const normPath=p=>String(p).replace(/\\/g,'/').replace(/^\.\//,'');
   const finite3=a=>Array.isArray(a)&&a.length===3&&a.every(Number.isFinite);
   const equal3=(a,b,tol=.0001)=>finite3(a)&&finite3(b)&&a.every((n,i)=>Math.abs(n-b[i])<=tol);
+  function cameraBasis(value){
+    if(!value)return null;const right=value.right,up=value.up,eye=value.eye_direction||value.eyeDirection||(finite3(value.direction)?vec.mul(value.direction,-1):null);
+    if(![right,up,eye].every(finite3)||[right,up,eye].some(v=>Math.abs(Math.hypot(...v)-1)>.001)||Math.abs(vec.dot(right,up))>.001||Math.abs(vec.dot(right,eye))>.001||Math.abs(vec.dot(up,eye))>.001||vec.dot(vec.cross(right,up),eye)<.999)throw new Error('Неверные оси синхронизированной 3D-камеры.');
+    return {right:vec.norm(right),up:vec.norm(up),eye_direction:vec.norm(eye)};
+  }
+  function rotateVector(value,axis,angle){const c=Math.cos(angle),s=Math.sin(angle);return vec.add(vec.add(vec.mul(value,c),vec.mul(vec.cross(axis,value),s)),vec.mul(axis,vec.dot(axis,value)*(1-c)));}
   // CPU intersection uses the same orthographic camera and actual triangles as WebGL.
   function rayTriangle(origin,direction,v,a,b,c) {
     const e1x=v[b]-v[a],e1y=v[b+1]-v[a+1],e1z=v[b+2]-v[a+2],e2x=v[c]-v[a],e2y=v[c+1]-v[a+1],e2z=v[c+2]-v[a+2];
@@ -63,7 +69,7 @@
       this.contextVisible=false;this.contextLoaded=false;this.contextWorker=null;this.contextToken=0;
       this.contextMode='slice';this.contextAlpha=.25;this.segmentationVisible=false;this.segmentationAlpha=.25;this.sliceSegmentation=null;this.contextSliceReady=false;this.segmentationReady=false;
       this.contextLimit=5;this.contextFocus=null;this.contextFocusLabel='центр среза';this.contextShown=new Set();this.visibilityPending=false;
-      this.modelReady=false;
+      this.modelReady=false;this.targetHits=[];this.navigationSignature='';this.cameraBasis=null;
       this.controls=['surfaceReset','surfaceXY','surfacePlane','surfaceBox','surfaceOpacity','surfaceExport'];
       this.yaw=-.65;this.pitch=.4;this.zoom=1;this.alpha=.8;
       this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();this.gl=null;this.setStatus('Контекст 3D-графики потерян. Перезагрузите страницу, чтобы восстановить 3D. Просмотр TIFF в 2D остаётся доступен.','error');this.enable(false);});
@@ -90,7 +96,7 @@
       try{return await this.indexPromise;}catch(error){this.indexPromise=null;throw error;}
     }
     clear() {
-      this.cancelContext();this.contextLoaded=false;this.contextEntry=null;this.selectedObjectId=null;this.annotationHits=[];this.targets=[];this.modelReady=false;
+      this.cancelContext();this.contextLoaded=false;this.contextEntry=null;this.selectedObjectId=null;this.annotationHits=[];this.targetHits=[];this.targets=[];this.modelReady=false;
       this.contextFocus=null;this.contextFocusLabel='центр среза';this.contextShown=new Set();
       this.sliceSegmentation=null;this.contextSliceReady=false;this.segmentationReady=false;
       ++this.token;this.volume=null;this.slice=null;this.target=null;this.meshes.forEach(m=>this.deleteGeometry(m.geometry));this.meshes=[];
@@ -241,7 +247,7 @@
     }
     setContextLimit(number){this.contextLimit=Number.isFinite(number)?Math.max(1,Math.min(30,Math.round(number))):5;if($('contextLimit'))$('contextLimit').value=String(this.contextLimit);if($('contextLimitReadout'))$('contextLimitReadout').textContent=String(this.contextLimit);this.updateNearby();}
     setContextMode(mode){this.contextMode=mode==='full'?'full':'slice';if($('surfaceContextMode'))$('surfaceContextMode').value=this.contextMode;this.contextShown.clear();this.updateSliceTextures();this.setContextVisible(this.contextVisible);this.visibilityChanged();this.schedule();}
-    focusAnnotation(annotation,centerView=false){const point=this.annotationPosition(annotation);if(point){this.setContextFocus(point,'метка '+annotation.number);if(centerView){this.center=[...point];this.zoom=Math.min(this.zoom,.55);this.schedule();}}}
+    focusAnnotation(annotation,centerView=false){const point=this.annotationPosition(annotation);if(point){this.setContextFocus(point,'метка '+annotation.number);if(centerView){this.center=[...point];this.zoom=Math.min(this.zoom,.55);this.navigationChanged('go');this.schedule();}}}
     forgetAnnotationFocus(number){if(this.contextFocusLabel==='метка '+number){this.contextFocus=null;this.contextFocusLabel='центр среза';this.updateNearby();this.visibilityChanged();}}
     nearbyCenter(){return this.contextFocus||[this.bounds[0]/2,this.bounds[1]/2,((this.slice?.z??this.volume.shape_xyz[2]/2)+.5)*this.volume.resolution_nm[2]];}
     setContextFocus(point,label){if(!finite3(point))return;if(this.contextFocus&&equal3(point,this.contextFocus)&&label===this.contextFocusLabel)return;this.contextFocus=[...point];this.contextFocusLabel=label;this.updateNearby();this.visibilityChanged();}
@@ -308,6 +314,7 @@
     annotationClick(event) {
       const rect=this.stage.getBoundingClientRect(),x=(event.clientX-rect.left)*this.stage.clientWidth/rect.width,y=(event.clientY-rect.top)*this.stage.clientHeight/rect.height;
       if(this.annotationsVisible){const hit=this.annotationHits.find(p=>Math.hypot(p.x-x,p.y-y)<=13);if(hit){this.setSelectedAnnotation(hit.id);window.dispatchEvent(new CustomEvent('annotations:select3d',{detail:{id:hit.id,case_id:this.caseId,volume_id:this.volume.volume_id}}));return;}}
+      const target=this.targetHits.find(p=>Math.hypot(p.x-x,p.y-y)<=12);if(target){window.dispatchEvent(new CustomEvent('surface:targetclick',{detail:{case_id:this.caseId,volume_id:this.volume.volume_id,target_id:target.id,target_key:target.key,point_nm:[...target.nm]}}));return;}
       if(this.annotationMode==='off')return;const hit=this.pickAt(event.clientX,event.clientY);
       if(hit){this.selectedObjectId=hit.object_id;this.schedule();window.dispatchEvent(new CustomEvent('annotations:pick3d',{detail:hit}));}
       else window.dispatchEvent(new CustomEvent('annotations:pick3d-miss',{detail:{case_id:this.caseId,volume_id:this.volume.volume_id,message:'Нажмите на видимую поверхность. При необходимости скройте плоскость среза или мешающие объекты.'}}));
@@ -402,12 +409,30 @@
       this.targetsVisible=!!visible;this.targets=Array.isArray(items)&&this.volume?items.filter(item=>finite3(item.local)).map(item=>({...item,position:item.local.map((n,i)=>(n+.5)*this.volume.resolution_nm[i])})).filter(item=>item.position.every((n,i)=>n>=0&&n<=this.bounds[i])):[];this.schedule();
     }
     reset(front=false) {
-      if(!this.bounds)return;this.center=this.bounds.map(n=>n/2);this.yaw=front?0:-.65;this.pitch=front?0:.4;this.zoom=1;
-      this.frameHeight=Math.hypot(...this.bounds)*1.12;this.radius=Math.hypot(...this.bounds)*3;this.schedule();
+      if(!this.bounds)return;this.center=this.bounds.map(n=>n/2);this.yaw=front?0:-.65;this.pitch=front?0:.4;this.zoom=1;this.cameraBasis=null;
+      this.frameHeight=Math.hypot(...this.bounds)*1.12;this.radius=Math.hypot(...this.bounds)*3;this.navigationChanged('reset');this.schedule();
     }
     camera() {
-      const cp=Math.cos(this.pitch),direction=[Math.sin(this.yaw)*cp,-Math.sin(this.pitch),-Math.cos(this.yaw)*cp],eye=vec.add(this.center,vec.mul(direction,this.radius)),view=lookAt(eye,this.center),height=this.frameHeight*this.zoom,width=height*this.stage.clientWidth/Math.max(1,this.stage.clientHeight);
+      const cp=Math.cos(this.pitch),direction=this.cameraBasis?.eye_direction||[Math.sin(this.yaw)*cp,-Math.sin(this.pitch),-Math.cos(this.yaw)*cp],eye=vec.add(this.center,vec.mul(direction,this.radius)),height=this.frameHeight*this.zoom,width=height*this.stage.clientWidth/Math.max(1,this.stage.clientHeight);
+      let view;if(this.cameraBasis){const {right:x,up:y,eye_direction:z}=this.cameraBasis;view={right:x,up:y,matrix:new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-vec.dot(x,eye),-vec.dot(y,eye),-vec.dot(z,eye),1])};}else view=lookAt(eye,this.center);
       return {...view,eye,height,mvp:multiply(ortho(-width/2,width/2,-height/2,height/2,.01,this.radius*20),view.matrix)};
+    }
+    getNavigationState(){
+      if(!this.volume||!this.center)return null;const camera=this.camera();
+      return {yaw:this.yaw,pitch:this.pitch,zoom:this.zoom,center_nm:[...this.center],frame_height_nm:this.frameHeight,radius_nm:this.radius,right:[...camera.right],up:[...camera.up],eye_direction:vec.norm(vec.sub(camera.eye,this.center)),direction:vec.norm(vec.sub(this.center,camera.eye)),physical_height_nm:camera.height,projection:'orthographic'};
+    }
+    navigationChanged(reason,emit=true){
+      const state=this.getNavigationState();if(!state)return;
+      const signature=JSON.stringify([state.yaw,state.pitch,state.zoom,state.center_nm,state.frame_height_nm,state.radius_nm,state.right,state.up,state.eye_direction]);if(signature===this.navigationSignature)return;this.navigationSignature=signature;
+      if(emit)window.dispatchEvent(new CustomEvent('surface:view',{detail:{case_id:this.caseId,volume_id:this.volume.volume_id,reason,navigation:state}}));
+    }
+    applyNavigationState(camera,{emit=false}={}){
+      if(!this.volume||!camera||typeof camera!=='object')throw new Error('Нет объёма для синхронизации 3D-вида.');
+      const current=this.getNavigationState(),next={...current,...camera};
+      const basis=camera.right||camera.up||camera.eye_direction||camera.eyeDirection||camera.direction?cameraBasis(camera):null;
+      if(camera.physical_height_nm!==undefined){if(!Number.isFinite(camera.physical_height_nm)||camera.physical_height_nm<=0)throw new Error('Неверный физический масштаб 3D-вида.');next.zoom=camera.physical_height_nm/next.frame_height_nm;if(next.zoom<.08||next.zoom>12){next.frame_height_nm=camera.physical_height_nm;next.zoom=1;}}
+      if(!finite3(next.center_nm)||!['yaw','pitch','zoom','frame_height_nm','radius_nm'].every(k=>Number.isFinite(next[k]))||Math.abs(next.pitch)>1.48||next.zoom<.08||next.zoom>12||next.frame_height_nm<=0||next.radius_nm<=0)throw new Error('Неверные координаты синхронизированного 3D-вида.');
+      this.yaw=next.yaw;this.pitch=next.pitch;this.zoom=next.zoom;this.center=[...next.center_nm];this.frameHeight=next.frame_height_nm;this.radius=next.radius_nm;if(basis)this.cameraBasis=basis;else if(camera.yaw!==undefined||camera.pitch!==undefined)this.cameraBasis=null;this.navigationChanged('remote',emit);this.schedule();return this.getNavigationState();
     }
     bind() {
       $('surfaceReset').addEventListener('click',()=>this.reset());$('surfaceXY').addEventListener('click',()=>this.reset(true));
@@ -424,11 +449,12 @@
       this.stage.addEventListener('pointerdown',e=>{if(!this.volume||!this.gl||drag)return;e.preventDefault();this.stage.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,moved:false,button:e.button,pan:e.button===2||e.button===1||e.shiftKey};this.stage.setPointerCapture(e.pointerId);});
       this.stage.addEventListener('pointermove',e=>{if(!drag||drag.pointerId!==e.pointerId)return;if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<5)return;drag.moved=true;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
         if(drag.pan){const camera=this.camera(),scale=camera.height/Math.max(1,this.stage.clientHeight);this.center=vec.add(this.center,vec.add(vec.mul(camera.right,-dx*scale),vec.mul(camera.up,dy*scale)));}
-        else{this.yaw-=dx*.007;this.pitch=Math.max(-1.48,Math.min(1.48,this.pitch+dy*.007));}this.schedule();});
+        else if(this.cameraBasis){let basis=this.cameraBasis;for(const [axis,angle]of [[basis.up,-dx*.007]])basis={right:rotateVector(basis.right,axis,angle),up:basis.up,eye_direction:rotateVector(basis.eye_direction,axis,angle)};const axis=basis.right,angle=-dy*.007;this.cameraBasis=cameraBasis({right:basis.right,up:rotateVector(basis.up,axis,angle),eye_direction:rotateVector(basis.eye_direction,axis,angle)});}
+        else{this.yaw-=dx*.007;this.pitch=Math.max(-1.48,Math.min(1.48,this.pitch+dy*.007));}this.navigationChanged(drag.pan?'pan':'rotate');this.schedule();});
       this.stage.addEventListener('pointerup',e=>{if(!drag||drag.pointerId!==e.pointerId)return;const click=!drag.moved&&!drag.pan&&drag.button===0;drag=null;if(this.stage.hasPointerCapture(e.pointerId))this.stage.releasePointerCapture(e.pointerId);if(click)this.annotationClick(e);});
       for(const event of ['pointercancel','lostpointercapture'])this.stage.addEventListener(event,()=>{drag=null;});
-      this.stage.addEventListener('wheel',e=>{if(!this.volume||!this.gl)return;e.preventDefault();this.zoom=Math.max(.08,Math.min(12,this.zoom*Math.exp(Math.max(-150,Math.min(150,e.deltaY))*.002)));this.schedule();},{passive:false});
-      this.stage.addEventListener('keydown',e=>{if(!this.volume||!this.gl)return;if(e.key==='r'||e.key==='R'){e.preventDefault();e.stopPropagation();this.reset();}if(e.key==='+'||e.key==='='||e.key==='-'){e.preventDefault();e.stopPropagation();this.zoom=Math.max(.08,Math.min(12,this.zoom*(e.key==='-'?1.15:1/1.15)));this.schedule();}});
+      this.stage.addEventListener('wheel',e=>{if(!this.volume||!this.gl)return;e.preventDefault();this.zoom=Math.max(.08,Math.min(12,this.zoom*Math.exp(Math.max(-150,Math.min(150,e.deltaY))*.002)));this.navigationChanged('zoom');this.schedule();},{passive:false});
+      this.stage.addEventListener('keydown',e=>{if(!this.volume||!this.gl)return;if(e.key==='r'||e.key==='R'){e.preventDefault();e.stopPropagation();this.reset();}if(e.key==='+'||e.key==='='||e.key==='-'){e.preventDefault();e.stopPropagation();this.zoom=Math.max(.08,Math.min(12,this.zoom*(e.key==='-'?1.15:1/1.15)));this.navigationChanged('zoom');this.schedule();}});
     }
     resize() {
       const ratio=Math.min(2,window.devicePixelRatio||1),w=Math.max(1,this.stage.clientWidth),h=Math.max(1,this.stage.clientHeight);
@@ -467,7 +493,7 @@
       const text=(s,x,y)=>{ctx.strokeText(s,x,y);ctx.fillText(s,x,y);};
       if($('surfaceBox').checked)for(const [label,p] of [['X',[this.axisLength,0,0]],['Y',[0,this.axisLength,0]],['Z',[0,0,this.axisLength]]]){const [x,y]=this.project(p,camera);text(label,x+5,y-5);}
       const targets=this.targetsVisible?[...this.targets]:[];if(this.target&&this.showMarker)targets.push(this.target);
-      for(const target of targets){const [x,y]=this.project(target.position,camera);if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;MarkerStyles.draw(ctx,x,y,6,target.key);ctx.fillStyle=MarkerStyles.styles[target.key]?.color||'#edc229';ctx.strokeStyle='#13212c';ctx.lineWidth=4;ctx.font='12px system-ui';text(target.label||target.id,x+11,y-10);}
+      this.targetHits=[];for(const target of targets){const [x,y]=this.project(target.position,camera);if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;MarkerStyles.draw(ctx,x,y,6,target.key);if(finite3(target.nm))this.targetHits.push({id:target.id,key:target.key,nm:[...target.nm],x,y});ctx.fillStyle=MarkerStyles.styles[target.key]?.color||'#edc229';ctx.strokeStyle='#13212c';ctx.lineWidth=4;ctx.font='12px system-ui';text(target.label||target.id,x+11,y-10);}
       this.annotationHits=[];
       if(this.annotationsVisible)for(const annotation of this.annotations){
         const position=this.annotationPosition(annotation);if(!position)continue;const [x,y]=this.project(position,camera);if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;
@@ -484,7 +510,7 @@
       if(this.contextLoading)throw new Error('Дождитесь загрузки окружающих сегментов или скройте их перед сохранением.');
       if((this.segmentationVisible||this.contextVisible&&this.contextMode==='slice')&&!this.validSliceSegmentation())throw new Error('Дождитесь сегментации текущего среза или скройте её перед сохранением.');
       return {schema_version:1,source_view:'3d',source:'seg_m1300',case_id:this.caseId,volume_id:this.volume.volume_id,local_z:this.slice?.z??null,
-        camera:{yaw:this.yaw,pitch:this.pitch,zoom:this.zoom,center_nm:[...this.center],frame_height_nm:this.frameHeight,radius_nm:this.radius},opacity:this.alpha,
+        camera:{yaw:this.yaw,pitch:this.pitch,zoom:this.zoom,center_nm:[...this.center],frame_height_nm:this.frameHeight,radius_nm:this.radius,...(this.cameraBasis?{basis:structuredClone(this.cameraBasis)}:{})},opacity:this.alpha,
         plane_visible:$('surfacePlane').checked,box_visible:$('surfaceBox').checked,context_visible:this.contextVisible,
         context_mode:this.contextMode,context_opacity:this.contextAlpha,segmentation_visible:this.segmentationVisible,segmentation_opacity:this.segmentationAlpha,scale_bar:this.scaleBar(),
         context_limit:this.contextLimit,context_focus:this.contextFocus?[...this.contextFocus]:null,context_focus_label:this.contextFocusLabel,context_shown:[...this.contextShown],
@@ -517,9 +543,9 @@
       this.contextFocus=finite3(view.context_focus)?[...view.context_focus]:null;this.contextFocusLabel=typeof view.context_focus_label==='string'?view.context_focus_label:'центр среза';this.setContextLimit(view.context_limit);
       if(Array.isArray(view.context_shown)){this.contextShown=new Set(view.context_shown.filter(id=>this.meshes.some(m=>m.context&&m.id===id)));for(const m of this.meshes)if(m.context&&m.control)m.control.hidden=!this.contextVisible||!this.contextShown.has(m.id);}
       for(const mesh of this.meshes){const setting=view.objects.find(o=>o.segment_id&&mesh.segment_id?o.segment_id===mesh.segment_id:o.object_id===mesh.id);mesh.visible=setting?.visible??(mesh.context&&view.context_mode===undefined);if(mesh.control){const input=mesh.control.querySelector('input');if(input)input.checked=mesh.visible;}}
-      this.yaw=cam.yaw;this.pitch=cam.pitch;this.zoom=cam.zoom;this.center=[...cam.center_nm];this.frameHeight=cam.frame_height_nm;this.radius=cam.radius_nm;this.alpha=view.opacity;
+      this.yaw=cam.yaw;this.pitch=cam.pitch;this.zoom=cam.zoom;this.center=[...cam.center_nm];this.frameHeight=cam.frame_height_nm;this.radius=cam.radius_nm;this.cameraBasis=cameraBasis(cam.basis);this.alpha=view.opacity;
       $('surfaceOpacity').value=String(Math.round(view.opacity*100));$('surfaceOpacityReadout').textContent=Math.round(view.opacity*100)+'%';$('surfacePlane').checked=!!view.plane_visible;$('surfaceBox').checked=!!view.box_visible;
-      this.annotationsVisible=!!view.annotations_visible;this.targetsVisible=!!view.seed_points_visible;this.selectedAnnotationId=view.selected_annotation_id||null;this.refreshSelectedObject();this.updateSliceTextures();this.draw();this.visibilityChanged();return this.getViewState();
+      this.annotationsVisible=!!view.annotations_visible;this.targetsVisible=!!view.seed_points_visible;this.selectedAnnotationId=view.selected_annotation_id||null;this.refreshSelectedObject();this.updateSliceTextures();this.draw();this.navigationChanged('restore');this.visibilityChanged();return this.getViewState();
     }
     snapshotEvidence() {
       const view=this.getViewState(),cssWidth=this.stage.clientWidth,cssHeight=this.stage.clientHeight;

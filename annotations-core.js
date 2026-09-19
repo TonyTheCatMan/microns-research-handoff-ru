@@ -100,6 +100,14 @@
   function safeJSON(value){
     let nodes=0;const check=(v,depth)=>{if(++nodes>10000||depth>12)fail('Слишком сложные настройки вида.');if(v===null||typeof v==='boolean'||typeof v==='string'&&v.length<=10000||typeof v==='number'&&Number.isFinite(v))return;if(Array.isArray(v)){v.forEach(x=>check(x,depth+1));return;}if(v&&typeof v==='object'&&Object.getPrototypeOf(v)===Object.prototype){for(const [k,x] of Object.entries(v)){if(['__proto__','constructor','prototype'].includes(k))fail('Неверное поле настроек вида.');check(x,depth+1);}return;}fail('Неверные настройки вида.');};check(value,0);return clone(value);
   }
+  function validateCameraBasis(view){
+    const basis=view.camera?.basis;if(basis===undefined)return;
+    if(!basis||typeof basis!=='object'||Array.isArray(basis))fail('Неверный базис сохранённой камеры.');
+    const vectors=[basis.right,basis.up,basis.eye_direction],dot=(a,b)=>a.reduce((s,n,i)=>s+n*b[i],0);
+    if(vectors.some(v=>!point(v)||Math.abs(Math.hypot(...v)-1)>.001)||Math.abs(dot(vectors[0],vectors[1]))>.001||Math.abs(dot(vectors[0],vectors[2]))>.001||Math.abs(dot(vectors[1],vectors[2]))>.001)fail('Неверный базис сохранённой камеры.');
+    const [right,up,eye]=vectors,cross=[right[1]*up[2]-right[2]*up[1],right[2]*up[0]-right[0]*up[2],right[0]*up[1]-right[1]*up[0]];
+    if(dot(cross,eye)<.999)fail('Неверное направление сохранённой камеры.');
+  }
   function validateSettings(value,ctx){
     if(!value||typeof value!=='object'||Array.isArray(value))fail('Неверные настройки интерфейса.');
     const allowed=['preferences','last_view','annotation_mode','display','surface_view'],result={};
@@ -111,7 +119,7 @@
     if(value.last_view!==undefined){const v=value.last_view;if(!v||typeof v!=='object')fail('Неверный последний вид.');const {v:volume}=volumeInfo(ctx,v.case_id,v.volume_id);if(!Number.isSafeInteger(v.z)||v.z<0||v.z>=volume.shape_xyz[2])fail('Последний срез вне объёма.');result.last_view={case_id:v.case_id,volume_id:v.volume_id,z:v.z};}
     if(value.annotation_mode!==undefined)result.annotation_mode=choice(value.annotation_mode,['navigate','contact2d','point2d','point3d','object3d'],'инструмент');
     if(value.display!==undefined){const d=value.display;if(!d||typeof d!=='object'||Object.keys(d).some(k=>!['zoom','black','white'].includes(k))||Object.values(d).some(n=>typeof n!=='number'||!Number.isFinite(n)))fail('Неверные настройки изображения.');if(d.zoom!==undefined&&(d.zoom<=0||d.zoom>128)||d.black!==undefined&&(d.black<0||d.black>255)||d.white!==undefined&&(d.white<0||d.white>255)||d.black!==undefined&&d.white!==undefined&&d.black>=d.white)fail('Настройки изображения вне диапазона.');result.display={...d};}
-    if(value.surface_view!==undefined){const view=safeJSON(value.surface_view);if(!view||typeof view!=='object'||Array.isArray(view))fail('Неверный сохранённый 3D-вид.');const {v}=volumeInfo(ctx,view.case_id,view.volume_id);if(view.local_z!==undefined&&(!Number.isSafeInteger(view.local_z)||view.local_z<0||view.local_z>=v.shape_xyz[2]))fail('Срез 3D-вида вне объёма.');result.surface_view=view;}
+    if(value.surface_view!==undefined){const view=safeJSON(value.surface_view);if(!view||typeof view!=='object'||Array.isArray(view))fail('Неверный сохранённый 3D-вид.');const {v}=volumeInfo(ctx,view.case_id,view.volume_id);if(view.local_z!==undefined&&(!Number.isSafeInteger(view.local_z)||view.local_z<0||view.local_z>=v.shape_xyz[2]))fail('Срез 3D-вида вне объёма.');validateCameraBasis(view);result.surface_view=view;}
     if(result.last_view&&result.surface_view){const last=result.last_view,view=result.surface_view;if(view.case_id!==last.case_id||view.volume_id!==last.volume_id||view.local_z!==undefined&&view.local_z!==last.z)delete result.surface_view;}
     return result;
   }
@@ -144,7 +152,7 @@
     if(value.linked_evidence_id!==undefined&&value.linked_evidence_id!==null){if(typeof value.linked_evidence_id!=='string'||!/^[0-9a-f-]{36}$/i.test(value.linked_evidence_id))fail('Неверная ссылка на парное доказательство.');result.linked_evidence_id=value.linked_evidence_id;}
     if(value.view_settings!==undefined){
       const view=safeJSON(value.view_settings);if(!view||typeof view!=='object'||Array.isArray(view))fail('Неверные настройки вида.');
-      if(view.case_id&&view.case_id!==value.case_id||view.volume_id&&view.volume_id!==value.volume_id)fail('Настройки вида не соответствуют случаю и объёму.');result.view_settings=view;
+      if(view.case_id&&view.case_id!==value.case_id||view.volume_id&&view.volume_id!==value.volume_id)fail('Настройки вида не соответствуют случаю и объёму.');validateCameraBasis(view);result.view_settings=view;
     }
     return result;
   }
