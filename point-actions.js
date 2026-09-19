@@ -13,7 +13,7 @@
     const yes=document.createElement('button'),no=document.createElement('button');
     yes.id='pointDeleteYes';yes.type='button';yes.textContent='Да';yes.autofocus=true;
     no.id='pointDeleteNo';no.type='button';no.textContent='Нет';
-    const hint=document.createElement('small');hint.textContent='Enter — подтвердить выбор · Esc — нет';
+    const hint=document.createElement('small');hint.textContent='Enter - подтвердить выбор · Esc - нет';
     actions.append(yes,no);dialog.append(title,question,actions,hint);document.body.append(dialog);
     return new Promise(resolve=>{
       let done=false;
