@@ -155,6 +155,7 @@
     if(focused&&typeof start==='number'&&typeof end==='number')try{node.setSelectionRange(Math.min(start,value.length),Math.min(end,value.length),direction||'none');}catch{}
   }
   function renderEditor(force=false) {
+    updateClearButtons();
     const record=byId(selectedId),valid=record?.case_id===currentCase;
     $('annotationEditor').hidden=!valid;$('annotationEditor').disabled=!valid;
     if(!valid){$('annotationSelection').textContent='Выберите отметку в списке или добавьте её в 2D / 3D.';lastEditorId=null;return;}
@@ -166,6 +167,28 @@
   function announceSelection(record,intent='select',source='api'){
     window.dispatchEvent(new CustomEvent('annotations:selection',{detail:{id:record?.id||null,case_id:record?.case_id||currentCase,volume_id:record?.volume_id||viewer()?.volume?.volume_id||null,point_nm:record?[...record.point_nm]:null,intent,source}}));
   }
+  function updateClearButtons(){
+    const main=notesWindow?mainWindow():window,active=Boolean(main?.HandoffAnnotations?.selectedId||main?.ReviewViewer?.target||main?.ReviewViewer?.surface?.contextFocus);
+    document.querySelectorAll('[data-clear-point-selection]').forEach(button=>button.disabled=!active);
+  }
+  function clearSelection({announce=true,source='clear'}={}){
+    if(notesWindow){const main=mainWindow()?.HandoffAnnotations;if(main){main.clearSelection({announce,source});syncFromMain();return true;}return false;}
+    viewer()?.applyTarget(null);
+    select(null,false,false);
+    viewer()?.surface?.clearPointFocus();
+    updateClearButtons();setMode();
+    if(announce)announceSelection(null,'clear',source);
+    notifyNotes();return true;
+  }
+  for(const button of document.querySelectorAll('[data-clear-point-selection]'))button.addEventListener('click',()=>clearSelection({source:'button'}));
+  window.addEventListener('review:deselect',event=>clearSelection({source:event.detail?.source||'background'}));
+  window.addEventListener('review:focus',updateClearButtons);
+  window.addEventListener('surface:visibility',updateClearButtons);
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Escape'||event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.target.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"]),[role="dialog"]'))return;
+    if(!notesWindow&&$('page-viewer').hidden&&$('page-neuroglancer').hidden)return;
+    clearSelection({source:'escape'});event.preventDefault();
+  });
   function select(id,go=false,announce=true,source='api') {
     const record=byId(id);if(id!==null&&!record)return;
     selectedId=id;renderList();renderEditor(true);draw();viewer()?.surface?.setSelectedAnnotation(id);if(record)viewer()?.surface?.focusAnnotation(record);
@@ -220,7 +243,7 @@
   function setMode() {
     const value=mode();viewer()?.surface?.setAnnotationMode(value==='point3d'?'point':value==='object3d'?'object':'off');
     $('viewport').classList.toggle('marking-2d',value.endsWith('2d'));
-    $('annotationModeHelp').textContent={navigate:'Перетаскивайте изображения и модели. Нажмите на свою метку, чтобы открыть её свойства.',contact2d:'Нажмите на контакт в 2D: появится следующий номер. При необходимости добавьте заметку ниже.',point2d:'Нажмите на особенность в 2D и заполните её свойства в панели ниже.',point3d:'Нажмите на видимую поверхность в 3D. Перетаскивание по-прежнему вращает модель.',object3d:'Нажмите на объект в 3D для выбора и записи его свойств. При необходимости скройте плоскость XY.'}[value];
+    $('annotationModeHelp').textContent={navigate:'Нажмите на метку, чтобы открыть свойства. Снять выбор: щелчок вне меток или Esc. Окружение вернётся к центру среза.',contact2d:'Нажмите на контакт в 2D: появится следующий номер. При необходимости добавьте заметку ниже.',point2d:'Нажмите на особенность в 2D и заполните её свойства в панели ниже.',point3d:'Нажмите на видимую поверхность в 3D. Перетаскивание по-прежнему вращает модель.',object3d:'Нажмите на объект в 3D для выбора и записи его свойств. При необходимости скройте плоскость XY.'}[value];
   }
   $('annotationMode').addEventListener('change',setMode);
   $('annotationsVisible').addEventListener('change',()=>{prefsSave();draw();});
@@ -245,9 +268,9 @@
   $('viewport').addEventListener('pointerup',event=>{
     const start=pointer;pointer=null;if(event.micronsTargetHandled||!start||start.moved||Math.hypot(event.clientX-start.x,event.clientY-start.y)>5||!viewer()?.ready||!store)return;
     const v=viewer(),image=$('imageCanvas'),rect=image.getBoundingClientRect(),x=(event.clientX-rect.left)/rect.width*image.width,y=(event.clientY-rect.top)/rect.height*image.height;
-    if(x<0||y<0||x>=image.width||y>=image.height)return;
+    if(x<0||y<0||x>=image.width||y>=image.height){if(mode()==='navigate')clearSelection({source:'2d-background'});return;}
     const near=visible()?sectionRecords().find(r=>{const p=locationInVolume(r);return Math.hypot(p[0]-x,p[1]-y)*v.zoom<12;}):null;
-    if(near){select(near.id,false,true,'2d');return;}if(!['contact2d','point2d'].includes(mode()))return;
+    if(near){select(near.id,false,true,'2d');return;}if(mode()==='navigate'){clearSelection({source:'2d-background'});return;}if(!['contact2d','point2d'].includes(mode()))return;
     const point=[Math.floor(x)+.5,Math.floor(y)+.5,v.z+.5].map((n,i)=>(n+v.volume.begin_vox_xyz[i])*v.volume.resolution_nm[i]);
     addPoint({case_id:v.currentCase.case_id,volume_id:v.volume.volume_id,point_nm:point,source_view:'2d',segment_id:null,object_id:null},mode()==='contact2d'?'contact':'point');
   });
@@ -278,7 +301,7 @@
   }
   watchPixelDensity();
   $('annotationPopout').addEventListener('click',()=>{
-    const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('v','20260919-sync1');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);url.hash='viewer';
+    const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('v','20260919-deselect1');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);else url.searchParams.delete('annotation');url.hash='viewer';
     const opened=activeNotes()[0]||window.open(url.href,'microns-annotation-properties-'+crypto.randomUUID(),'width=680,height=900');if(!opened)$('annotationModeHelp').textContent='Разрешите всплывающее окно для свойств или используйте панель ниже.';
     if(opened){attachNotes(opened);notifyNotes();opened.focus();}
   });
@@ -430,5 +453,5 @@
   }
   window.addEventListener('review:ready',event=>boot(event.detail),{once:true});
   if(viewer()?.metadata)boot(viewer().metadata);
-  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},get isExporting(){return exportBusy;},isNotesWindow:notesWindow,enqueue,exportFindings,importFindings,imageBlob,select,applySelection,refresh,whenSettled,settleForAction,attachNotes,syncFromMain,undoImport:()=>undoImportAction?.(),goTo:async id=>{select(id,false,false);await goToSelected();window.focus();}};
+  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},get isExporting(){return exportBusy;},isNotesWindow:notesWindow,enqueue,exportFindings,importFindings,imageBlob,select,applySelection,clearSelection,refresh,whenSettled,settleForAction,attachNotes,syncFromMain,undoImport:()=>undoImportAction?.(),goTo:async id=>{select(id,false,false);await goToSelected();window.focus();}};
 })();

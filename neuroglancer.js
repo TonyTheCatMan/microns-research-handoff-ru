@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/?v=20260919-sync1',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=20260919-deselect1',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
 
@@ -75,7 +75,7 @@
   let segmentIndex,indexPromise,currentState,currentUrl='',loadedCaseId='',latest=null,pending=null,applying=false,timer=null,started=false,booting=false;
   let navigationPending=false,navigationSource='all',focusPending=null,reasonPending='settings',lastFingerprint='',lastNavigation=null;
   let navigationRevision=crypto.randomUUID(),appliedNavigationRevision=null,navigationFocus=null;
-  let localControls={},localNavigation=null,localFocus=null,normalizeNative=false;
+  let localControls={},localNavigation=null,localFocus=null,localClear=false,normalizeNative=false;
   let boundaryCache=null;
   const active=()=>location.hash==='#neuroglancer';
   const status=text=>$('neuroglancerStatus').textContent=text;
@@ -119,8 +119,8 @@
     currentState=payload.state;currentUrl=urlFor(currentState);external.href=currentUrl;external.removeAttribute('aria-disabled');reset.disabled=false;
     $('neuroglancerTabCase').textContent='· '+payload.caseId;$('neuroglancerHeading').textContent='· '+payload.caseId;
     frame.title='Neuroglancer — '+payload.volumeId;
-    const records=(window.HandoffAnnotations?.records||[]).filter(r=>r.case_id===payload.caseId),selected=payload.main?.selectedId||markerSelect.value;
-    markerSelect.replaceChildren(...records.map(r=>new Option(`№${r.number} · ${r.volume_id}`,r.id)));
+    const records=(window.HandoffAnnotations?.records||[]).filter(r=>r.case_id===payload.caseId),selected=payload.main?.selectedId||'';
+    markerSelect.replaceChildren(new Option('Не выбрана',''),...records.map(r=>new Option(`№${r.number} · ${r.volume_id}`,r.id)));
     if(records.some(r=>r.id===selected))markerSelect.value=selected;
     $('neuroglancerMarkers').hidden=!records.length;
     $('neuroglancerLocation').textContent=`${payload.volumeId} · локальный Z ${ReviewViewer.z} · моих меток ${records.length} · открытые окна синхронизированы`;
@@ -134,7 +134,7 @@
   function schedule(reason='settings',navigate=false,focus=null){
     if(applying)return;
     if(navigate){if(!navigationPending)navigationRevision=crypto.randomUUID();if(focus)navigationFocus=focus;else if(!focusPending)navigationFocus=null;}
-    navigationPending ||= navigate;focusPending=focus||focusPending;reasonPending=reason;
+    navigationPending ||= navigate;focusPending=focus||focusPending;if(reason==='clear'||navigate||reasonPending!=='clear')reasonPending=reason;
     if(timer!==null)return;timer=setTimeout(publish,45);
   }
   function publish(force=false){
@@ -144,8 +144,8 @@
     if(focusPending?.point_nm)payload.state.position=focusPending.point_nm.map((n,i)=>n/ReviewViewer.volume.resolution_nm[i]);
     const fingerprint=JSON.stringify({state:payload.state,main:payload.main});
     showLink(payload);if(active()||focusPending)ensureFrame();
-    if(force||focusPending||navigationPending||fingerprint!==lastFingerprint){lastFingerprint=fingerprint;latest=bus.send('host-state',payload);appliedNavigationRevision=navigationRevision;}
-    lastNavigation=payload.main.navigation;navigationPending=false;focusPending=null;reasonPending='settings';
+    if(force||payload.reason==='clear'||focusPending||navigationPending||fingerprint!==lastFingerprint){lastFingerprint=fingerprint;latest=bus.send('host-state',payload);appliedNavigationRevision=navigationRevision;}
+    lastNavigation=payload.main.navigation;navigationPending=false;focusPending=null;localClear=false;reasonPending='settings';
     status('Случай, навигация, метки и настройки синхронизируются с открытыми окнами.');
   }
   function applyControls(values){
@@ -162,7 +162,7 @@
   }
   async function applyHost(payload){
     const main=payload.main;if(!main?.navigation)return;
-    if(!lastNavigation||payload.navigate||payload.navigationRevision!==appliedNavigationRevision||ReviewViewer.currentCase?.case_id!==payload.caseId||ReviewViewer.volume?.volume_id!==payload.volumeId)await ReviewViewer.applyNavigationState(main.navigation,{emit:false});
+    if(!lastNavigation||payload.reason!=='clear'&&(payload.navigate||payload.navigationRevision!==appliedNavigationRevision)||ReviewViewer.currentCase?.case_id!==payload.caseId||ReviewViewer.volume?.volume_id!==payload.volumeId)await ReviewViewer.applyNavigationState(main.navigation,{emit:false});
     ReviewViewer.applyTarget?.(main.target?.id||null,main.target?.key);
     applyControls(main.controls);applyObjects(main.objects);
     await HandoffAnnotations.refresh();await HandoffAnnotations.applySelection(main.selectedId||null,{focus:false});
@@ -183,6 +183,11 @@
     return result;
   }
   async function applyNative(payload,type){
+    if(type==='ng-deselect'){
+      if(payload.caseId!==ReviewViewer.currentCase?.case_id||payload.volumeId!==ReviewViewer.volume?.volume_id)return;
+      HandoffAnnotations.clearSelection({announce:false,source:'neuroglancer'});
+      navigationFocus=null;normalizeNative='clear';return;
+    }
     const c=ReviewViewer.metadata?.cases.find(c=>c.case_id===payload.caseId);if(!c)return;
     const expected=c.volumes.find(v=>v.volume_id===payload.volumeId);if(!expected)return;
     const state=payload.state||{},point=type==='ng-focus'?payload.point:state.position;
@@ -205,7 +210,13 @@
       ReviewViewer.surface.setContextFocus(nm.map((n,i)=>n-dest.begin_vox_xyz[i]*dest.resolution_nm[i]),payload.seed?payload.id:'выбранная метка');
     }else{
       applyControls(nativeControls(state));
-      for(const [name,context]of [['Объекты · v1300',false],['Соседние структуры · v1300',true]]){const layer=state.layers?.find(l=>l.name===name);if(!layer)continue;const ids=new Set((layer.segments||[]).map(String));applyObjects(ReviewViewer.surface.meshes.filter(m=>!!m.context===context).map(m=>({id:m.id,visible:layer.visible!==false&&ids.has(m.segment_id)})));}
+      for(const [name,context]of [['Объекты · v1300',false],['Соседние структуры · v1300',true]]){
+        const layer=state.layers?.find(l=>l.name===name);if(!layer)continue;const ids=new Set((layer.segments||[]).map(String));
+        // A nearby layer contains only the current neighborhood. Its absent meshes
+        // have not been hidden by the researcher and must remain available after deselection.
+        const represented=context?new Set([...(currentState?.layers?.find(l=>l.name===name)?.segments||[]).map(String),...ids]):null;
+        applyObjects(ReviewViewer.surface.meshes.filter(m=>!!m.context===context&&(!represented||represented.has(m.segment_id))).map(m=>({id:m.id,visible:layer.visible!==false&&ids.has(m.segment_id)})));
+      }
     }
     const nextState={...(currentState||snapshot()?.state||{}),...state};
     if(nm)nextState.position=nm.map((n,i)=>n/dest.resolution_nm[i]);nextState.title=`MICrONS · ${dest.volume_id} · Z ${ReviewViewer.z}`;
@@ -219,6 +230,9 @@
       lastNavigation=ReviewViewer.getNavigationState?.();
       const baseline=snapshot();if(baseline)lastFingerprint=JSON.stringify({state:baseline.state,main:baseline.main});
     }}catch(error){status('Синхронизация: '+error.message);}finally{applying=false;}
+    if(localClear){
+      localClear=false;localFocus=null;HandoffAnnotations.clearSelection({source:'queued-clear'});
+    }
     if(Object.keys(localControls).length||localNavigation||localFocus){
       const values=localControls,nav=localNavigation,focus=localFocus;localControls={};localNavigation=null;localFocus=null;
       if(nav)await ReviewViewer.applyNavigationState(nav,{emit:false});applyControls(values);schedule('local',!!nav||!!focus,focus);
@@ -227,7 +241,7 @@
   function receive(message){
     if(message.type==='hello'){if(latest)bus.send('state-reply',{message:latest},message.source);return;}
     if(message.type==='state-reply'){const nested=message.payload?.message;if(nested)receive(nested);return;}
-    if(!['host-state','ng-state','ng-focus'].includes(message.type)||message.source===bus.id||!bus.newer(message,latest))return;
+    if(!['host-state','ng-state','ng-focus','ng-deselect'].includes(message.type)||message.source===bus.id||!bus.newer(message,latest))return;
     latest=message;pending=message;
     navigationRevision=message.payload.navigationRevision||`${message.source}:${message.clock}`;
     navigationFocus=message.type==='host-state'?message.payload.focus||null:null;
@@ -246,8 +260,16 @@
   }
   for(const event of ['annotations:ready','review:position','annotations:surface-ready'])window.addEventListener(event,()=>{begin();if(started&&!applying)schedule('data');});
   window.addEventListener('review:view',event=>{if(applying&&!event.detail?.remote)localNavigation=event.detail;else{navigationSource=event.detail?.source||'all';schedule(event.detail?.reason||'navigation',true);}});
-  window.addEventListener('review:focus',event=>{if(applying)localFocus=event.detail;else schedule('focus',true,event.detail);});
-  window.addEventListener('annotations:selection',event=>{if(applying&&event.detail.intent==='focus')localFocus=event.detail;else schedule(event.detail.intent,event.detail.intent==='focus',event.detail.intent==='focus'?event.detail:null);});
+  window.addEventListener('review:focus',event=>{localClear=false;if(applying)localFocus=event.detail;else schedule('focus',true,event.detail);});
+  window.addEventListener('annotations:selection',event=>{
+    if(event.detail.intent==='clear'){
+      navigationFocus=null;focusPending=null;navigationPending=false;localFocus=null;
+      if(appliedNavigationRevision)navigationRevision=appliedNavigationRevision;
+      localClear=true;if(!applying)schedule('clear');return;
+    }
+    localClear=false;
+    if(applying&&event.detail.intent==='focus')localFocus=event.detail;else schedule(event.detail.intent,event.detail.intent==='focus',event.detail.intent==='focus'?event.detail:null);
+  });
   for(const event of ['annotations:changed','surface:visibility','segmentation:slice'])window.addEventListener(event,()=>schedule('settings'));
   for(const id of controlIds)for(const event of ['input','change'])$(id).addEventListener(event,e=>{if(applying&&e.isTrusted)localControls[id]=controls()[id];else schedule('settings');});
   async function openCurrent(force=false){await window.HandoffAnnotations?.whenSettled();await begin();if(!currentUrl)publish(true);ensureFrame();if(force){navigationPending=true;publish(true);}else if(latest)bus.send('state-reply',{message:latest});}

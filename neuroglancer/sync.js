@@ -7,9 +7,44 @@
   const ownLayer=name=>name==='ЭМ MICrONS'||name==='Объекты · v1300'||name==='Соседние структуры · v1300'||name==='Заданные точки · не проверены'||name?.startsWith('Границы ')||name?.startsWith('Мои метки · ')||['Сегментация 2D · v1300','Сегментация среза 3D · v1300','Соседние на срезе 3D · v1300'].includes(name);
   const params=new URLSearchParams(location.search),waiters=[];
   let caseId=params.get('case')||'',volumeId=params.get('volume')||'',latest=null,applied=null,pending=null,applying=false,started=false,timer=null,lastNative='',lastNav='',hostPayload=null,lastNavigationRevision=null;
+  let clearButton=null,pointSelected=false,clearMessage=null;
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b),clone=value=>value===undefined?undefined:structuredClone(value),valid3=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
   const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const units={m:1e9,cm:1e7,mm:1e6,um:1e3,'µm':1e3,nm:1};
+  const ownAnnotation=layer=>ownLayer(layer?.managedLayer?.name)&&!!layer?.annotationDisplayState;
+  function nativePointSelected(){return viewer.selectionDetailsState?.value?.layers?.some(row=>row.state?.annotationId&&ownAnnotation(row.layer))||false;}
+  function updateClearButton(){if(clearButton)clearButton.disabled=!pointSelected&&!nativePointSelected();}
+  function clearNativeSelection(){
+    pointSelected=false;
+    // Clear the pinned inspection state without resizing panels, moving the camera,
+    // changing visible segments, or deleting annotations. Keep it pinned empty so
+    // the former point under the pointer does not immediately become selected again.
+    if(nativePointSelected())viewer.selectionDetailsState.restoreState(undefined);
+    for(const managed of viewer.layerManager.managedLayers)if(ownAnnotation(managed.layer))managed.layer.annotationDisplayState.hoverState.value=undefined;
+    window.MicronsMarkers?.redraw();updateClearButton();
+  }
+  function requestDeselect(){
+    if(!caseId||!volumeId)return;
+    acceptDeselect(bus.send('ng-deselect',{caseId,volumeId}));
+  }
+  function acceptDeselect(message){
+    if(!bus.newer(message,clearMessage))return;
+    clearMessage=message;
+    if(pending&&!bus.newer(pending,clearMessage))pending=null;
+    clearNativeSelection();finishWaiters();
+  }
+  function installDeselectControls(){
+    clearButton=document.createElement('button');clearButton.id='micronsClearSelection';clearButton.type='button';clearButton.textContent='Снять выбор';
+    clearButton.title='Снять выбор точки и вернуть обычный набор соседних структур (Esc)';
+    Object.assign(clearButton.style,{position:'fixed',right:'12px',bottom:'12px',zIndex:'30',padding:'7px 12px',font:'13px system-ui',border:'1px solid #8294a4',borderRadius:'5px',background:'#263642',color:'#fff',cursor:'pointer'});
+    clearButton.addEventListener('click',requestDeselect);document.body.append(clearButton);
+    document.addEventListener('keydown',event=>{
+      const target=event.target;
+      if(event.key!=='Escape'||event.defaultPrevented||target?.isContentEditable||target?.closest?.('input,textarea,select,[contenteditable="true"],.CodeMirror,.cm-editor')||!pointSelected&&!nativePointSelected())return;
+      event.preventDefault();event.stopImmediatePropagation();requestDeselect();
+    },true);
+    viewer.selectionDetailsState.changed.add(updateClearButton);updateClearButton();
+  }
   function resolution(state=viewer.state.toJSON()){
     return Object.values(state.dimensions||{}).slice(0,3).map(([value,unit])=>value*(units[unit]||1));
   }
@@ -89,19 +124,28 @@
     viewer.layerManager.layersChanged.dispatch();window.MicronsMarkers?.redraw();
   }
   async function applyMessage(message){
+    if(!bus.newer(message,clearMessage))return false;
     const p=message.payload;if(!p||!p.caseId||!p.volumeId)return;
     const changedCase=caseId!==p.caseId||volumeId!==p.volumeId;caseId=p.caseId;volumeId=p.volumeId;
     if(changedCase){const url=new URL(location.href);url.searchParams.set('case',caseId);url.searchParams.set('volume',volumeId);history.replaceState(history.state,'',url.href);}
     if(message.type==='ng-focus'){
+      pointSelected=true;updateClearButton();
       if(valid3(p.point))restore('position',p.point);return;
     }
     const state=p.state;if(!state)return;
     if(state.title)restore('title',state.title);
-    if(message.type==='host-state')hostPayload=p;
+    if(message.type==='host-state'){
+      hostPayload=p;
+      pointSelected=!!(p.main?.selectedId||p.main?.target||p.main?.contextFocus||p.focus);
+      if(p.main&&!pointSelected)clearNativeSelection();else updateClearButton();
+    }
     if(state.dimensions)restore('dimensions',state.dimensions);
     await applyLayers(state.layers);
+    // A clear may arrive while an annotation layer is loading. Never replay that
+    // older point's navigation after the user has cleared it in another window.
+    if(!bus.newer(message,clearMessage)){clearNativeSelection();return false;}
     for(const key of SETTINGS)if(key in state)restore(key,state[key]);
-    const applyNavigation=message.type==='ng-state'||p.navigate||changedCase||!applied||p.navigationRevision&&p.navigationRevision!==lastNavigationRevision;
+    const applyNavigation=changedCase||!applied||p.reason!=='clear'&&(message.type==='ng-state'||p.navigate||p.navigationRevision&&p.navigationRevision!==lastNavigationRevision);
     if(applyNavigation){
       const source=changedCase||!applied?'all':p.navigationSource||'all';
       for(const key of NAV)if(key in state&&(message.type==='ng-state'||key==='position'||source==='all'||source==='2d'&&key.startsWith('crossSection')||source==='3d'&&key.startsWith('projection')))restore(key,state[key]);
@@ -113,21 +157,25 @@
       }
     }
     if(applyNavigation&&p.focus?.point_nm&&valid3(p.focus.point_nm))restore('position',p.focus.point_nm.map((n,i)=>n/resolution(state)[i]));
-    if(message.type==='host-state'&&applyNavigation)lastNavigationRevision=p.navigationRevision||null;
+    if(message.type==='host-state'&&(applyNavigation||p.reason==='clear'))lastNavigationRevision=p.navigationRevision||null;
     if(message.type==='ng-state')lastNavigationRevision=message.source+':'+message.clock;
     syncSectionPanels();
   }
   function finishWaiters(){if(!applying&&!pending)while(waiters.length)waiters.shift()(applied);}
   async function drain(){
     if(!started||applying)return;applying=true;clearTimeout(timer);timer=null;
-    try{while(pending){const message=pending;pending=null;await applyMessage(message);const display=viewer.display;if(display.canvas.offsetWidth&&display.canvas.offsetHeight){display.resizeCallback();display.draw();}applied=message;markBaseline();}}
+    try{while(pending){const message=pending;pending=null;const didApply=await applyMessage(message);const display=viewer.display;if(display.canvas.offsetWidth&&display.canvas.offsetHeight){display.resizeCallback();display.draw();}if(didApply!==false)applied=message;markBaseline();}}
     catch(error){window.dispatchEvent(new CustomEvent('microns:sync-error',{detail:{message:error.message}}));console.error('Neuroglancer synchronization:',error);}
     finally{markBaseline();applying=false;finishWaiters();}
   }
   function receive(message){
-    if(message.type==='hello'){if(latest)bus.send('state-reply',{message:latest},message.source);return;}
+    if(message.type==='hello'){if(bus.newer(latest,clearMessage))bus.send('state-reply',{message:latest},message.source);return;}
     if(message.type==='state-reply'){const nested=message.payload?.message;if(nested)receive(nested);return;}
-    if(!['host-state','ng-state','ng-focus'].includes(message.type)||message.source===bus.id||!bus.newer(message,latest))return;
+    if(message.type==='ng-deselect'){
+      if(message.source!==bus.id&&message.payload?.caseId===caseId&&message.payload?.volumeId===volumeId&&bus.newer(message,latest))acceptDeselect(message);
+      return;
+    }
+    if(!['host-state','ng-state','ng-focus'].includes(message.type)||message.source===bus.id||!bus.newer(message,latest)||!bus.newer(message,clearMessage))return;
     latest=message;pending=message;drain();
   }
   function publish(){
@@ -163,9 +211,10 @@
   }
   function start(){
     if(!window.viewer?.display||!window.MicronsMarkers){setTimeout(start,50);return;}
-    started=true;syncSectionPanels();markBaseline();viewer.state.changed.add(schedule);viewer.display.updateFinished.add(syncSectionPanels);
+    started=true;syncSectionPanels();markBaseline();installDeselectControls();viewer.state.changed.add(schedule);viewer.display.updateFinished.add(syncSectionPanels);
     window.addEventListener('microns:focus',event=>{
       const d=event.detail;if(applying||!d?.id||!valid3(d.point)||!caseId||!volumeId)return;
+      pointSelected=true;updateClearButton();
       restore('position',d.point);markBaseline();latest=bus.send('ng-focus',{caseId,volumeId,id:d.id,point:d.point,seed:!!d.seed,navigationCamera:navigationCamera()});applied=latest;
     });
     bus.subscribe(receive);bus.send('hello');drain();

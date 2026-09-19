@@ -248,7 +248,9 @@
     setContextLimit(number){this.contextLimit=Number.isFinite(number)?Math.max(1,Math.min(30,Math.round(number))):5;if($('contextLimit'))$('contextLimit').value=String(this.contextLimit);if($('contextLimitReadout'))$('contextLimitReadout').textContent=String(this.contextLimit);this.updateNearby();}
     setContextMode(mode){this.contextMode=mode==='full'?'full':'slice';if($('surfaceContextMode'))$('surfaceContextMode').value=this.contextMode;this.contextShown.clear();this.updateSliceTextures();this.setContextVisible(this.contextVisible);this.visibilityChanged();this.schedule();}
     focusAnnotation(annotation,centerView=false){const point=this.annotationPosition(annotation);if(point){this.setContextFocus(point,'метка '+annotation.number);if(centerView){this.center=[...point];this.zoom=Math.min(this.zoom,.55);this.navigationChanged('go');this.schedule();}}}
-    forgetAnnotationFocus(number){if(this.contextFocusLabel==='метка '+number){this.contextFocus=null;this.contextFocusLabel='центр среза';this.updateNearby();this.visibilityChanged();}}
+    clearContextFocus(){if(!this.contextFocus&&this.contextFocusLabel==='центр среза')return;this.contextFocus=null;this.contextFocusLabel='центр среза';this.updateNearby();this.visibilityChanged();this.schedule();}
+    clearPointFocus(){this.selectedAnnotationId=null;this.selectedObjectId=null;this.target=null;this.showMarker=false;this.canvas.dataset.targetLocalNm='';this.clearContextFocus();this.schedule();}
+    forgetAnnotationFocus(number){if(this.contextFocusLabel==='метка '+number)this.clearContextFocus();}
     nearbyCenter(){return this.contextFocus||[this.bounds[0]/2,this.bounds[1]/2,((this.slice?.z??this.volume.shape_xyz[2]/2)+.5)*this.volume.resolution_nm[2]];}
     setContextFocus(point,label){if(!finite3(point))return;if(this.contextFocus&&equal3(point,this.contextFocus)&&label===this.contextFocusLabel)return;this.contextFocus=[...point];this.contextFocusLabel=label;this.updateNearby();this.visibilityChanged();}
     updateNearby(){
@@ -271,10 +273,12 @@
       this.updateSliceTextures();this.contextStatus('ready',`Рядом: ${count} · ${this.contextFocusLabel}. Поверхности показаны целиком в пределах объёма.`,count);this.schedule();
     }
     setAnnotations(items,visible=true,selectedId=null) {
+      if(this.selectedAnnotationId&&!selectedId&&this.contextFocusLabel.startsWith('метка '))this.clearContextFocus();
       this.annotations=Array.isArray(items)?items.filter(a=>finite3(a.point_nm)):[];this.annotationsVisible=!!visible;this.selectedAnnotationId=selectedId;
       this.refreshSelectedObject();this.schedule();
     }
     setSelectedAnnotation(id) {
+      if(this.selectedAnnotationId&&!id&&this.contextFocusLabel.startsWith('метка '))this.clearContextFocus();
       this.selectedAnnotationId=id;this.refreshSelectedObject();this.schedule();
     }
     refreshSelectedObject() {
@@ -315,7 +319,7 @@
       const rect=this.stage.getBoundingClientRect(),x=(event.clientX-rect.left)*this.stage.clientWidth/rect.width,y=(event.clientY-rect.top)*this.stage.clientHeight/rect.height;
       if(this.annotationsVisible){const hit=this.annotationHits.find(p=>Math.hypot(p.x-x,p.y-y)<=13);if(hit){this.setSelectedAnnotation(hit.id);window.dispatchEvent(new CustomEvent('annotations:select3d',{detail:{id:hit.id,case_id:this.caseId,volume_id:this.volume.volume_id}}));return;}}
       const target=this.targetHits.find(p=>Math.hypot(p.x-x,p.y-y)<=12);if(target){window.dispatchEvent(new CustomEvent('surface:targetclick',{detail:{case_id:this.caseId,volume_id:this.volume.volume_id,target_id:target.id,target_key:target.key,point_nm:[...target.nm]}}));return;}
-      if(this.annotationMode==='off')return;const hit=this.pickAt(event.clientX,event.clientY);
+      if(this.annotationMode==='off'){window.dispatchEvent(new CustomEvent('review:deselect',{detail:{source:'surface-background',case_id:this.caseId,volume_id:this.volume.volume_id}}));return;}const hit=this.pickAt(event.clientX,event.clientY);
       if(hit){this.selectedObjectId=hit.object_id;this.schedule();window.dispatchEvent(new CustomEvent('annotations:pick3d',{detail:hit}));}
       else window.dispatchEvent(new CustomEvent('annotations:pick3d-miss',{detail:{case_id:this.caseId,volume_id:this.volume.volume_id,message:'Нажмите на видимую поверхность. При необходимости скройте плоскость среза или мешающие объекты.'}}));
     }
@@ -402,6 +406,7 @@
     setTarget(target,show) {
       const previous=this.target;
       this.showMarker=show;this.target=target&&this.volume?{...target,position:target.local.map((n,i)=>(n+.5)*this.volume.resolution_nm[i])}:null;
+      if(previous&&!this.target&&this.contextFocusLabel===previous.id+' '+(MarkerStyles.styles[previous.key]?.label||''))this.clearContextFocus();
       if(this.target&&(!previous||previous.id!==target.id||previous.key!==target.key))this.setContextFocus(this.target.position,target.id+' '+(MarkerStyles.styles[target.key]?.label||''));
       this.canvas.dataset.targetLocalNm=this.target?this.target.position.join(','):'';this.schedule();
     }
