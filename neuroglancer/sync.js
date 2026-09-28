@@ -198,13 +198,15 @@
     const applyNavigation=changedCase||!applied||p.reason!=='clear'&&(message.type==='ng-state'||p.navigate||p.navigationRevision&&p.navigationRevision!==lastNavigationRevision);
     if(applyNavigation){
       const source=changedCase||!applied?'all':p.navigationSource||'all';
-      for(const key of NAV)if(key in state&&(message.type==='ng-state'||key==='position'||source==='all'||source==='2d'&&key.startsWith('crossSection')||(source==='3d'||source==='3d-orientation')&&key.startsWith('projection')))restore(key,state[key]);
+      for(const key of NAV)if(key in state&&(message.type==='ng-state'||key==='position'||source==='all'||source==='2d'&&key.startsWith('crossSection')||['3d','3d-orientation','3d-fit'].includes(source)&&key.startsWith('projection')))restore(key,state[key]);
       if(message.type==='host-state'){
         const camera=p.main?.navigation?.surface,q=camera&&quaternion(camera),res=resolution(state);
         if(source!=='2d'&&q)restore('projectionOrientation',q);
         if(source!=='2d'&&Number.isFinite(camera?.physical_height_nm)&&camera.physical_height_nm>0&&res.length===3)restore('projectionScale',camera.physical_height_nm/Math.min(...res));
         // Orientation-only changes retain the 2D slice rather than the 3D pivot's Z.
         if(source==='3d'&&valid3(camera?.center_nm)){const begin=volumeBegin();restore('position',camera.center_nm.map((n,i)=>begin[i]+n/res[i]));}
+        // Fit recenters XY as well, while keeping the researcher's current Z slice.
+        if(p.navigationSource==='3d-fit'&&valid3(camera?.center_nm)&&valid3(state.position)){const begin=volumeBegin();restore('position',camera.center_nm.map((n,i)=>i===2?state.position[2]:begin[i]+n/res[i]));}
       }
     }
     if(applyNavigation&&p.focus?.point_nm&&valid3(p.focus.point_nm))restore('position',p.focus.point_nm.map((n,i)=>n/resolution(state)[i]));

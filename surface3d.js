@@ -418,11 +418,14 @@
       this.frameHeight=Math.hypot(...this.bounds)*1.12;this.radius=Math.hypot(...this.bounds)*3;this.navigationChanged('reset');this.schedule();
     }
     alignTo2D() {
-      if(!this.volume||!this.gl||!this.center)return;
-      // X points right and Y points down, matching the unrotated 2D slice.
-      // Preserve the current framing, magnification, slice and selected marks.
-      this.yaw=0;this.pitch=0;this.cameraBasis=null;
-      this.navigationChanged('align-2d');this.schedule();
+      if(!this.volume||!this.gl||!this.bounds)return;
+      // Fit the entire XY extent with a small margin, including in narrow panes.
+      // Reset the camera only; retain the current slice, marks and visibility.
+      const aspect=Math.max(1,this.stage.clientWidth)/Math.max(1,this.stage.clientHeight);
+      this.center=this.bounds.map(n=>n/2);this.yaw=0;this.pitch=0;this.zoom=1;this.cameraBasis=null;
+      this.frameHeight=Math.max(this.bounds[1],this.bounds[0]/aspect)*1.12;
+      this.radius=Math.hypot(...this.bounds)*3;
+      this.navigationChanged('fit-2d');this.schedule();
     }
     camera() {
       const cp=Math.cos(this.pitch),direction=this.cameraBasis?.eye_direction||[Math.sin(this.yaw)*cp,-Math.sin(this.pitch),-Math.cos(this.yaw)*cp],eye=vec.add(this.center,vec.mul(direction,this.radius)),height=this.frameHeight*this.zoom,width=height*this.stage.clientWidth/Math.max(1,this.stage.clientHeight);
