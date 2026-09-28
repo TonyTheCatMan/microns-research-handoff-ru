@@ -417,6 +417,13 @@
       if(!this.bounds)return;this.center=this.bounds.map(n=>n/2);this.yaw=front?0:-.65;this.pitch=front?0:.4;this.zoom=1;this.cameraBasis=null;
       this.frameHeight=Math.hypot(...this.bounds)*1.12;this.radius=Math.hypot(...this.bounds)*3;this.navigationChanged('reset');this.schedule();
     }
+    alignTo2D() {
+      if(!this.volume||!this.gl||!this.center)return;
+      // X points right and Y points down, matching the unrotated 2D slice.
+      // Preserve the current framing, magnification, slice and selected marks.
+      this.yaw=0;this.pitch=0;this.cameraBasis=null;
+      this.navigationChanged('align-2d');this.schedule();
+    }
     camera() {
       const cp=Math.cos(this.pitch),direction=this.cameraBasis?.eye_direction||[Math.sin(this.yaw)*cp,-Math.sin(this.pitch),-Math.cos(this.yaw)*cp],eye=vec.add(this.center,vec.mul(direction,this.radius)),height=this.frameHeight*this.zoom,width=height*this.stage.clientWidth/Math.max(1,this.stage.clientHeight);
       let view;if(this.cameraBasis){const {right:x,up:y,eye_direction:z}=this.cameraBasis;view={right:x,up:y,matrix:new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-vec.dot(x,eye),-vec.dot(y,eye),-vec.dot(z,eye),1])};}else view=lookAt(eye,this.center);
@@ -440,7 +447,7 @@
       this.yaw=next.yaw;this.pitch=next.pitch;this.zoom=next.zoom;this.center=[...next.center_nm];this.frameHeight=next.frame_height_nm;this.radius=next.radius_nm;if(basis)this.cameraBasis=basis;else if(camera.yaw!==undefined||camera.pitch!==undefined)this.cameraBasis=null;this.navigationChanged('remote',emit);this.schedule();return this.getNavigationState();
     }
     bind() {
-      $('surfaceReset').addEventListener('click',()=>this.reset());$('surfaceXY').addEventListener('click',()=>this.reset(true));
+      $('surfaceReset').addEventListener('click',()=>this.reset());$('surfaceXY').addEventListener('click',()=>this.alignTo2D());
       for(const id of ['surfacePlane','surfaceBox'])$(id).addEventListener('change',()=>this.schedule());
       $('surfaceOpacity').addEventListener('input',e=>{this.alpha=Number(e.target.value)/100;$('surfaceOpacityReadout').textContent=e.target.value+'%';this.schedule();});
       $('surfaceContextMode')?.addEventListener('change',e=>this.setContextMode(e.target.value));

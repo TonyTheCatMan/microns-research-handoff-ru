@@ -23,7 +23,7 @@
     if(navigationMute||!state.tiff)return;navigationPending={reason,source};if(navigationFrame)return;
     navigationFrame=requestAnimationFrame(()=>{navigationFrame=0;if(navigationMute)return;const view=getNavigationState();if(!view)return;const signature=navigationSignature(view);if(signature===navigationLast)return;navigationLast=signature;window.dispatchEvent(new CustomEvent('review:view',{detail:{...view,...navigationPending}}));});
   }
-  window.addEventListener('surface:view',event=>{if(event.detail.case_id===state.currentCase?.case_id&&event.detail.volume_id===state.volume?.volume_id)navigationChanged(event.detail.reason,'3d');});
+  window.addEventListener('surface:view',event=>{if(event.detail.case_id===state.currentCase?.case_id&&event.detail.volume_id===state.volume?.volume_id)navigationChanged(event.detail.reason,event.detail.reason==='align-2d'?'3d-orientation':'3d');});
   const normalPath = s => String(s).replace(/\\/g, '/').replace(/^\.\//, '');
   const filePath = f => normalPath(f.webkitRelativePath || f.name);
   function status(message, kind='') { ui.status.textContent = message; ui.status.className = 'status ' + kind; }

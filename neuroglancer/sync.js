@@ -198,11 +198,12 @@
     const applyNavigation=changedCase||!applied||p.reason!=='clear'&&(message.type==='ng-state'||p.navigate||p.navigationRevision&&p.navigationRevision!==lastNavigationRevision);
     if(applyNavigation){
       const source=changedCase||!applied?'all':p.navigationSource||'all';
-      for(const key of NAV)if(key in state&&(message.type==='ng-state'||key==='position'||source==='all'||source==='2d'&&key.startsWith('crossSection')||source==='3d'&&key.startsWith('projection')))restore(key,state[key]);
+      for(const key of NAV)if(key in state&&(message.type==='ng-state'||key==='position'||source==='all'||source==='2d'&&key.startsWith('crossSection')||(source==='3d'||source==='3d-orientation')&&key.startsWith('projection')))restore(key,state[key]);
       if(message.type==='host-state'){
         const camera=p.main?.navigation?.surface,q=camera&&quaternion(camera),res=resolution(state);
         if(source!=='2d'&&q)restore('projectionOrientation',q);
         if(source!=='2d'&&Number.isFinite(camera?.physical_height_nm)&&camera.physical_height_nm>0&&res.length===3)restore('projectionScale',camera.physical_height_nm/Math.min(...res));
+        // Orientation-only changes retain the 2D slice rather than the 3D pivot's Z.
         if(source==='3d'&&valid3(camera?.center_nm)){const begin=volumeBegin();restore('position',camera.center_nm.map((n,i)=>begin[i]+n/res[i]));}
       }
     }
