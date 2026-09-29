@@ -419,13 +419,12 @@
     }
     alignTo2D() {
       if(!this.volume||!this.gl||!this.bounds)return;
-      // A gentle tilt reveals depth; fit the full projected volume, including Z.
+      // Fit the entire XY extent with a small margin, including in narrow panes.
       // Reset the camera only; retain the current slice, marks and visibility.
       const aspect=Math.max(1,this.stage.clientWidth)/Math.max(1,this.stage.clientHeight);
-      this.center=this.bounds.map(n=>n/2);this.yaw=-.28;this.pitch=.18;this.zoom=1;this.cameraBasis=null;
+      this.center=this.bounds.map(n=>n/2);this.yaw=0;this.pitch=0;this.zoom=1;this.cameraBasis=null;
+      this.frameHeight=Math.max(this.bounds[1],this.bounds[0]/aspect)*1.12;
       this.radius=Math.hypot(...this.bounds)*3;
-      const {right,up}=this.camera(),extent=axis=>this.bounds.reduce((sum,n,i)=>sum+Math.abs(axis[i])*n,0);
-      this.frameHeight=Math.max(extent(up),extent(right)/aspect)*1.12;
       this.navigationChanged('fit-2d');this.schedule();
     }
     camera() {
