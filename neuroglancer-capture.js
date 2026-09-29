@@ -76,7 +76,7 @@
   });
   for(const [id,scope] of [['neuroglancerExportCase','case'],['neuroglancerExportAll','all']])$(id).addEventListener('click',async()=>{
     if(!window.HandoffAnnotations?.store)return;
-    await HandoffAnnotations.exportFindings(scope,{includeImages:true});
+    await HandoffAnnotations.exportFindings(scope);
     $('neuroglancerStatus').textContent=$('restoreResult').textContent;
   });
 })();
