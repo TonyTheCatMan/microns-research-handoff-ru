@@ -22,7 +22,7 @@
   const waiters=[];
   let caseId=initialCase,volumeId=initialVolume,latest=null,applied=null,pending=null,applying=false,started=false,timer=null,lastNative='',lastNav='',hostPayload=null,lastNavigationRevision=null;
   let clearButton=null,pointSelected=false,clearMessage=null,selectedPointId=null,mainOwner=null,deleteConfirmationPending=false;
-  let modeGeneration=0,awaitingMain=false;
+  let modeGeneration=0,awaitingMain=false,normalizationPending=false,sharedFullRotation=false;
   const syncEnabled=()=>bus.enabled!==false;
   const currentApplication=generation=>syncEnabled()&&generation===modeGeneration;
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b),clone=value=>value===undefined?undefined:structuredClone(value),valid3=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
@@ -111,6 +111,33 @@
     const bounds=viewer.layerManager.managedLayers.find(l=>l.name==='Границы '+volumeId)?.layer?.localAnnotations?.annotationMap?.get('volume-bounds');
     return bounds?.pointA?[...bounds.pointA]:[0,0,0];
   }
+  function volumeBounds(){
+    const bounds=viewer.layerManager.managedLayers.find(l=>l.name==='Границы '+volumeId)?.layer?.localAnnotations?.annotationMap?.get('volume-bounds');
+    const begin=bounds?.pointA&&Array.from(bounds.pointA),end=bounds?.pointB&&Array.from(bounds.pointB);
+    return valid3(begin)&&valid3(end)&&end.every((n,i)=>n>begin[i])?{begin,end}:null;
+  }
+  async function resetView(kind){
+    if(!['2d','3d'].includes(kind))throw new Error('Неизвестный вид для сброса.');
+    if(!started||awaitingMain)throw new Error('Дождитесь загрузки и синхронизации Neuroglancer.');
+    if(applying||pending)await new Promise(resolve=>waiters.push(resolve));
+    const bounds=volumeBounds(),res=resolution(),panel=[...viewer.display.panels].find(p=>p.visible&&(kind==='2d'?!!p.sliceView:!p.sliceView));
+    if(!bounds||res.length!==3||res.some(n=>!Number.isFinite(n)||n<=0)||!panel?.element.clientWidth||!panel.element.clientHeight)throw new Error('Дождитесь загрузки выбранного объёма Neuroglancer.');
+    const {begin,end}=bounds,position=Array.from(viewer.position.value),extent=end.map((n,i)=>(n-begin[i])*res[i]),canonical=Math.min(...res);
+    // Both native panes share one position. Recenter XY without changing the
+    // selected acquired Z section or any saved point, drawing, or layer setting.
+    restore('position',begin.map((n,i)=>i===2&&Number.isFinite(position[i])&&position[i]>=n&&position[i]<end[i]?position[i]:(n+end[i])/2));
+    if(kind==='2d'){
+      restore('crossSectionOrientation',[0,0,0,1]);
+      restore('crossSectionScale',Math.max(extent[0]/panel.element.clientWidth,extent[1]/panel.element.clientHeight)*1.12/canonical);
+    }else{
+      restore('projectionOrientation',[0,0,0,1]);
+      restore('projectionScale',Math.max(Math.hypot(...extent),extent[0]*panel.element.clientHeight/panel.element.clientWidth)*1.12/canonical);
+    }
+    window.MicronsViewControls?.constrainOrientation();
+    viewer.display.resizeCallback();viewer.display.draw();
+    clearTimeout(timer);timer=null;lastNative='';lastNav='';publish();
+    return {kind,caseId,volumeId,position:Array.from(viewer.position.value)};
+  }
   function navigationCamera(){
     const panel=[...viewer.display.panels].find(p=>p.visible&&!p.sliceView),p=panel?.projectionParameters?.value;if(!p||!panel.element.clientWidth||!panel.element.clientHeight)return null;
     const res=resolution(),m=p.invViewMatrix,indices=p.displayDimensionRenderInfo?.displayDimensionIndices||[0,1,2];
@@ -191,6 +218,7 @@
     if(!currentApplication(generation)||!bus.newer(message,clearMessage))return false;
     const p=message.payload;if(!p||!p.caseId||!p.volumeId)return;
     if(!allowedCasePayload(p))return false;
+    if(typeof p.fullRotation==='boolean'){sharedFullRotation=p.fullRotation;window.MicronsViewControls?.setFullRotation(sharedFullRotation,{announce:false});}
     const changedCase=caseId!==p.caseId||volumeId!==p.volumeId;caseId=p.caseId;volumeId=p.volumeId;
     if(changedCase){const url=new URL(location.href);url.searchParams.set('case',caseId);url.searchParams.set('volume',volumeId);history.replaceState(history.state,'',url.href);}
     if(message.type==='ng-focus'){
@@ -219,23 +247,26 @@
         const camera=p.main?.navigation?.surface,q=camera&&quaternion(camera),res=resolution(state);
         if(source!=='2d'&&q)restore('projectionOrientation',q);
         if(source!=='2d'&&Number.isFinite(camera?.physical_height_nm)&&camera.physical_height_nm>0&&res.length===3)restore('projectionScale',camera.physical_height_nm/Math.min(...res));
-        // Orientation-only changes retain the 2D slice rather than the 3D pivot's Z.
-        if(source==='3d'&&valid3(camera?.center_nm)){const begin=volumeBegin();restore('position',camera.center_nm.map((n,i)=>begin[i]+n/res[i]));}
-        // Fit recenters XY as well, while keeping the researcher's current Z slice.
-        if(p.navigationSource==='3d-fit'&&valid3(camera?.center_nm)&&valid3(state.position)){const begin=volumeBegin();restore('position',camera.center_nm.map((n,i)=>i===2?state.position[2]:begin[i]+n/res[i]));}
+        // Native 2D and 3D share one position. The local surface has an independent
+        // depth pivot, so orbit/zoom/reset must not replace the selected section
+        // with that pivot's Z. Pan/fit still recenter XY in physical coordinates.
+        if((source==='3d'||p.navigationSource==='3d-fit')&&valid3(camera?.center_nm)&&valid3(state.position)&&res.length===3){const begin=volumeBegin();restore('position',camera.center_nm.map((n,i)=>i===2?state.position[2]:begin[i]+n/res[i]));}
       }
     }
     if(applyNavigation&&p.focus?.point_nm&&valid3(p.focus.point_nm))restore('position',p.focus.point_nm.map((n,i)=>n/resolution(state)[i]));
+    // Upright mode applies to received cameras as well as local gestures. Send
+    // the resulting basis back once so all synchronized panes agree on it.
+    normalizationPending=!!window.MicronsViewControls?.constrainOrientation()||normalizationPending;
     if(message.type==='host-state'&&(applyNavigation||p.reason==='clear'))lastNavigationRevision=p.navigationRevision||null;
     if(message.type==='ng-state')lastNavigationRevision=message.source+':'+message.clock;
     syncSectionPanels();
   }
-  function finishWaiters(){if(!applying&&!pending)while(waiters.length)waiters.shift()(applied);}
+  function finishWaiters(){if(!applying&&!pending)while(waiters.length)waiters.shift()(applied);window.dispatchEvent(new CustomEvent('microns:view-sync-status'));}
   async function drain(){
-    if(!started||applying||!syncEnabled())return;applying=true;clearTimeout(timer);timer=null;
+    if(!started||applying||!syncEnabled())return;applying=true;clearTimeout(timer);timer=null;window.dispatchEvent(new CustomEvent('microns:view-sync-status'));
     try{while(pending&&syncEnabled()){const message=pending;pending=null;const didApply=await applyMessage(message);if(didApply!==false){const display=viewer.display;if(display.canvas.offsetWidth&&display.canvas.offsetHeight){display.resizeCallback();display.draw();}applied=message;}markBaseline();}}
     catch(error){window.dispatchEvent(new CustomEvent('microns:sync-error',{detail:{message:error.message}}));console.error('Neuroglancer synchronization:',error);}
-    finally{markBaseline();applying=false;finishWaiters();}
+    finally{markBaseline();applying=false;finishWaiters();if(normalizationPending){normalizationPending=false;lastNative='';lastNav='';schedule();}}
   }
   function receive(message){
     if(message.type==='annotation-delete-result'){acceptDeleteResult(message);return;}
@@ -256,16 +287,29 @@
   }
   function publish(){
     timer=null;if(!syncEnabled()||awaitingMain||applying||pending||!caseId||!volumeId)return;
+    window.MicronsViewControls?.constrainOrientation();
     const state=stateSnapshot(),fingerprint=JSON.stringify(state);if(fingerprint===lastNative)return;
     const nav=JSON.stringify(NAV.map(key=>state[key])),reason=nav!==lastNav?'navigation':'settings';lastNative=fingerprint;lastNav=nav;
-    latest=bus.send('ng-state',{caseId,volumeId,state,navigationCamera:navigationCamera(),reason});applied=latest;
+    latest=bus.send('ng-state',{caseId,volumeId,state,fullRotation:sharedFullRotation,navigationCamera:navigationCamera(),reason});applied=latest;
   }
   function schedule(){if(!syncEnabled()||awaitingMain||applying||!started)return;if(timer!==null)clearTimeout(timer);timer=setTimeout(publish,90);}
+  window.addEventListener('microns:rotation-mode',event=>{
+    if(typeof event.detail?.fullRotation!=='boolean')return;
+    sharedFullRotation=event.detail.fullRotation;
+    // Enabling full rotation need not move the camera, but synchronized peers
+    // must adopt the opt-in before receiving a later rolled orientation.
+    lastNative='';
+    if(!applying&&started&&!awaitingMain){
+      clearTimeout(timer);timer=null;
+      const display=viewer.display;if(display.canvas.offsetWidth&&display.canvas.offsetHeight){display.resizeCallback();display.draw();}
+      publish();
+    }else schedule();
+  });
   window.addEventListener('handoff:sync-mode',()=>{
     ++modeGeneration;clearTimeout(timer);timer=null;
     // Forget work from the former mode, but retain the current scene and saved
     // record owner so an explicit Delete still edits the correct research record.
-    pending=null;latest=null;applied=null;clearMessage=null;lastNavigationRevision=null;
+    pending=null;latest=null;applied=null;clearMessage=null;lastNavigationRevision=null;normalizationPending=false;
     awaitingMain=syncEnabled();
     if(started){markBaseline();finishWaiters();if(syncEnabled())bus.send('hello');}
   });
@@ -300,10 +344,11 @@
       const d=event.detail;if(applying&&syncEnabled()||!d?.id||!valid3(d.point)||!caseId||!volumeId)return;
       pointSelected=true;selectedPointId=d.seed?null:d.id;updateClearButton();
       restore('position',d.point);markBaseline();
-      if(syncEnabled()&&!awaitingMain){latest=bus.send('ng-focus',{caseId,volumeId,id:d.id,point:d.point,seed:!!d.seed,navigationCamera:navigationCamera()});applied=latest;}
+      if(syncEnabled()&&!awaitingMain){latest=bus.send('ng-focus',{caseId,volumeId,id:d.id,point:d.point,seed:!!d.seed,fullRotation:sharedFullRotation,navigationCamera:navigationCamera()});applied=latest;}
     });
     bus.subscribe(receive);if(syncEnabled())bus.send('hello');drain();
-    window.MicronsViewSync={get latest(){return latest;},get applied(){return applied;},get applying(){return applying||!!pending;},get caseId(){return caseId;},get volumeId(){return volumeId;},navigationCamera,whenSettled(){return applying||pending?new Promise(resolve=>waiters.push(resolve)):Promise.resolve(applied);}};
+    window.MicronsViewSync={get latest(){return latest;},get applied(){return applied;},get applying(){return applying||!!pending;},get fullRotation(){return sharedFullRotation;},get canReset(){return started&&!applying&&!pending&&!awaitingMain&&!!volumeBounds();},get caseId(){return caseId;},get volumeId(){return volumeId;},navigationCamera,resetView,whenSettled(){return applying||pending?new Promise(resolve=>waiters.push(resolve)):Promise.resolve(applied);}};
+    window.dispatchEvent(new CustomEvent('microns:view-sync-status'));
   }
   start();
 })();

@@ -126,7 +126,7 @@
   let navigationRevision=crypto.randomUUID(),appliedNavigationRevision=null,navigationFocus=null;
   let localControls={},localNavigation=null,localFocus=null,localClear=false,normalizeNative=false;
   let boundaryCache=null;
-  let resumePending=false,nativeApplication=null;
+  let resumePending=false,nativeApplication=null,sharedFullRotation=false;
   const active=()=>location.hash==='#neuroglancer';
   const status=text=>$('neuroglancerStatus').textContent=text;
   const controls=()=>Object.fromEntries(controlIds.map(id=>{const input=$(id);return[id,input.type==='checkbox'?input.checked:input.type==='number'||input.type==='range'?Number(input.value):input.value];}));
@@ -164,7 +164,7 @@
     if(navigation?.position_nm)state.position=navigation.position_nm.map((n,i)=>n/volume.resolution_nm[i]);
     state.crossSectionScale=1/v.zoom;
     if(navigationFocus?.point_nm)state.position=navigationFocus.point_nm.map((n,i)=>n/volume.resolution_nm[i]);
-    return{caseId:c.case_id,volumeId:volume.volume_id,state,main:{navigation,controls:settings,selectedId:selection,deleteSelectionId:selection||null,objects:surface.meshes.map(m=>({id:m.id,segment_id:m.segment_id,visible:m.visible})),contextFocus:surface.contextFocus,contextFocusLabel:surface.contextFocusLabel,target:v.target,boundaryOverlay:boundaryOverlay(settings)},navigate:navigationPending,navigationSource,navigationRevision,focus:navigationFocus,reason:reasonPending};
+    return{caseId:c.case_id,volumeId:volume.volume_id,state,fullRotation:sharedFullRotation,main:{navigation,controls:settings,selectedId:selection,deleteSelectionId:selection||null,objects:surface.meshes.map(m=>({id:m.id,segment_id:m.segment_id,visible:m.visible})),contextFocus:surface.contextFocus,contextFocusLabel:surface.contextFocusLabel,target:v.target,boundaryOverlay:boundaryOverlay(settings)},navigate:navigationPending,navigationSource,navigationRevision,focus:navigationFocus,reason:reasonPending};
   }
   function showLink(payload){
     currentState=payload.state;currentUrl=urlFor(currentState);external.href=currentUrl;external.removeAttribute('aria-disabled');reset.disabled=false;
@@ -222,6 +222,7 @@
   }
   async function applyHost(payload){
     if(!allowedCasePayload(payload))return;
+    if(typeof payload.fullRotation==='boolean')sharedFullRotation=payload.fullRotation;
     const main=payload.main;if(!main?.navigation)return;
     if(!lastNavigation||payload.reason!=='clear'&&(payload.navigate||payload.navigationRevision!==appliedNavigationRevision)||ReviewViewer.currentCase?.case_id!==payload.caseId||ReviewViewer.volume?.volume_id!==payload.volumeId)await ReviewViewer.applyNavigationState(main.navigation,{emit:false});
     ReviewViewer.applyTarget?.(main.target?.id||null,main.target?.key);
@@ -247,6 +248,7 @@
     if(!allowedCasePayload(payload))return;
     const revision=bus.syncRevision,allowed=()=>bus.enabled&&bus.syncRevision===revision;
     if(!allowed())return;
+    if(typeof payload.fullRotation==='boolean')sharedFullRotation=payload.fullRotation;
     const controller=new AbortController();nativeApplication=controller;
     if(type==='ng-deselect'){
       if(payload.caseId!==ReviewViewer.currentCase?.case_id||payload.volumeId!==ReviewViewer.volume?.volume_id)return;
@@ -355,7 +357,7 @@
   });
   for(const event of ['annotations:changed','surface:visibility','segmentation:slice'])window.addEventListener(event,()=>schedule('settings'));
   for(const id of controlIds)for(const event of ['input','change'])$(id).addEventListener(event,e=>{if(applying&&e.isTrusted)localControls[id]=controls()[id];else schedule('settings');});
-  async function openCurrent(force=false){await window.HandoffAnnotations?.whenSettled();await begin();if(!currentUrl)publish(true);ensureFrame();if(force){navigationPending=true;publish(true);}else if(latest)bus.send('state-reply',{message:latest});}
+  async function openCurrent(force=false){await window.HandoffAnnotations?.whenSettled();await begin();if(!currentUrl)publish(true);ensureFrame();if(force){navigationPending=true;navigationSource='all';navigationRevision=crypto.randomUUID();navigationFocus=null;focusPending=null;reasonPending='sync-now';publish(true);}else if(latest)bus.send('state-reply',{message:latest});}
   window.addEventListener('hashchange',()=>{if(active())openCurrent();});
   reset.addEventListener('click',()=>{if(bus.enabled)openCurrent(true);});
   $('neuroglancerMarkerGo').addEventListener('click',async()=>{
