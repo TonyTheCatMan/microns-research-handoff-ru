@@ -132,7 +132,7 @@
     $('drawingContinue').hidden=$('drawingToggleClosed').hidden=record.kind!=='trace';
     $('drawingToggleClosed').textContent=record.geometry.closed?'Разомкнуть трассу':'Замкнуть трассу';$('drawingToggleClosed').disabled=!record.geometry.closed&&!canClose(record.geometry.points_nm);
   }
-  for(const [id,key] of [['drawingEditColor','color'],['drawingEditWidth','stroke_width']])$(id).addEventListener('change',()=>{const record=clone(selected());if(!record?.geometry)return;const value=key==='stroke_width'?Math.max(1,Math.min(12,Math.round(Number($(id).value)||3))):$(id).value;queue(async()=>{await api().changeDrawing(record.id,{geometry:{...record.geometry,[key]:value}},{expected:record.updated_at});redraw();});});
+  for(const [id,key] of [['drawingEditColor','color'],['drawingEditWidth','stroke_width']])$(id).addEventListener('change',()=>{const record=clone(selected());if(!record?.geometry)return;const value=key==='stroke_width'?Math.max(1,Math.min(12,Math.round(Number($(id).value)||2))):$(id).value;queue(async()=>{await api().changeDrawing(record.id,{geometry:{...record.geometry,[key]:value}},{expected:record.updated_at});redraw();});});
   $('drawingToggleClosed').addEventListener('click',()=>{const record=clone(selected());if(record?.kind!=='trace')return;queue(async()=>{await api().changeDrawing(record.id,{geometry:{...record.geometry,closed:!record.geometry.closed}},{expected:record.updated_at});redraw();});});
   $('drawingContinue').addEventListener('click',()=>{
     if(mainDrawing()){window.opener.document.getElementById('drawingContinue').click();return;}

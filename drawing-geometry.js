@@ -7,7 +7,7 @@
   function plan(volume,z){return {plane:'xy',axes:PLANES.xy,begin:volume.begin_vox_xyz,width:volume.shape_xyz[0],height:volume.shape_xyz[1],resolutionNm:volume.resolution_nm,depthNm:(volume.begin_vox_xyz[2]+z+.5)*volume.resolution_nm[2]};}
   function projectPoint(plan,point){return {x:point[0]/plan.resolutionNm[0]-plan.begin[0]-.5,y:point[1]/plan.resolutionNm[1]-plan.begin[1]-.5,onPlane:Math.abs(point[2]-plan.depthNm)<1e-5};}
   function pixelToNm(plan,x,y){return [(plan.begin[0]+Math.max(0,Math.min(plan.width-1,Math.floor(x)))+.5)*plan.resolutionNm[0],(plan.begin[1]+Math.max(0,Math.min(plan.height-1,Math.floor(y)))+.5)*plan.resolutionNm[1],plan.depthNm];}
-  function toMark(record){return {...record,pointsNm:record.geometry?.points_nm||[record.point_nm],plane:record.geometry?.plane||'xy',closed:record.geometry?.closed||false,color:record.geometry?.color||'#ffd166',strokeWidth:record.geometry?.stroke_width||3};}
+  function toMark(record){return {...record,pointsNm:record.geometry?.points_nm||[record.point_nm],plane:record.geometry?.plane||'xy',closed:record.geometry?.closed||false,color:record.geometry?.color||'#ffd166',strokeWidth:record.geometry?.stroke_width||2};}
 
 // Adapted from donor mark-drawing.js
 const escapeSvg = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]));
