@@ -2,6 +2,7 @@
 (() => {
   'use strict';
   const byId = id => document.getElementById(id);
+  const translateUI = text => window.HandoffI18n?.translate(text) ?? text;
   const ui = Object.fromEntries(['status','caseSelect','volumeSelect','volumeDetails','contacts','targetStatus','overlayToggle','prevButton','nextButton','zSlider','zInput','zReadout','zoomSelect','fitButton','blackInput','whiteInput','rawButton','windowButton','exportButton','viewport','emptyState','canvasWrap','imageCanvas','overlayCanvas','scaleCanvas','scaleNote','cursorReadout'].map(id => [id, byId(id)]));
   const state = { files:[], metadata:null, activeCases:[], currentCase:null, volume:null, tiff:null, pixels:null, z:0, zoom:2, black:0, white:255, target:null, generation:0, viewCenter:null };
   const MIN_ZOOM = .1, MAX_ZOOM = 8;
@@ -300,7 +301,7 @@
     const pixelsPerNm=state.zoom/state.volume.resolution_nm[0],target=Math.min(100,Math.max(50,ui.viewport.clientWidth*.2));
     const power=10**Math.floor(Math.log10(target/pixelsPerNm)),options=[.5,1,2,5,10].map(n=>n*power);
     const nm=options.reduce((best,n)=>Math.abs(n*pixelsPerNm-target)<Math.abs(best*pixelsPerNm-target)?n:best),cssLength=nm*pixelsPerNm;
-    const label=nm>=1000?(nm/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' мкм':nm.toLocaleString('ru-RU',{maximumFractionDigits:3})+' нм';
+    const label=translateUI(nm>=1000?(nm/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' мкм':nm.toLocaleString('ru-RU',{maximumFractionDigits:3})+' нм');
     const cssWidth = Math.max(100, Math.ceil(cssLength + 20));
     const ratio = window.devicePixelRatio || 1;
     ui.scaleCanvas.width = Math.round(cssWidth * ratio); ui.scaleCanvas.height = Math.round(44 * ratio); ui.scaleCanvas.style.width = cssWidth + 'px';ui.scaleCanvas.style.height='44px';
@@ -325,7 +326,7 @@
     const markerIncluded = ui.overlayToggle.checked;
     ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#17313d';ctx.font='bold 18px system-ui';
     ctx.fillText(state.currentCase.case_id+' · '+state.volume.volume_id,16,27);
-    ctx.font='14px system-ui';ctx.fillText('Локальная Z '+state.z+' / '+(state.tiff.depth-1)+' · глобальная Z '+globalZ+' · '+globalZ*state.volume.resolution_nm[2]+' нм',16,49);
+    ctx.font='14px system-ui';ctx.fillText(translateUI('Локальная Z ')+state.z+' / '+(state.tiff.depth-1)+translateUI(' · глобальная Z ')+globalZ+' · '+globalZ*state.volume.resolution_nm[2]+translateUI(' нм'),16,49);
     ctx.imageSmoothingEnabled=false;ctx.drawImage(ui.imageCanvas,left,top,imageWidth,imageHeight);
     const segmentation=window.SliceSegmentation?.captureFor(state.volume.volume_id,state.z);
     if(segmentation)ctx.drawImage(segmentation.canvas,left,top,imageWidth,imageHeight);
@@ -333,12 +334,12 @@
     if(window.HandoffAnnotations?.visible)ctx.drawImage(byId('annotationCanvas'),left,top,imageWidth,imageHeight);
     let y=top+imageHeight+20;
     const bar=500/state.volume.resolution_nm[0]*scale;ctx.strokeStyle='#17313d';ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(16,y);ctx.lineTo(16+bar,y);ctx.moveTo(16,y-4);ctx.lineTo(16,y+4);ctx.moveTo(16+bar,y-4);ctx.lineTo(16+bar,y+4);ctx.stroke();ctx.fillText('500 нм',25+bar,y+5);
-    y+=28;ctx.fillText('Отображение: '+state.black+'–'+state.white+' · ближайший сосед, 2× · выбранная метка '+(markerIncluded?'включена':'не включена'),16,y);
-    y+=22;const target=state.target;ctx.fillText(target?'Стартовая точка '+target.id+' '+target.label+': локальные XYZ '+fmt(target.local)+'; floor(нм / размер вокселя) − начало.':'Точка контакта не выбрана. Координаты: floor(нм / размер вокселя) − начало.',16,y);
-    y+=22;ctx.fillText('Стартовая анатомическая точка не проверена. '+(segmentation?'Цвета seg_m1300 — для навигации. ':'')+'Исходные пиксели TIFF не изменены.',16,y);
+    ctx.beginPath();ctx.moveTo(16,y);ctx.lineTo(16+bar,y);ctx.moveTo(16,y-4);ctx.lineTo(16,y+4);ctx.moveTo(16+bar,y-4);ctx.lineTo(16+bar,y+4);ctx.stroke();ctx.fillText(translateUI('500 нм'),25+bar,y+5);
+    y+=28;ctx.fillText(translateUI('Отображение: ')+state.black+'–'+state.white+translateUI(' · ближайший сосед, 2× · выбранная метка '+(markerIncluded?'включена':'не включена')),16,y);
+    y+=22;const target=state.target;ctx.fillText(target?translateUI('Стартовая точка ')+target.id+' '+target.label+translateUI(': локальные XYZ ')+fmt(target.local)+translateUI('; floor(нм / размер вокселя) − начало.'):translateUI('Точка контакта не выбрана. Координаты: floor(нм / размер вокселя) − начало.'),16,y);
+    y+=22;ctx.fillText(translateUI('Стартовая анатомическая точка не проверена. '+(segmentation?'Цвета seg_m1300 — для навигации. ':'')+'Исходные пиксели TIFF не изменены.'),16,y);
     y+=22;ctx.font='12px system-ui';ctx.fillText('MICrONS Consortium (2025) · doi:10.1038/s41586-025-08790-w · CC BY 4.0',16,y);
-    y+=19;ctx.fillText('Условия: https://www.microns-explorer.org/terms-and-conditions',16,y);
+    y+=19;ctx.fillText(translateUI('Условия: ')+'https://www.microns-explorer.org/terms-and-conditions',16,y);
     const name=(state.volume.volume_id+'_local-z'+state.z+'_global-z'+globalZ+'_window-'+state.black+'-'+state.white+(markerIncluded?'_pointer':'_no-pointer')+'.png').replace(/[^a-zA-Z0-9_.-]/g,'_');
     canvas.toBlob(blob=>{
       if(!blob){status('Не удалось экспортировать PNG. Файл TIFF не изменён.','error');return;}
@@ -394,7 +395,7 @@
       const canvas=byId(name+'Canvas'),overlay=byId(name+'Overlay'),wrap=canvas.parentElement,physicalAspect=tiff.depth*state.volume.resolution_nm[2]/(width*resHorizontal),cssWidth=Math.max(50,Math.min(wrap.parentElement.clientWidth,470/physicalAspect)),cssHeight=cssWidth*physicalAspect;
       wrap.style.width=cssWidth+'px';wrap.style.height=cssHeight+'px';for(const c of [canvas,overlay]){c.style.width=cssWidth+'px';c.style.height=cssHeight+'px';}
       overlay.width=Math.ceil(cssWidth);overlay.height=Math.ceil(cssHeight);const ctx=overlay.getContext('2d');ctx.strokeStyle='#49c7f3';ctx.lineWidth=1.5;const yy=(state.z+.5)/tiff.depth*cssHeight;ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(cssWidth,yy);ctx.stroke();
-      const scalePixels=500/(width*resHorizontal)*cssWidth;ctx.strokeStyle='#101c25';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(10,cssHeight-23);ctx.lineTo(10+scalePixels,cssHeight-23);ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.font='11px system-ui';ctx.lineWidth=3;ctx.strokeStyle='#101c25';ctx.strokeText('500 нм',10,cssHeight-8);ctx.fillStyle='#fff';ctx.fillText('500 нм',10,cssHeight-8);
+      const scalePixels=500/(width*resHorizontal)*cssWidth;ctx.strokeStyle='#101c25';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(10,cssHeight-23);ctx.lineTo(10+scalePixels,cssHeight-23);ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.font='11px system-ui';ctx.lineWidth=3;ctx.strokeStyle='#101c25';ctx.strokeText(translateUI('500 нм'),10,cssHeight-8);ctx.fillStyle='#fff';ctx.fillText(translateUI('500 нм'),10,cssHeight-8);
     }
     byId('orthoReadout').textContent='Точка пересечения в локальных XYZ: '+fmt([ortho.x,ortho.y,state.z])+' · глобальные координаты вокселя: '+fmt([ortho.x,ortho.y,state.z].map((n,i)=>n+state.volume.begin_vox_xyz[i]))+'. Эти положения не изменяют предоставленные координаты контактов.';
   }
@@ -418,6 +419,7 @@
     ui.cursorReadout.textContent='Исходное значение пикселя: '+state.pixels[y*state.tiff.width+x]+' / 255\nЛокальные XYZ: '+fmt(local)+' · глобальные координаты вокселя: '+fmt(global)+'\nНачало вокселя (нм): '+fmt(nm);
   });
   ui.viewport.addEventListener('scroll',()=>{rememberViewCenter();navigationChanged('pan');},{passive:true});
+  window.addEventListener('handoff:languagechange',()=>{if(state.tiff){drawScale();renderOrthos();}});
   window.addEventListener('resize',()=>{if(state.tiff&&!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight){if(state.needsFit){ui.fitButton.click();state.needsFit=false;}else{const anchor=viewportCenter(),point=state.viewCenter||imagePointAt(anchor);resizeView();placeImagePoint(point,anchor);}renderOrthos();navigationChanged('resize');}});
   async function applyNavigationState(value,{emit=false,signal}={}){
     const abortError=()=>new DOMException('Синхронизация отменена.','AbortError');

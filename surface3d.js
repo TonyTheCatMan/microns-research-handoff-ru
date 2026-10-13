@@ -2,6 +2,7 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
+  const translateUI = text => window.HandoffI18n?.translate(text) ?? text;
   const vec = {
     add:(a,b)=>a.map((n,i)=>n+b[i]), sub:(a,b)=>a.map((n,i)=>n-b[i]),
     mul:(a,s)=>a.map(n=>n*s), dot:(a,b)=>a.reduce((s,n,i)=>s+n*b[i],0),
@@ -451,6 +452,7 @@
       this.yaw=next.yaw;this.pitch=next.pitch;this.zoom=next.zoom;this.center=[...next.center_nm];this.frameHeight=next.frame_height_nm;this.radius=next.radius_nm;if(basis)this.cameraBasis=basis;else if(camera.yaw!==undefined||camera.pitch!==undefined)this.cameraBasis=null;this.navigationChanged('remote',emit);this.schedule();return this.getNavigationState();
     }
     bind() {
+      window.addEventListener('handoff:languagechange',()=>this.schedule());
       $('surfaceReset').addEventListener('click',()=>this.reset());$('surfaceXY').addEventListener('click',()=>this.alignTo2D());
       for(const id of ['surfacePlane','surfaceBox'])$(id).addEventListener('change',()=>this.schedule());
       $('surfaceOpacity').addEventListener('input',e=>{this.alpha=Number(e.target.value)/100;$('surfaceOpacityReadout').textContent=e.target.value+'%';this.schedule();});
@@ -531,7 +533,7 @@
         const selected=annotation.id===this.selectedAnnotationId;MarkerStyles.draw(ctx,x,y,10,annotation.kind,annotation.number??'?',selected);this.annotationHits.push({id:annotation.id,x,y});
       }
       const scale=this.scaleBar(camera),bar=scale.pixels,y=this.stage.clientHeight-34,x=19;
-      ctx.font='11px system-ui';const caption=scale.label+' · плоскость экрана',boxWidth=Math.max(bar,ctx.measureText(caption).width)+20;
+      ctx.font='11px system-ui';const caption=translateUI(scale.label+' · плоскость экрана'),boxWidth=Math.max(bar,ctx.measureText(caption).width)+20;
       ctx.fillStyle='rgba(10,22,31,.87)';ctx.fillRect(9,y-14,boxWidth,42);ctx.strokeStyle='#eef6fa';ctx.lineWidth=2;
       ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+bar,y);ctx.moveTo(x,y-4);ctx.lineTo(x,y+4);ctx.moveTo(x+bar,y-4);ctx.lineTo(x+bar,y+4);ctx.stroke();ctx.fillStyle='#eef6fa';ctx.fillText(caption,x,y+20);ctx.restore();
       this.canvas.dataset.scaleNm=String(scale.nm);this.canvas.dataset.scalePixels=String(scale.pixels);
@@ -595,10 +597,10 @@
         this.canvas.width=old.width;this.canvas.height=old.height;this.labels.width=old.labelWidth;this.labels.height=old.labelHeight;this.ratio=old.ratio;this.draw();
       }
       ctx.fillStyle='#fff';ctx.fillRect(0,height,width,250);ctx.fillStyle='#17313d';ctx.font='bold 34px system-ui';ctx.fillText(this.caseId+' · '+this.volume.volume_id+' · 3D',28,height+48);
-      ctx.font='26px system-ui';ctx.fillText('Локальный Z '+(this.slice?.z??'—')+' · сегментация v1300 · цвета — метки объектов',28,height+91);
-      const seedIds=this.meshes.filter(m=>!m.context&&this.visibleMesh(m)).map(m=>m.id).join(', ')||'нет',contextCount=this.contextVisible?this.meshes.filter(m=>m.context&&m.visible&&this.contextShown.has(m.id)).length:0;
-      ctx.fillText('Объекты: '+seedIds+' · соседних структур: '+contextCount+(this.contextVisible?(this.contextMode==='slice'?' (срез)':' (объём)'):'')+' · меток: '+(this.annotationsVisible?this.annotationHits.length:0),28,height+134);
-      ctx.font='24px system-ui';ctx.fillText('3D для навигации. Анатомию проверяйте по серийной ЭМ.',28,height+177);ctx.fillText('MICrONS Consortium (2025) · doi:10.1038/s41586-025-08790-w · CC BY 4.0',28,height+216);
+      ctx.font='26px system-ui';ctx.fillText(translateUI('Локальный Z ')+(this.slice?.z??'—')+translateUI(' · сегментация v1300 · цвета — метки объектов'),28,height+91);
+      const seedIds=this.meshes.filter(m=>!m.context&&this.visibleMesh(m)).map(m=>m.id).join(', ')||translateUI('нет'),contextCount=this.contextVisible?this.meshes.filter(m=>m.context&&m.visible&&this.contextShown.has(m.id)).length:0;
+      ctx.fillText(translateUI('Объекты: ')+seedIds+translateUI(' · соседних структур: ')+contextCount+translateUI(this.contextVisible?(this.contextMode==='slice'?' (срез)':' (объём)'):'')+translateUI(' · меток: ')+(this.annotationsVisible?this.annotationHits.length:0),28,height+134);
+      ctx.font='24px system-ui';ctx.fillText(translateUI('3D для навигации. Анатомию проверяйте по серийной ЭМ.'),28,height+177);ctx.fillText('MICrONS Consortium (2025) · doi:10.1038/s41586-025-08790-w · CC BY 4.0',28,height+216);
       return {view,blob:new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Не удалось создать PNG 3D-вида.')),'image/png'))};
     }
     async exportPNG() {

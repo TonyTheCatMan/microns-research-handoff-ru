@@ -399,10 +399,11 @@
   }
   async function imageBlob(withAnnotations=true,options={}) {
     const v=viewer(),image=$('imageCanvas');if(!v?.ready)throw new Error('Дождитесь загрузки 2D.');
+    const tr=text=>window.HandoffI18n?.translate(text)??text;
     const segmentation=withAnnotations?('segmentation' in options?options.segmentation:window.SliceSegmentation?.captureFor(v.volume.volume_id,v.z)):null;
     const scale=Math.max(1,Math.floor(3072/Math.max(image.width,image.height))),left=32,top=120,canvas=document.createElement('canvas');
     canvas.width=image.width*scale+left*2;canvas.height=image.height*scale+top+150;
-    const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#18344b';ctx.font='bold 34px system-ui';ctx.fillText(`${currentCase} · ${v.volume.volume_id} · Z ${v.z}`,left,45);ctx.font='26px system-ui';ctx.fillText(`Глобальный Z ${v.volume.begin_vox_xyz[2]+v.z} · шаг XYZ ${v.volume.resolution_nm.join(' × ')} нм · яркость ${v.displayWindow.join('–')}`,left,85);
+    const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#18344b';ctx.font='bold 34px system-ui';ctx.fillText(`${currentCase} · ${v.volume.volume_id} · Z ${v.z}`,left,45);ctx.font='26px system-ui';ctx.fillText(tr(`Глобальный Z ${v.volume.begin_vox_xyz[2]+v.z} · шаг XYZ ${v.volume.resolution_nm.join(' × ')} нм · яркость ${v.displayWindow.join('–')}`),left,85);
     ctx.imageSmoothingEnabled=false;ctx.drawImage(image,left,top,image.width*scale,image.height*scale);
     if(segmentation?.canvas&&segmentation.settings.volume_id===v.volume.volume_id&&segmentation.settings.local_z===v.z)ctx.drawImage(segmentation.canvas,left,top,image.width*scale,image.height*scale);
     // Draw vector symbols directly into the export, without enlarging the screen overlay.
@@ -412,11 +413,11 @@
       const p=contact[key].map((n,i)=>Math.floor(n/v.volume.resolution_nm[i])-v.volume.begin_vox_xyz[i]);
       if(p[2]!==v.z||p.some((n,i)=>n<0||n>=v.volume.shape_xyz[i]))continue;
       const x=left+(p[0]+.5)*scale,y=top+(p[1]+.5)*scale;MarkerStyles.draw(ctx,x,y,6*unit,key,'',false,unit);
-      ctx.font='bold '+13*unit+'px system-ui';ctx.lineWidth=3*unit;ctx.strokeStyle='#172632';ctx.strokeText(contact.contact_id+suffix,x+10*unit,y-10*unit);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(contact.contact_id+suffix,x+10*unit,y-10*unit);
+      ctx.font='bold '+13*unit+'px system-ui';ctx.lineWidth=3*unit;ctx.strokeStyle='#172632';ctx.strokeText(contact.contact_id+tr(suffix),x+10*unit,y-10*unit);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(contact.contact_id+tr(suffix),x+10*unit,y-10*unit);
     }
     if(withAnnotations&&visible())for(const record of sectionRecords()){if(record.geometry){HandoffDrawingGeometry.drawRecord(ctx,record,v.volume,v.z,{zoom:scale,x:left,y:top,unit});continue;}const [x,y]=locationInVolume(record);MarkerStyles.draw(ctx,left+x*scale,top+y*scale,10*unit,record.kind,record.number,record.id===selectedId,unit);}
-    const y=top+image.height*scale+38,bar=500/v.volume.resolution_nm[0]*scale;ctx.strokeStyle='#18344b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+bar,y);ctx.stroke();ctx.fillStyle='#18344b';ctx.font='26px system-ui';ctx.fillText('500 нм',left+bar+16,y+8);
-    ctx.fillText(`Исходное изображение: ${image.width} × ${image.height} пикселей · без потери исходных пикселей`,left,y+43);ctx.font='24px system-ui';ctx.fillText('MICrONS Consortium (2025) · CC BY 4.0 · doi:10.1038/s41586-025-08790-w',left,y+82);
+    const y=top+image.height*scale+38,bar=500/v.volume.resolution_nm[0]*scale;ctx.strokeStyle='#18344b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+bar,y);ctx.stroke();ctx.fillStyle='#18344b';ctx.font='26px system-ui';ctx.fillText(tr('500 нм'),left+bar+16,y+8);
+    ctx.fillText(tr(`Исходное изображение: ${image.width} × ${image.height} пикселей · без потери исходных пикселей`),left,y+43);ctx.font='24px system-ui';ctx.fillText('MICrONS Consortium (2025) · CC BY 4.0 · doi:10.1038/s41586-025-08790-w',left,y+82);
     return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Не удалось создать PNG.')),'image/png'));
   }
   async function exportFindings(scope) {
