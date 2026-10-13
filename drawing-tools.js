@@ -27,6 +27,13 @@
   window.addEventListener('annotations:mutation',event=>recordMutation(event.detail));
   function restoreHistory(direction){
     if(mainDrawing())return mainDrawing().restoreHistory(direction);
+    if(api()?.isExporting)return Promise.resolve();
+    // Undo unfinished input before touching an earlier saved drawing.
+    if(direction==='undo'&&(gesture||draft&&!draft.id&&draft.geometry.points_nm.length===1)){
+      const pointer=gesture?.pointer;gesture=null;preview=null;endTrace();
+      if(pointer!==undefined&&viewport.hasPointerCapture(pointer))viewport.releasePointerCapture(pointer);
+      message('Незавершённое рисование отменено.');redraw();return Promise.resolve();
+    }
     return queue(async()=>{
     await api()?.whenSettled();endTrace();const h=history(),from=h[direction],to=h[direction==='undo'?'redo':'undo'];if(!from.length)return;
     const entry=from.at(-1);replaying=true;
@@ -57,7 +64,7 @@
     document.querySelectorAll('[data-drawing-tool]').forEach(button=>{button.disabled=disabled;const active=button.dataset.drawingTool===mode();button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
     const count=draft?.geometry.points_nm.length||0;
     $('drawingFinish').disabled=count<2||disabled;$('drawingClose').disabled=!draft||!canClose(draft.geometry.points_nm)||disabled;$('drawingCancel').disabled=!draft||disabled;
-    const h=mainDrawing()?.historyState()||history();$('drawingUndo').disabled=!h.undo.length||api()?.isExporting;$('drawingRedo').disabled=!h.redo.length||api()?.isExporting;
+    const h=mainDrawing()?.historyState()||history(),unfinished=Boolean(gesture||draft&&!draft.id&&draft.geometry.points_nm.length===1);$('drawingUndo').disabled=(!h.undo.length&&!unfinished)||disabled;$('drawingRedo').disabled=!h.redo.length||disabled;
     viewport.classList.toggle('drawing-active',G.kinds.has(mode())||mode()==='select');
   }
   function toolChanged(){if(mode()!==lastMode){intent++;endTrace();gesture=null;preview=null;lastMode=mode();}refresh();}
@@ -141,9 +148,10 @@
   });
   function focusNote(){if(!selected())return;$('annotationNotes').scrollIntoView({block:'center'});$('annotationNotes').focus();}
   document.addEventListener('keydown',event=>{
-    if(event.defaultPrevented||event.isComposing||event.target.closest('input,textarea,select,[contenteditable="true"],dialog')||window.PointActions?.isOpen||$('page-viewer').hidden)return;
+    if(event.defaultPrevented||event.isComposing||event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),dialog,[role="dialog"]')||window.PointActions?.isOpen||$('page-viewer').hidden)return;
     const key=event.key.toLowerCase();
-    if((event.ctrlKey||event.metaKey)&&key==='z'){consume(event);restoreHistory(event.shiftKey?'redo':'undo');return;}
+    // Physical KeyZ also covers the Russian layout (event.key is then "я").
+    if((event.ctrlKey||event.metaKey)&&!event.altKey&&(key==='z'||event.code==='KeyZ')){consume(event);if(!api()?.isExporting)restoreHistory(event.shiftKey?'redo':'undo');return;}
     if(event.ctrlKey||event.metaKey||event.altKey)return;
     if(event.key==='Escape'&&(gesture||draft)){consume(event);gesture=null;preview=null;endTrace();redraw();return;}
     if(event.key==='Enter'&&draft){consume(event);finishTrace();return;}
