@@ -5,7 +5,7 @@
   let selected=HandoffCaseSelection.defaultId;
   function route(){const page=['viewer','neuroglancer','sources'].includes(location.hash.slice(1))?location.hash.slice(1):'viewer';document.querySelectorAll('.page').forEach(n=>n.hidden=n.id!=='page-'+page);document.querySelectorAll('.main-nav a').forEach(a=>{if(a.hash==='#'+page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});window.dispatchEvent(new Event('resize'));}
   window.addEventListener('hashchange',route);route();
-  function updateCases(keep=selected){$('caseSelect').replaceChildren(...caseIds.map(id=>new Option(id,id)));$('caseSelect').value=caseIds.includes(keep)?keep:caseIds[0];return $('caseSelect').value;}
+  function updateCases(keep=selected){$('caseSelect').replaceChildren(...caseIds.map(id=>new Option(HandoffCaseSelection.optionLabel(id),id)));$('caseSelect').value=caseIds.includes(keep)?keep:caseIds[0];return $('caseSelect').value;}
   function choose(id){id=updateCases(id);window.ReviewViewer?.select(id);location.hash='viewer';}
   function reflect(id){selected=id;$('caseBadge').textContent='Все '+caseIds.length;const ids=Array.from($('caseSelect').options).map(o=>o.value),pos=ids.indexOf(id);$('prevCase').disabled=pos<=0;$('nextCase').disabled=pos<0||pos===ids.length-1;const url=new URL(location.href);url.searchParams.set('case',id);const vol=$('volumeSelect').value;if(vol)url.searchParams.set('volume',vol);url.searchParams.delete('z');history.replaceState(null,'',url);}
   window.addEventListener('review:ready',()=>{updateCases($('caseSelect').value);const cases=ReviewViewer.activeCases;$('activeCaseSummary').firstChild.textContent=cases.length+' случаев · '+cases.reduce((n,c)=>n+c.volumes.length,0)+' объёмов';});

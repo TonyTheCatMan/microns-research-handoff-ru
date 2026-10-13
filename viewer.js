@@ -62,7 +62,7 @@
     try {
       state.metadata=validateMetadata(JSON.parse(await HandoffAssets.read('case_index.json',true)));
       state.activeCases=HandoffCaseSelection.cases(state.metadata);
-      ui.caseSelect.replaceChildren(...state.activeCases.map(c=>new Option(c.case_id,c.case_id)));
+      ui.caseSelect.replaceChildren(...state.activeCases.map(c=>new Option(HandoffCaseSelection.optionLabel(c.case_id),c.case_id)));
       ui.caseSelect.disabled=false;
       const params=new URLSearchParams(location.search);
       if(!params.has('case')&&!params.has('panel'))try{const saved=JSON.parse(localStorage.getItem('microns-last-view-v1')||'null');if(saved&&HandoffCaseSelection.includes(saved.case_id)){params.set('case',saved.case_id);params.set('volume',saved.volume_id);params.set('z',String(saved.z));}}catch{}
@@ -94,8 +94,8 @@
     if(!state.currentCase)return;
     ui.caseSelect.value=state.currentCase.case_id;
     const assessment=HandoffCaseSelection.assessmentLabel(state.currentCase.case_id);
-    ui.volumeSelect.replaceChildren(...state.currentCase.volumes.map(v=>new Option(assessment+' · '+v.volume_id.replace('-main',' · основной').replace('-extension-',' · расширение '),v.volume_id)));
-    ui.volumeSelect.title=assessment;byId('volumeAssessment').textContent=assessment;
+    ui.caseSelect.title=assessment;byId('caseAssessment').textContent=assessment;
+    ui.volumeSelect.replaceChildren(...state.currentCase.volumes.map(v=>new Option(v.volume_id.replace('-main',' · основной').replace('-extension-',' · расширение '),v.volume_id)));
     if(state.currentCase.volumes.some(v=>v.volume_id===wantedVolume))ui.volumeSelect.value=wantedVolume;
     ui.volumeSelect.disabled=false;
     return loadVolume(wantedZ);
@@ -463,7 +463,7 @@
       if(volumeId&&!requested.volumes.some(v=>v.volume_id===volumeId))throw new Error('Указанный объём не принадлежит случаю '+id+'.');
       // Active navigation never expands the selection; full metadata remains for backups.
       if(!Array.from(ui.caseSelect.options).some(option=>option.value===id)){
-        ui.caseSelect.replaceChildren(...state.activeCases.map(c=>new Option(c.case_id,c.case_id)));
+        ui.caseSelect.replaceChildren(...state.activeCases.map(c=>new Option(HandoffCaseSelection.optionLabel(c.case_id),c.case_id)));
       }
       ui.caseSelect.value=id;return await selectCase(volumeId,z);
     }
