@@ -93,7 +93,9 @@
     state.currentCase=state.activeCases.find(c=>c.case_id===ui.caseSelect.value)||state.activeCases[0];
     if(!state.currentCase)return;
     ui.caseSelect.value=state.currentCase.case_id;
-    ui.volumeSelect.replaceChildren(...state.currentCase.volumes.map(v=>new Option(v.volume_id.replace('-main',' · основной').replace('-extension-',' · расширение '),v.volume_id)));
+    const assessment=HandoffCaseSelection.assessmentLabel(state.currentCase.case_id);
+    ui.volumeSelect.replaceChildren(...state.currentCase.volumes.map(v=>new Option(assessment+' · '+v.volume_id.replace('-main',' · основной').replace('-extension-',' · расширение '),v.volume_id)));
+    ui.volumeSelect.title=assessment;byId('volumeAssessment').textContent=assessment;
     if(state.currentCase.volumes.some(v=>v.volume_id===wantedVolume))ui.volumeSelect.value=wantedVolume;
     ui.volumeSelect.disabled=false;
     return loadVolume(wantedZ);
