@@ -4,7 +4,7 @@
   const selection=window.HandoffCaseSelection,activeCase=id=>selection?.includes(id)===true;
   const stateVolumes=state=>[state?.title?.match(/\bR\d{3}-(?:main|extension-\d+)\b/)?.[0],...(state?.layers||[]).filter(l=>l.name?.startsWith('Границы ')).map(l=>l.name.slice('Границы '.length))].filter(Boolean);
   const initialParams=new URLSearchParams(location.search);
-  let initialState=null;try{const hash=decodeURIComponent(location.hash.replace(/^#!?/,''));if(hash.startsWith('{'))initialState=JSON.parse(hash);}catch{}
+  let initialState=null;try{const hash=decodeURIComponent((window.MicronsInitialHash??location.hash).replace(/^#!?/,''));if(hash.startsWith('{'))initialState=JSON.parse(hash);}catch{}
   const initialVolumes=stateVolumes(initialState),initialCase=initialParams.get('case')||initialParams.get('volume')?.split('-')[0]||initialVolumes[0]?.split('-')[0],initialVolume=initialParams.get('volume')||initialVolumes[0]||initialCase+'-main';
   if(!activeCase(initialCase)||!initialVolume.startsWith(initialCase+'-')||initialVolumes.some(id=>id!==initialVolume)){
     const caseId=selection?.defaultId||'R002',url=new URL('../',location.href);url.searchParams.set('case',caseId);url.searchParams.set('volume',caseId+'-main');url.hash='neuroglancer';location.replace(url.href);return;
@@ -382,8 +382,16 @@
     started=true;
     setSlicePlane(initialState?.micronsSlicePlane||{enabled:false,angles_deg:[0,0,0],center_global_nm:currentCenterNm()},{announce:false});
     syncSectionPanels();markBaseline();installDeselectControls();viewer.state.changed.add(schedule);viewer.display.updateFinished.add(syncSectionPanels);
+    let lastPosition=Array.from(viewer.position.value);
     viewer.position.changed.add(()=>{
-      if(!applying)setSlicePlane({...getSlicePlane(),center_global_nm:currentCenterNm()},{announce:false});
+      const position=Array.from(viewer.position.value);if(same(position,lastPosition))return;
+      lastPosition=position;if(applying)return;
+      const plane=getSlicePlane(),res=resolution();
+      // Native positions are Float32 voxel coordinates. Do not replace the exact
+      // shared physical pivot merely because source initialization rounds that
+      // same location to its native representation (about 0.01 nm here).
+      if(res.length===3&&position.every((n,i)=>n===Math.fround(plane.center_global_nm[i]/res[i])))return;
+      setSlicePlane({...plane,center_global_nm:currentCenterNm()},{announce:false});
     });
     window.addEventListener('microns:focus',event=>{
       const d=event.detail;if(applying&&syncEnabled()||!d?.id||!valid3(d.point)||!caseId||!volumeId)return;
