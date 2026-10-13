@@ -17,12 +17,12 @@
     const shown=!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight;
     const center=shown?imagePointAt(viewportCenter()):state.viewCenter||{x:state.tiff.width/2,y:state.tiff.height/2};
     const res=state.volume.resolution_nm,begin=state.volume.begin_vox_xyz;
-    return {schema_version:1,case_id:state.currentCase.case_id,volume_id:state.volume.volume_id,position_nm:[(begin[0]+center.x)*res[0],(begin[1]+center.y)*res[1],(begin[2]+state.z+.5)*res[2]],local_z:state.z,zoom:state.zoom,viewport_css_px:shown?[ui.viewport.clientWidth,ui.viewport.clientHeight]:state.viewSize||[0,0],surface:surface.getNavigationState()};
+    return {schema_version:1,case_id:state.currentCase.case_id,volume_id:state.volume.volume_id,position_nm:[(begin[0]+center.x)*res[0],(begin[1]+center.y)*res[1],(begin[2]+state.z+.5)*res[2]],local_z:state.z,zoom:state.zoom,viewport_css_px:shown?[ui.viewport.clientWidth,ui.viewport.clientHeight]:state.viewSize||[0,0],surface:surface.getNavigationState(),slicePlane:surface.getSlicePlane()};
   }
   function navigationSignature(value){return JSON.stringify(value);}
   function navigationChanged(reason,source='2d'){
     if(navigationMute||!state.tiff)return;navigationPending={reason,source};if(navigationFrame)return;
-    navigationFrame=requestAnimationFrame(()=>{navigationFrame=0;if(navigationMute)return;const view=getNavigationState();if(!view)return;const signature=navigationSignature(view);if(signature===navigationLast)return;navigationLast=signature;window.dispatchEvent(new CustomEvent('review:view',{detail:{...view,...navigationPending}}));});
+    navigationFrame=requestAnimationFrame(()=>{navigationFrame=0;if(navigationMute)return;let view=getNavigationState();if(!view)return;if(navigationPending.source==='2d'){surface.updateSlicePlaneCenter(view.position_nm,{emit:false});view=getNavigationState();}const signature=navigationSignature(view);if(signature===navigationLast)return;navigationLast=signature;window.dispatchEvent(new CustomEvent('review:view',{detail:{...view,...navigationPending}}));});
   }
   window.addEventListener('surface:view',event=>{if(event.detail.case_id===state.currentCase?.case_id&&event.detail.volume_id===state.volume?.volume_id)navigationChanged(event.detail.reason,event.detail.reason==='fit-2d'?'3d-fit':event.detail.reason==='align-2d'?'3d-orientation':'3d');});
   const normalPath = s => String(s).replace(/\\/g, '/').replace(/^\.\//, '');
@@ -86,7 +86,7 @@
     ui.emptyState.querySelector('h2').textContent='Подготавливаем изображения';ui.emptyState.querySelector('p').textContent='Выбранный объём загружается с сайта.';
     ui.scaleNote.textContent = '';
     byId('sliceScale').hidden = true;
-    ui.zReadout.textContent = '—';
+    ui.zReadout.textContent = '-';
     ui.cursorReadout.textContent = 'Наведите указатель на изображение, чтобы увидеть значение пикселя и координаты.';
     ui.scaleCanvas.getContext('2d').clearRect(0,0,ui.scaleCanvas.width,ui.scaleCanvas.height);
   }
@@ -125,6 +125,7 @@
       if (!actual.every((n,i) => n === volume.shape_xyz[i])) throw new Error('Размеры в метаданных и TIFF не совпадают: ожидаемые XYZ ' + fmt(volume.shape_xyz) + ', получены ' + fmt(actual) + '. Не используйте эти координаты для проверки.');
       state.tiff = tiff; state.z = wantedZ!==null && wantedZ!==undefined && Number.isFinite(Number(wantedZ)) ? Math.max(0,Math.min(tiff.depth-1,Math.floor(Number(wantedZ)))) : Math.floor(tiff.depth / 2); state.target = null;
       surface.setVolume(volume,state.currentCase.case_id);
+      surface.setTiff(tiff);
       resetOrthos();
       state.black = 0; state.white = 255; ui.blackInput.value = '0'; ui.whiteInput.value = '255';
 
@@ -290,7 +291,7 @@
     ctx.restore();
     surface.setTargets?.(points,ui.overlayToggle.checked);
     const target=state.target;
-    ui.targetStatus.textContent=(target?target.id+' '+target.label.toLowerCase()+': локальные XYZ '+fmt(target.local)+'. ':'')+(ui.overlayToggle.checked?'Все включённые T-точки показаны на своих срезах; в 3D — вместе.':'Точки T скрыты. Кнопки контактов по-прежнему перемещают к их срезам.');
+    ui.targetStatus.textContent=(target?target.id+' '+target.label.toLowerCase()+': локальные XYZ '+fmt(target.local)+'. ':'')+(ui.overlayToggle.checked?'Все включённые T-точки показаны на своих срезах; в 3D - вместе.':'Точки T скрыты. Кнопки контактов по-прежнему перемещают к их срезам.');
     window.dispatchEvent(new CustomEvent('review:display',{detail:{remote:navigationMute>0}}));
   }
   function watchPixelDensity(){
@@ -337,7 +338,7 @@
     ctx.beginPath();ctx.moveTo(16,y);ctx.lineTo(16+bar,y);ctx.moveTo(16,y-4);ctx.lineTo(16,y+4);ctx.moveTo(16+bar,y-4);ctx.lineTo(16+bar,y+4);ctx.stroke();ctx.fillText(translateUI('500 нм'),25+bar,y+5);
     y+=28;ctx.fillText(translateUI('Отображение: ')+state.black+'–'+state.white+translateUI(' · ближайший сосед, 2× · выбранная метка '+(markerIncluded?'включена':'не включена')),16,y);
     y+=22;const target=state.target;ctx.fillText(target?translateUI('Стартовая точка ')+target.id+' '+target.label+translateUI(': локальные XYZ ')+fmt(target.local)+translateUI('; floor(нм / размер вокселя) − начало.'):translateUI('Точка контакта не выбрана. Координаты: floor(нм / размер вокселя) − начало.'),16,y);
-    y+=22;ctx.fillText(translateUI('Стартовая анатомическая точка не проверена. '+(segmentation?'Цвета seg_m1300 — для навигации. ':'')+'Исходные пиксели TIFF не изменены.'),16,y);
+    y+=22;ctx.fillText(translateUI('Стартовая анатомическая точка не проверена. '+(segmentation?'Цвета seg_m1300 - для навигации. ':'')+'Исходные пиксели TIFF не изменены.'),16,y);
     y+=22;ctx.font='12px system-ui';ctx.fillText('MICrONS Consortium (2025) · doi:10.1038/s41586-025-08790-w · CC BY 4.0',16,y);
     y+=19;ctx.fillText(translateUI('Условия: ')+'https://www.microns-explorer.org/terms-and-conditions',16,y);
     const name=(state.volume.volume_id+'_local-z'+state.z+'_global-z'+globalZ+'_window-'+state.black+'-'+state.white+(markerIncluded?'_pointer':'_no-pointer')+'.png').replace(/[^a-zA-Z0-9_.-]/g,'_');
@@ -449,6 +450,8 @@
       setZ(z);state.viewCenter={x:local[0],y:local[1]};state.needsFit=false;
       if(!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight)placeImagePoint(state.viewCenter,viewportCenter());
       if(value.surface)surface.applyNavigationState(value.surface,{emit:false});
+      if(value.slicePlane)surface.setSlicePlane(value.slicePlane,{emit:false});
+      else surface.updateSlicePlaneCenter(position,{emit:false});
       navigationLast=navigationSignature(getNavigationState());
     }finally{navigationMute--;}
     if(emit){navigationLast=beforeNavigation;navigationChanged('remote');}return getNavigationState();

@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/?v=20261013-ngcontrols1',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=20261013-oblique1',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
   const activeCase=id=>window.HandoffCaseSelection?.includes(id)===true;
@@ -126,7 +126,7 @@
   let navigationRevision=crypto.randomUUID(),appliedNavigationRevision=null,navigationFocus=null;
   let localControls={},localNavigation=null,localFocus=null,localClear=false,normalizeNative=false;
   let boundaryCache=null;
-  let resumePending=false,nativeApplication=null,sharedFullRotation=false;
+  let resumePending=false,nativeApplication=null,localSlicePlane=null;
   const active=()=>location.hash==='#neuroglancer';
   const status=text=>$('neuroglancerStatus').textContent=text;
   const controls=()=>Object.fromEntries(controlIds.map(id=>{const input=$(id);return[id,input.type==='checkbox'?input.checked:input.type==='number'||input.type==='range'?Number(input.value):input.value];}));
@@ -164,7 +164,8 @@
     if(navigation?.position_nm)state.position=navigation.position_nm.map((n,i)=>n/volume.resolution_nm[i]);
     state.crossSectionScale=1/v.zoom;
     if(navigationFocus?.point_nm)state.position=navigationFocus.point_nm.map((n,i)=>n/volume.resolution_nm[i]);
-    return{caseId:c.case_id,volumeId:volume.volume_id,state,fullRotation:sharedFullRotation,main:{navigation,controls:settings,selectedId:selection,deleteSelectionId:selection||null,objects:surface.meshes.map(m=>({id:m.id,segment_id:m.segment_id,visible:m.visible})),contextFocus:surface.contextFocus,contextFocusLabel:surface.contextFocusLabel,target:v.target,boundaryOverlay:boundaryOverlay(settings)},navigate:navigationPending,navigationSource,navigationRevision,focus:navigationFocus,reason:reasonPending};
+    const slicePlane=surface.getSlicePlane();state.micronsSlicePlane=slicePlane;
+    return{caseId:c.case_id,volumeId:volume.volume_id,state,slicePlane,main:{navigation,controls:settings,selectedId:selection,deleteSelectionId:selection||null,objects:surface.meshes.map(m=>({id:m.id,segment_id:m.segment_id,visible:m.visible})),contextFocus:surface.contextFocus,contextFocusLabel:surface.contextFocusLabel,target:v.target,boundaryOverlay:boundaryOverlay(settings)},navigate:navigationPending,navigationSource,navigationRevision,focus:navigationFocus,reason:reasonPending};
   }
   function showLink(payload){
     currentState=payload.state;currentUrl=urlFor(currentState);external.href=currentUrl;external.removeAttribute('aria-disabled');reset.disabled=false;
@@ -174,10 +175,10 @@
       const native=frame.contentWindow?.MicronsViewSync,caseId=native?.caseId||loadedCaseId,volumeId=native?.volumeId||caseId;
       $('neuroglancerTabCase').textContent='· '+caseId;$('neuroglancerHeading').textContent='· '+caseId;
       $('neuroglancerLocation').textContent=`${volumeId} · синхронизация выключена`;
-      frame.title='Neuroglancer — '+volumeId;return;
+      frame.title='Neuroglancer - '+volumeId;return;
     }
     $('neuroglancerTabCase').textContent='· '+payload.caseId;$('neuroglancerHeading').textContent='· '+payload.caseId;
-    frame.title='Neuroglancer — '+payload.volumeId;
+    frame.title='Neuroglancer - '+payload.volumeId;
     const records=(window.HandoffAnnotations?.records||[]).filter(r=>r.case_id===payload.caseId),selected=payload.main?.selectedId||'';
     markerSelect.replaceChildren(new Option('Не выбрана',''),...records.map(r=>new Option(`№${r.number} · ${r.volume_id}`,r.id)));
     if(records.some(r=>r.id===selected))markerSelect.value=selected;
@@ -222,11 +223,11 @@
   }
   async function applyHost(payload){
     if(!allowedCasePayload(payload))return;
-    if(typeof payload.fullRotation==='boolean')sharedFullRotation=payload.fullRotation;
     const main=payload.main;if(!main?.navigation)return;
     if(!lastNavigation||payload.reason!=='clear'&&(payload.navigate||payload.navigationRevision!==appliedNavigationRevision)||ReviewViewer.currentCase?.case_id!==payload.caseId||ReviewViewer.volume?.volume_id!==payload.volumeId)await ReviewViewer.applyNavigationState(main.navigation,{emit:false});
     ReviewViewer.applyTarget?.(main.target?.id||null,main.target?.key);
     applyControls(main.controls);applyObjects(main.objects);
+    if(payload.slicePlane)ReviewViewer.surface.setSlicePlane(payload.slicePlane,{emit:false});
     await HandoffAnnotations.refresh();await HandoffAnnotations.applySelection(main.selectedId||null,{focus:false});
     if(valid3(main.contextFocus))ReviewViewer.surface.setContextFocus(main.contextFocus,main.contextFocusLabel||'выбранная точка');
     else if(main.contextFocus===null){ReviewViewer.surface.contextFocus=null;ReviewViewer.surface.contextFocusLabel=main.contextFocusLabel||'центр среза';ReviewViewer.surface.updateNearby();ReviewViewer.surface.visibilityChanged();}
@@ -248,7 +249,6 @@
     if(!allowedCasePayload(payload))return;
     const revision=bus.syncRevision,allowed=()=>bus.enabled&&bus.syncRevision===revision;
     if(!allowed())return;
-    if(typeof payload.fullRotation==='boolean')sharedFullRotation=payload.fullRotation;
     const controller=new AbortController();nativeApplication=controller;
     if(type==='ng-deselect'){
       if(payload.caseId!==ReviewViewer.currentCase?.case_id||payload.volumeId!==ReviewViewer.volume?.volume_id)return;
@@ -257,6 +257,12 @@
     }
     const c=ReviewViewer.metadata?.cases.find(c=>c.case_id===payload.caseId);if(!c)return;
     const expected=c.volumes.find(v=>v.volume_id===payload.volumeId);if(!expected)return;
+    // Rotating the sampling plane must not move the separate acquired-XY pane,
+    // overwrite its fit/zoom, or turn a camera update into point navigation.
+    if(payload.reason==='slice-plane'&&ReviewViewer.currentCase?.case_id===c.case_id&&ReviewViewer.volume?.volume_id===expected.volume_id){
+      if(payload.slicePlane)ReviewViewer.surface.setSlicePlane(payload.slicePlane,{emit:false});
+      const current=snapshot();if(current)showLink(current);return;
+    }
     const state=payload.state||{},point=type==='ng-focus'?payload.point:state.position;
     const nm=valid3(point)?point.map((n,i)=>n*expected.resolution_nm[i]):null;
     const contains=v=>nm&&nm.every((n,i)=>n>=v.begin_vox_xyz[i]*v.resolution_nm[i]&&n<v.end_vox_xyz_exclusive[i]*v.resolution_nm[i]);
@@ -273,6 +279,7 @@
     if(nm&&navigation.surface)navigation.surface.center_nm=nm.map((n,i)=>n-dest.begin_vox_xyz[i]*dest.resolution_nm[i]);
     await ReviewViewer.applyNavigationState(navigation,{emit:false,signal:controller.signal});
     if(!allowed())return;
+    if(payload.slicePlane)ReviewViewer.surface.setSlicePlane(payload.slicePlane,{emit:false});
     if(type==='ng-focus'){
       if(!payload.seed){await HandoffAnnotations.refresh();if(!allowed())return;await HandoffAnnotations.applySelection(payload.id,{focus:false});}
       else{await HandoffAnnotations.applySelection(null,{focus:false});if(!allowed())return;const target=/^(.+)-(ctr_nm|pre_nm|post_nm)$/.exec(payload.id);if(target)ReviewViewer.applyTarget?.(target[1],target[2]);}
@@ -304,9 +311,9 @@
     if(localClear){
       localClear=false;localFocus=null;HandoffAnnotations.clearSelection({source:'queued-clear'});
     }
-    if(Object.keys(localControls).length||localNavigation||localFocus){
-      const values=localControls,nav=localNavigation,focus=localFocus;localControls={};localNavigation=null;localFocus=null;
-      if(nav)await ReviewViewer.applyNavigationState(nav,{emit:false});applyControls(values);schedule('local',!!nav||!!focus,focus);
+    if(Object.keys(localControls).length||localNavigation||localFocus||localSlicePlane){
+      const values=localControls,nav=localNavigation,focus=localFocus,plane=localSlicePlane;localControls={};localNavigation=null;localFocus=null;localSlicePlane=null;
+      if(nav)await ReviewViewer.applyNavigationState(nav,{emit:false});applyControls(values);if(plane)ReviewViewer.surface.setSlicePlane(plane,{emit:false});schedule(plane&&!nav&&!focus?'slice-plane':'local',!!nav||!!focus,focus);
     }else if(normalizeNative){const reason=normalizeNative;normalizeNative=false;schedule(reason,reason==='volume');}
     if(resumePending)schedule('sync-resume',true);
   }
@@ -345,6 +352,7 @@
   }
   for(const event of ['annotations:ready','review:position','annotations:surface-ready'])window.addEventListener(event,()=>{begin();if(started&&!applying)schedule('data');});
   window.addEventListener('review:view',event=>{if(applying&&!event.detail?.remote)localNavigation=event.detail;else{navigationSource=event.detail?.source||'all';schedule(event.detail?.reason||'navigation',true);}});
+  window.addEventListener('surface:slice-plane',()=>{const plane=ReviewViewer.surface.getSlicePlane();if(applying)localSlicePlane=plane;else schedule('slice-plane');});
   window.addEventListener('review:focus',event=>{localClear=false;if(applying)localFocus=event.detail;else schedule('focus',true,event.detail);});
   window.addEventListener('annotations:selection',event=>{
     if(event.detail.intent==='clear'){

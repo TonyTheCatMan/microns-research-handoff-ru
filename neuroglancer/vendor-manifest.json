@@ -73,8 +73,11 @@
     },
     {
       "path": "main.e9945dcc2df22b9e.js",
-      "bytes": 1240000,
-      "sha256": "91e70c4c7c8648fd2fc8a58695bf00c58a5f004f9f6cd48228696e03836ccc54"
+      "bytes": 1239998,
+      "sha256": "2566f2877bdcd4fcb23130c39bd99273c66afc78cb7a4159be745e1f848210f6",
+      "upstream_sha256": "91e70c4c7c8648fd2fc8a58695bf00c58a5f004f9f6cd48228696e03836ccc54",
+      "upstream_bytes": 1240000,
+      "local_patch": "Replace the missing layer-type UI placeholder with an ordinary hyphen."
     }
   ]
 }

@@ -286,7 +286,7 @@
     window.HandoffDrawings?.toolChanged();
     const value=mode();viewer()?.surface?.setAnnotationMode(value==='point3d'?'point':value==='object3d'?'object':'off');
     $('viewport').classList.toggle('marking-2d',value.endsWith('2d'));
-    $('annotationModeHelp').textContent={navigate:'Нажмите на метку, чтобы открыть свойства. Снять выбор: щелчок вне меток или Esc. Delete — удалить выбранную метку.',contact2d:'Нажмите на контакт в 2D: появится следующий номер. При необходимости добавьте заметку ниже.',point2d:'Нажмите на особенность в 2D и заполните её свойства в панели ниже.',point3d:'Нажмите на видимую поверхность в 3D. Перетаскивание по-прежнему вращает модель.',object3d:'Нажмите на объект в 3D для выбора и записи его свойств. При необходимости скройте плоскость XY.'}[value]||window.HandoffDrawings?.toolHint(value)||'Выберите инструмент.';
+    $('annotationModeHelp').textContent={navigate:'Нажмите на метку, чтобы открыть свойства. Снять выбор: щелчок вне меток или Esc. Delete - удалить выбранную метку.',contact2d:'Нажмите на контакт в 2D: появится следующий номер. При необходимости добавьте заметку ниже.',point2d:'Нажмите на особенность в 2D и заполните её свойства в панели ниже.',point3d:'Нажмите на видимую поверхность в 3D. Перетаскивание по-прежнему вращает модель.',object3d:'Нажмите на объект в 3D для выбора и записи его свойств. При необходимости скройте срез ЭМ.'}[value]||window.HandoffDrawings?.toolHint(value)||'Выберите инструмент.';
   }
   $('annotationMode').addEventListener('change',setMode);
   $('annotationsVisible').addEventListener('change',()=>{prefsSave();draw();});
@@ -355,7 +355,7 @@
   });
   window.addEventListener('annotations:pick3d',event=>addPoint({...event.detail,source_view:'3d'},mode()==='object3d'?'object':'point'));
   window.addEventListener('annotations:select3d',event=>select(event.detail.id,false,true,'3d'));
-  window.addEventListener('annotations:pick3d-miss',event=>$('annotationModeHelp').textContent=event.detail?.message||'Нажмите на видимую поверхность. При необходимости скройте плоскость XY.');
+  window.addEventListener('annotations:pick3d-miss',event=>$('annotationModeHelp').textContent=event.detail?.message||'Нажмите на видимую поверхность. При необходимости скройте срез ЭМ.');
   window.addEventListener('annotations:surface-ready',()=>{setMode();draw();viewer()?.surface?.setContextLimit(Number($('contextLimit').value));viewer()?.surface?.setContextVisible($('surfaceContext').checked);});
   function syncCase() {
     if(notesWindow&&mainWindow()?.HandoffAnnotations?.store){syncFromMain();return;}

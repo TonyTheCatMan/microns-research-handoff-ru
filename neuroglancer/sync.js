@@ -22,7 +22,7 @@
   const waiters=[];
   let caseId=initialCase,volumeId=initialVolume,latest=null,applied=null,pending=null,applying=false,started=false,timer=null,lastNative='',lastNav='',hostPayload=null,lastNavigationRevision=null;
   let clearButton=null,pointSelected=false,clearMessage=null,selectedPointId=null,mainOwner=null,deleteConfirmationPending=false;
-  let modeGeneration=0,awaitingMain=false,normalizationPending=false,sharedFullRotation=false;
+  let modeGeneration=0,awaitingMain=false,normalizationPending=false,slicePlane=null;
   const syncEnabled=()=>bus.enabled!==false;
   const currentApplication=generation=>syncEnabled()&&generation===modeGeneration;
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b),clone=value=>value===undefined?undefined:structuredClone(value),valid3=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
@@ -130,6 +130,7 @@
       restore('crossSectionOrientation',[0,0,0,1]);
       restore('crossSectionScale',Math.max(extent[0]/panel.element.clientWidth,extent[1]/panel.element.clientHeight)*1.12/canonical);
     }else{
+      setSlicePlane({enabled:false,angles_deg:[0,0,0],center_global_nm:currentCenterNm()},{announce:false});
       restore('projectionOrientation',[0,0,0,1]);
       restore('projectionScale',Math.max(Math.hypot(...extent),extent[0]*panel.element.clientHeight/panel.element.clientWidth)*1.12/canonical);
     }
@@ -162,6 +163,7 @@
     const native=viewer.state.toJSON(),state={title:native.title,dimensions:clone(native.dimensions)};
     for(const key of [...NAV,...SETTINGS])state[key]=clone(native[key]);
     state.showSlices=viewer.showPerspectiveSliceViews.value;
+    state.micronsSlicePlane=getSlicePlane();
     state.layers=viewer.layerManager.managedLayers.filter(l=>ownLayer(l.name)).map(l=>clone(l.toJSON()));
     return state;
   }
@@ -218,12 +220,12 @@
     if(!currentApplication(generation)||!bus.newer(message,clearMessage))return false;
     const p=message.payload;if(!p||!p.caseId||!p.volumeId)return;
     if(!allowedCasePayload(p))return false;
-    if(typeof p.fullRotation==='boolean'){sharedFullRotation=p.fullRotation;window.MicronsViewControls?.setFullRotation(sharedFullRotation,{announce:false});}
     const changedCase=caseId!==p.caseId||volumeId!==p.volumeId;caseId=p.caseId;volumeId=p.volumeId;
     if(changedCase){const url=new URL(location.href);url.searchParams.set('case',caseId);url.searchParams.set('volume',volumeId);history.replaceState(history.state,'',url.href);}
     if(message.type==='ng-focus'){
       pointSelected=true;selectedPointId=p.seed?null:p.id||null;updateClearButton();
-      if(valid3(p.point))restore('position',p.point);return;
+      if(valid3(p.point))restore('position',p.point);
+      setSlicePlane(p.slicePlane||{...getSlicePlane(),center_global_nm:currentCenterNm()},{announce:false});return;
     }
     const state=p.state;if(!state)return;
     if(state.title)restore('title',state.title);
@@ -239,7 +241,7 @@
     // older point's navigation after the user has cleared it in another window.
     if(!bus.newer(message,clearMessage)){clearNativeSelection();return false;}
     for(const key of SETTINGS)if(key in state)restore(key,state[key]);
-    const applyNavigation=changedCase||!applied||p.reason!=='clear'&&(message.type==='ng-state'||p.navigate||p.navigationRevision&&p.navigationRevision!==lastNavigationRevision);
+    const applyNavigation=changedCase||!applied||p.reason!=='clear'&&p.reason!=='slice-plane'&&(message.type==='ng-state'||p.navigate||p.navigationRevision&&p.navigationRevision!==lastNavigationRevision);
     if(applyNavigation){
       const source=changedCase||!applied?'all':p.navigationSource||'all';
       for(const key of NAV)if(key in state&&(message.type==='ng-state'||key==='position'||source==='all'||source==='2d'&&key.startsWith('crossSection')||['3d','3d-orientation','3d-fit'].includes(source)&&key.startsWith('projection')))restore(key,state[key]);
@@ -254,8 +256,8 @@
       }
     }
     if(applyNavigation&&p.focus?.point_nm&&valid3(p.focus.point_nm))restore('position',p.focus.point_nm.map((n,i)=>n/resolution(state)[i]));
-    // Upright mode applies to received cameras as well as local gestures. Send
-    // the resulting basis back once so all synchronized panes agree on it.
+    // Acquired 2D stays XY. The separate 3D SliceView has its own physical plane.
+    setSlicePlane(p.slicePlane||state.micronsSlicePlane||(changedCase?{enabled:false,angles_deg:[0,0,0],center_global_nm:currentCenterNm()}:applyNavigation?{...getSlicePlane(),center_global_nm:currentCenterNm()}:getSlicePlane()),{announce:false});
     normalizationPending=!!window.MicronsViewControls?.constrainOrientation()||normalizationPending;
     if(message.type==='host-state'&&(applyNavigation||p.reason==='clear'))lastNavigationRevision=p.navigationRevision||null;
     if(message.type==='ng-state')lastNavigationRevision=message.source+':'+message.clock;
@@ -285,25 +287,17 @@
     if(message.type==='host-state'&&message.role==='main')awaitingMain=false;
     latest=message;pending=message;drain();
   }
-  function publish(){
+  function publish(reasonOverride){
     timer=null;if(!syncEnabled()||awaitingMain||applying||pending||!caseId||!volumeId)return;
     window.MicronsViewControls?.constrainOrientation();
     const state=stateSnapshot(),fingerprint=JSON.stringify(state);if(fingerprint===lastNative)return;
-    const nav=JSON.stringify(NAV.map(key=>state[key])),reason=nav!==lastNav?'navigation':'settings';lastNative=fingerprint;lastNav=nav;
-    latest=bus.send('ng-state',{caseId,volumeId,state,fullRotation:sharedFullRotation,navigationCamera:navigationCamera(),reason});applied=latest;
+    const nav=JSON.stringify(NAV.map(key=>state[key])),reason=reasonOverride||(nav!==lastNav?'navigation':'settings');lastNative=fingerprint;lastNav=nav;
+    latest=bus.send('ng-state',{caseId,volumeId,state,slicePlane:getSlicePlane(),navigationCamera:navigationCamera(),reason});applied=latest;
   }
   function schedule(){if(!syncEnabled()||awaitingMain||applying||!started)return;if(timer!==null)clearTimeout(timer);timer=setTimeout(publish,90);}
-  window.addEventListener('microns:rotation-mode',event=>{
-    if(typeof event.detail?.fullRotation!=='boolean')return;
-    sharedFullRotation=event.detail.fullRotation;
-    // Enabling full rotation need not move the camera, but synchronized peers
-    // must adopt the opt-in before receiving a later rolled orientation.
+  window.addEventListener('microns:slice-plane',()=>{
     lastNative='';
-    if(!applying&&started&&!awaitingMain){
-      clearTimeout(timer);timer=null;
-      const display=viewer.display;if(display.canvas.offsetWidth&&display.canvas.offsetHeight){display.resizeCallback();display.draw();}
-      publish();
-    }else schedule();
+    if(!applying&&started&&!awaitingMain){clearTimeout(timer);timer=null;publish('slice-plane');}else schedule();
   });
   window.addEventListener('handoff:sync-mode',()=>{
     ++modeGeneration;clearTimeout(timer);timer=null;
@@ -313,13 +307,46 @@
     awaitingMain=syncEnabled();
     if(started){markBaseline();finishWaiters();if(syncEnabled())bus.send('hello');}
   });
-  // Native xy-3d normally shares a single section texture. The two section renderers below
-  // share navigation and data chunks, but each asks for its own named segmentation layers.
+  // Native SliceView performs volume sampling on the GPU. Its private orientation
+  // and position decouple the physical 3D sampling plane from acquired-XY drawing.
+  // Zoom and physical-unit metadata remain shared, as do the volume data chunks.
   const splitSlices=new Map();
+  const currentCenterNm=()=>Array.from(viewer.position.value,(n,i)=>n*resolution()[i]);
+  function planeQuaternion(angles){
+    const [x,y,z]=angles.map(n=>n*Math.PI/360),sx=Math.sin(x),cx=Math.cos(x),sy=Math.sin(y),cy=Math.cos(y),sz=Math.sin(z),cz=Math.cos(z);
+    // Right-handed physical axes: Rz * Ry * Rx.
+    return [sx*cy*cz-cx*sy*sz,cx*sy*cz+sx*cy*sz,cx*cy*sz-sx*sy*cz,cx*cy*cz+sx*sy*sz];
+  }
+  function getSlicePlane(){
+    return clone(slicePlane||{enabled:false,angles_deg:[0,0,0],center_global_nm:currentCenterNm()});
+  }
+  function setSlicePlane(value,{announce=true,emit=announce}={}){
+    if(!value||!valid3(value.angles_deg)||!valid3(value.center_global_nm))return false;
+    const next={enabled:value.enabled===true,angles_deg:value.angles_deg.map(n=>((n+180)%360+360)%360-180),center_global_nm:[...value.center_global_nm]};
+    if(!next.enabled)next.angles_deg=[0,0,0];
+    if(same(slicePlane,next))return false;
+    const visibilityChanged=slicePlane?.enabled!==next.enabled;slicePlane=next;
+    for(const [panel,entry]of splitSlices){applySlicePlane(entry);if(visibilityChanged)entry.slice.updateVisibleLayers();panel.scheduleRedraw();}
+    window.MicronsViewControls?.render();
+    window.dispatchEvent(new CustomEvent('microns:slice-plane-rendered',{detail:{slicePlane:getSlicePlane()}}));
+    if(emit)window.dispatchEvent(new CustomEvent('microns:slice-plane',{detail:{slicePlane:getSlicePlane()}}));
+    return true;
+  }
+  function applySlicePlane({slice}){
+    const plane=getSlicePlane(),res=resolution(),pose=slice.navigationState.pose;
+    if(res.length!==3||res.some(n=>!Number.isFinite(n)||n<=0))return;
+    const center=plane.center_global_nm.map((n,i)=>n/res[i]),q=plane.enabled?planeQuaternion(plane.angles_deg):[0,0,0,1];
+    if(!same(Array.from(pose.position.value),center))pose.position.restoreState(center);
+    if(!same(Array.from(pose.orientation.orientation),q))pose.orientation.restoreState(q);
+    slice.flushBackendProjectionParameters();
+  }
   function filteredManager(root,threeD){
     const proxy=Object.create(root);proxy.readyRenderLayers=function*(){
       for(const managed of root.managedLayers){if(!managed.visible||!managed.layer)continue;
         if(threeD?managed.name==='Сегментация 2D · v1300':['Сегментация среза 3D · v1300','Соседние на срезе 3D · v1300'].includes(managed.name))continue;
+        // Acquired-XY drawings retain their real world geometry in the 3D scene;
+        // never stamp the 2D drawing overlay onto the oblique sampling texture.
+        if(threeD&&slicePlane?.enabled&&managed.name.startsWith('Мои метки · Рисунки · '))continue;
         yield*managed.layer.renderLayers;
       }
     };return proxy;
@@ -330,24 +357,35 @@
     for(const panel of perspectives){if(splitSlices.has(panel))continue;
       const original=[...panel.sliceViews.keys()].find(s=>slices.some(p=>p.sliceView===s));if(!original)continue;
       const initial=original.projectionParameters.value;if(![initial.logicalWidth,initial.logicalHeight].every(n=>Number.isFinite(n)&&n>0))continue;
-      const slice=new original.constructor(original.chunkManager,filteredManager(viewer.layerManager,true),original.navigationState.addRef(),original.wireFrame);
+      const source=original.navigationState,oldPose=source.pose;
+      const position=new oldPose.position.constructor(oldPose.position.coordinateSpace);position.restoreState(Array.from(oldPose.position.value));
+      const orientation=new oldPose.orientation.constructor(new Float32Array([0,0,0,1]));
+      const pose=new oldPose.constructor(position,oldPose.displayDimensionRenderInfo.addRef(),orientation);
+      const navigation=new source.constructor(pose,source.zoomFactor.addRef(),source.depthRange.addRef());
+      const slice=new original.constructor(original.chunkManager,filteredManager(viewer.layerManager,true),navigation,original.wireFrame);
+      const entry={slice,original,dispose:null};
       const matchViewport=()=>{const p=original.projectionParameters.value;if(![p.logicalWidth,p.logicalHeight].every(n=>Number.isFinite(n)&&n>0))return;const width=Math.round(p.logicalWidth),height=Math.round(p.logicalHeight);slice.projectionParameters.setViewport({width,height,logicalWidth:width,logicalHeight:height,visibleLeftFraction:0,visibleTopFraction:0,visibleWidthFraction:1,visibleHeightFraction:1});slice.flushBackendProjectionParameters();};
-      const dispose=original.projectionParameters.changed.add(matchViewport);matchViewport();
-      panel.sliceViews.delete(original);panel.sliceViews.set(slice,false);splitSlices.set(panel,{slice,dispose});panel.scheduleRedraw();
+      entry.dispose=original.projectionParameters.changed.add(matchViewport);matchViewport();applySlicePlane(entry);
+      panel.sliceViews.delete(original);panel.sliceViews.set(slice,false);splitSlices.set(panel,entry);panel.scheduleRedraw();
     }
     for(const [panel,entry]of splitSlices)if(!panels.includes(panel)){entry.dispose();splitSlices.delete(panel);}
   }
   function start(){
     if(!window.viewer?.display||!window.MicronsMarkers){setTimeout(start,50);return;}
-    started=true;syncSectionPanels();markBaseline();installDeselectControls();viewer.state.changed.add(schedule);viewer.display.updateFinished.add(syncSectionPanels);
+    started=true;
+    setSlicePlane(initialState?.micronsSlicePlane||{enabled:false,angles_deg:[0,0,0],center_global_nm:currentCenterNm()},{announce:false});
+    syncSectionPanels();markBaseline();installDeselectControls();viewer.state.changed.add(schedule);viewer.display.updateFinished.add(syncSectionPanels);
+    viewer.position.changed.add(()=>{
+      if(!applying)setSlicePlane({...getSlicePlane(),center_global_nm:currentCenterNm()},{announce:false});
+    });
     window.addEventListener('microns:focus',event=>{
       const d=event.detail;if(applying&&syncEnabled()||!d?.id||!valid3(d.point)||!caseId||!volumeId)return;
       pointSelected=true;selectedPointId=d.seed?null:d.id;updateClearButton();
       restore('position',d.point);markBaseline();
-      if(syncEnabled()&&!awaitingMain){latest=bus.send('ng-focus',{caseId,volumeId,id:d.id,point:d.point,seed:!!d.seed,fullRotation:sharedFullRotation,navigationCamera:navigationCamera()});applied=latest;}
+      if(syncEnabled()&&!awaitingMain){latest=bus.send('ng-focus',{caseId,volumeId,id:d.id,point:d.point,seed:!!d.seed,slicePlane:getSlicePlane(),navigationCamera:navigationCamera()});applied=latest;}
     });
     bus.subscribe(receive);if(syncEnabled())bus.send('hello');drain();
-    window.MicronsViewSync={get latest(){return latest;},get applied(){return applied;},get applying(){return applying||!!pending;},get fullRotation(){return sharedFullRotation;},get canReset(){return started&&!applying&&!pending&&!awaitingMain&&!!volumeBounds();},get caseId(){return caseId;},get volumeId(){return volumeId;},navigationCamera,resetView,whenSettled(){return applying||pending?new Promise(resolve=>waiters.push(resolve)):Promise.resolve(applied);}};
+    window.MicronsViewSync={get latest(){return latest;},get applied(){return applied;},get applying(){return applying||!!pending;},get slicePlane(){return getSlicePlane();},get canReset(){return started&&!applying&&!pending&&!awaitingMain&&!!volumeBounds();},get caseId(){return caseId;},get volumeId(){return volumeId;},navigationCamera,resetView,getSlicePlane,setSlicePlane,planeQuaternion,get sliceViews(){return [...splitSlices.values()].map(entry=>entry.slice);},whenSettled(){return applying||pending?new Promise(resolve=>waiters.push(resolve)):Promise.resolve(applied);}};
     window.dispatchEvent(new CustomEvent('microns:view-sync-status'));
   }
   start();

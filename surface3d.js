@@ -71,7 +71,8 @@
       this.contextMode='slice';this.contextAlpha=.25;this.segmentationVisible=false;this.segmentationAlpha=.25;this.sliceSegmentation=null;this.contextSliceReady=false;this.segmentationReady=false;
       this.contextLimit=5;this.contextFocus=null;this.contextFocusLabel='центр среза';this.contextShown=new Set();this.visibilityPending=false;
       this.modelReady=false;this.targetHits=[];this.navigationSignature='';this.cameraBasis=null;
-      this.controls=['surfaceReset','surfaceXY','surfacePlane','surfaceBox','surfaceOpacity','surfaceExport'];
+      this.slicePlane=null;this.tiff=null;this.sliceSource=null;this.volumeTexture=null;this.volumeTextureReady=false;
+      this.controls=['surfaceReset','surfaceXY','surfacePlane','surfaceBox','surfaceOpacity','surfaceExport','surfaceRotateSlice'];
       this.yaw=-.65;this.pitch=.4;this.zoom=1;this.alpha=.8;
       this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();this.gl=null;this.setStatus('Контекст 3D-графики потерян. Перезагрузите страницу, чтобы восстановить 3D. Просмотр TIFF в 2D остаётся доступен.','error');this.enable(false);});
       try {this.initGL();} catch(error) {this.gl=null;this.setStatus('3D недоступно в этом браузере: '+error.message+'. Просмотр TIFF в 2D остаётся доступен.','error');}
@@ -101,6 +102,8 @@
       this.contextFocus=null;this.contextFocusLabel='центр среза';this.contextShown=new Set();
       this.sliceSegmentation=null;this.contextSliceReady=false;this.segmentationReady=false;
       ++this.token;this.volume=null;this.slice=null;this.target=null;this.meshes.forEach(m=>this.deleteGeometry(m.geometry));this.meshes=[];
+      this.tiff=null;this.sliceSource=null;this.slicePlane=null;this.volumeTextureReady=false;
+      if(this.volumeTexture&&this.gl)this.gl.deleteTexture(this.volumeTexture);this.volumeTexture=null;this.updateSliceControls();
       if(this.boxGeometry)this.deleteGeometry(this.boxGeometry);if(this.axisGeometry)this.deleteGeometry(this.axisGeometry);
       this.boxGeometry=this.axisGeometry=null;this.objectsUI.replaceChildren();this.enable(false);
       $('surfaceReadout').textContent='Объём не загружен.';
@@ -113,7 +116,7 @@
       this.bounds=volume.shape_xyz.map((n,i)=>n*volume.resolution_nm[i]);this.reset();
       if(!this.gl)return;
       this.makeFrame();this.enable(true);this.canvas.dataset.volume=volume.volume_id;
-      this.setStatus('Загрузка '+volume.volume_id+' — 3D-поверхности…');
+      this.setStatus('Загрузка '+volume.volume_id+' - 3D-поверхности…');
       try {
         const index=await this.index();if(token!==this.token)return;
         const c=index.cases.find(c=>c.case_id===caseId),model=c?.volumes?.find(v=>v.volume_id===volume.volume_id);
@@ -304,10 +307,10 @@
         for(let i=0;i<triangles.length;i+=3){const t=rayTriangle(origin,direction,mesh.vertices,triangles[i]*3,triangles[i+1]*3,triangles[i+2]*3);if(t!==null&&t<distance){distance=t;closest=mesh;}}
       }
       // The opaque image plane can hide a mesh even if the mesh itself is translucent.
-      if(this.slice&&Math.abs(direction[2])>1e-12){
-        const planeZ=(this.slice.z+.5)*this.volume.resolution_nm[2],t=(planeZ-origin[2])/direction[2],p=vec.add(origin,vec.mul(direction,t));
-        if(t>.01&&t<=distance+.001&&p[0]>=0&&p[0]<this.bounds[0]&&p[1]>=0&&p[1]<this.bounds[1]){
-          const id=this.validSliceSegmentation()?window.SliceSegmentation.lookup(Math.floor(p[0]/this.volume.resolution_nm[0]),Math.floor(p[1]/this.volume.resolution_nm[1])):null,object=id&&this.meshes.find(m=>m.segment_id===id);
+      if(this.slice&&this.planeSection){
+        const hit=HandoffSlicePlane.intersect(origin,direction,this.planeSection.center,this.planeSection.normal,this.bounds);
+        if(hit&&hit.t>.01&&hit.t<=distance+.001){
+          const {t,point:p}=hit,id=!this.slicePlane?.enabled&&this.validSliceSegmentation()?window.SliceSegmentation.lookup(Math.floor(p[0]/this.volume.resolution_nm[0]),Math.floor(p[1]/this.volume.resolution_nm[1])):null,object=id&&this.meshes.find(m=>m.segment_id===id);
           const allVisible=this.segmentationVisible&&this.segmentationReady&&this.segmentationAlpha>0,nearVisible=this.contextVisible&&this.contextMode==='slice'&&this.contextSliceReady&&this.contextAlpha>0&&object?.context&&object.visible&&this.contextShown.has(object.id);
           if(object&&(allVisible||nearVisible)){closest=object;distance=t;}
           else if($('surfacePlane').checked)return null;
@@ -334,9 +337,20 @@
         void main(){vPosition=aPosition;vUV=aUV;gl_Position=uMVP*vec4(aPosition,1.0);}`;
       const fs=`#version 300 es
         precision highp float;
+        precision highp sampler2DArray;
         in vec3 vPosition;in vec2 vUV;uniform vec4 uColor;uniform int uMode;uniform sampler2D uTexture;
+        uniform sampler2DArray uVolume;uniform vec3 uBounds;uniform vec3 uResolution;uniform vec3 uShape;
+        uniform vec2 uWindow;uniform bool uInvert;
         out vec4 frag;
         void main(){
+          if(uMode==3){
+            if(any(lessThan(vPosition,vec3(0.0)))||any(greaterThanEqual(vPosition,uBounds)))discard;
+            vec2 uv=vPosition.xy/uBounds.xy;
+            float z=clamp(vPosition.z/uResolution.z-0.5,0.0,uShape.z-1.0),lo=floor(z),hi=min(lo+1.0,uShape.z-1.0);
+            float raw=mix(texture(uVolume,vec3(uv,lo)).r,texture(uVolume,vec3(uv,hi)).r,z-lo)*255.0;
+            float gray=clamp((raw-uWindow.x)/(uWindow.y-uWindow.x),0.0,1.0);if(uInvert)gray=1.0-gray;
+            frag=vec4(vec3(gray),1.0);return;
+          }
           if(uMode==2){frag=texture(uTexture,vUV)*uColor;if(frag.a<=0.0)discard;return;}
           if(uMode==1){frag=uColor;return;}
           vec3 n=normalize(cross(dFdx(vPosition),dFdy(vPosition)));
@@ -347,7 +361,7 @@
       const v=compile(gl.VERTEX_SHADER,vs),f=compile(gl.FRAGMENT_SHADER,fs),p=gl.createProgram();gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
       if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
       this.program=p;this.position=gl.getAttribLocation(p,'aPosition');this.uv=gl.getAttribLocation(p,'aUV');
-      this.uniforms=Object.fromEntries(['uMVP','uColor','uMode','uTexture'].map(n=>[n,gl.getUniformLocation(p,n)]));
+      this.uniforms=Object.fromEntries(['uMVP','uColor','uMode','uTexture','uVolume','uBounds','uResolution','uShape','uWindow','uInvert'].map(n=>[n,gl.getUniformLocation(p,n)]));
       this.texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       for(const name of ['segmentationTexture','contextSliceTexture']){this[name]=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this[name]);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);}
       this.planeGeometry=this.geometry(new Float32Array(12),new Uint32Array([0,1,2,0,2,3]),new Float32Array([0,0,1,0,1,1,0,1]));
@@ -367,12 +381,75 @@
       this.axisLength=Math.min(1000,Math.max(...this.bounds)*.27);const a=this.axisLength;
       this.axisGeometry=this.geometry(new Float32Array([0,0,0,a,0,0,0,0,0,0,a,0,0,0,0,0,0,a]));
     }
-    setSlice(canvas,z,black,white) {
-      if(!this.volume)return;this.slice={z,black,white};
-      const [x,y]=this.bounds,zn=(z+.5)*this.volume.resolution_nm[2];
+    setTiff(tiff){
+      if(!this.volume||!tiff||![tiff.width,tiff.height,tiff.depth].every((n,i)=>n===this.volume.shape_xyz[i]))throw new Error('Размеры стопки для наклонных срезов не совпадают с объёмом.');
+      this.tiff=tiff;this.volumeTextureReady=false;
+      if(this.volumeTexture&&this.gl)this.gl.deleteTexture(this.volumeTexture);this.volumeTexture=null;
+    }
+    prepareVolumeTexture(){
+      if(this.volumeTextureReady)return;
+      if(!this.tiff||!this.gl)throw new Error('Дождитесь загрузки стопки TIFF.');
+      const gl=this.gl,tiff=this.tiff;
+      if(Math.max(tiff.width,tiff.height)>gl.getParameter(gl.MAX_TEXTURE_SIZE)||tiff.depth>gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS))throw new Error('Объём превышает размер текстуры, поддерживаемый браузером.');
+      const texture=gl.createTexture();gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D_ARRAY,texture);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texStorage3D(gl.TEXTURE_2D_ARRAY,1,gl.R8,tiff.width,tiff.height,tiff.depth);
+      for(let z=0;z<tiff.depth;z++)gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,z,tiff.width,tiff.height,1,gl.RED,gl.UNSIGNED_BYTE,tiff.plane(z));
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);gl.activeTexture(gl.TEXTURE0);
+      this.volumeTexture=texture;this.volumeTextureReady=true;
+    }
+    defaultSlicePlane(){
+      if(!this.volume)return null;
+      const v=this.volume,center=v.begin_vox_xyz.map((n,i)=>(n+(i===2?(this.slice?.z??Math.floor(v.shape_xyz[2]/2))+.5:v.shape_xyz[i]/2))*v.resolution_nm[i]);
+      return {enabled:false,angles_deg:[0,0,0],center_global_nm:center};
+    }
+    getSlicePlane(){const plane=this.slicePlane||this.defaultSlicePlane();return plane?structuredClone(plane):null;}
+    updateSliceControls(){
+      const plane=this.getSlicePlane(),enabled=!!plane?.enabled;
+      if($('surfaceRotateSlice'))$('surfaceRotateSlice').checked=enabled;
+      if($('surfaceSliceControls'))$('surfaceSliceControls').hidden=!enabled;
+      for(const [i,axis]of ['X','Y','Z'].entries()){
+        const value=plane?.angles_deg[i]??0,input=$('surfaceSlice'+axis),out=$('surfaceSlice'+axis+'Value');
+        if(input){input.disabled=!enabled;input.value=String(value);}if(out)out.textContent=Math.round(value)+'°';
+      }
+      this.canvas.dataset.slicePlaneEnabled=String(enabled);this.canvas.dataset.slicePlaneAngles=plane?.angles_deg.join(',')||'0,0,0';
+      this.canvas.dataset.slicePlaneCenter=plane?.center_global_nm.join(',')||'';
+    }
+    setSlicePlane(value,{emit=true}={}){
+      if(!this.volume)return null;const next=HandoffSlicePlane.normalize(value),previous=this.getSlicePlane();
+      if(!next.enabled)next.angles_deg=[0,0,0];else this.prepareVolumeTexture();
+      this.slicePlane=next;this.updateSliceControls();this.updatePlaneGeometry();this.schedule();
+      if(emit&&JSON.stringify(previous)!==JSON.stringify(next))window.dispatchEvent(new CustomEvent('surface:slice-plane',{detail:{case_id:this.caseId,volume_id:this.volume.volume_id,plane:this.getSlicePlane()}}));
+      return this.getSlicePlane();
+    }
+    updateSlicePlaneCenter(position,{emit=false}={}){
+      if(!this.slicePlane?.enabled||!finite3(position))return this.getSlicePlane();
+      const plane=this.getSlicePlane();if(equal3(plane.center_global_nm,position))return plane;
+      plane.center_global_nm=[...position];return this.setSlicePlane(plane,{emit});
+    }
+    resetSlicePlane({emit=true}={}){if(this.volume)this.setSlicePlane(this.defaultSlicePlane(),{emit});}
+    updatePlaneGeometry(){
+      if(!this.volume||!this.slice)return;
+      const [x,y]=this.bounds,zn=(this.slice.z+.5)*this.volume.resolution_nm[2],enabled=!!this.slicePlane?.enabled;
       this.canvas.dataset.planeLocalNm=String(zn);
-      $('surfaceReadout').textContent='Срез XY: локальная Z '+z+' · '+zn+' нм от начала фрагмента (центр вокселя).';
-      if(this.gl){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.planeGeometry.positions);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,zn,x,0,zn,x,y,zn,0,y,zn]),gl.DYNAMIC_DRAW);gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);}
+      let vertices;
+      if(enabled){
+        const center=this.slicePlane.center_global_nm.map((n,i)=>n-this.volume.begin_vox_xyz[i]*this.volume.resolution_nm[i]);
+        this.planeSection=HandoffSlicePlane.rectangle(this.bounds,center,this.slicePlane.angles_deg);this.planeSection.center=center;vertices=this.planeSection.vertices;
+        $('surfaceReadout').textContent=translateUI('Наклонный срез 3D: ')+this.slicePlane.angles_deg.map((n,i)=>['X','Y','Z'][i]+' '+Math.round(n)+'°').join(', ')+translateUI('. Цветная сегментация XY скрыта; рисунки сохраняют исходные координаты.');
+      }else{
+        this.planeSection={center:[x/2,y/2,zn],normal:[0,0,1]};vertices=new Float32Array([0,0,zn,x,0,zn,x,y,zn,0,y,zn]);
+        $('surfaceReadout').textContent='Срез XY: локальная Z '+this.slice.z+' · '+zn+' нм от начала фрагмента (центр вокселя).';
+      }
+      if(this.gl){this.gl.bindBuffer(this.gl.ARRAY_BUFFER,this.planeGeometry.positions);this.gl.bufferData(this.gl.ARRAY_BUFFER,vertices,this.gl.DYNAMIC_DRAW);}
+    }
+    setSlice(canvas,z,black,white) {
+      if(!this.volume)return;const oldZ=this.slice?.z;this.slice={z,black,white};this.sliceSource=canvas;
+      if(this.slicePlane&&oldZ!==z)this.slicePlane.center_global_nm[2]=(this.volume.begin_vox_xyz[2]+z+.5)*this.volume.resolution_nm[2];
+      this.updateSliceControls();this.updatePlaneGeometry();
+      if(this.gl){const gl=this.gl;gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);}
       this.sliceSegmentation=window.SliceSegmentation?.current||this.sliceSegmentation;
       if(this.contextVisible&&(!this.contextFocus||this.contextMode==='slice'))this.updateNearby();else this.updateSliceTextures();this.schedule();
     }
@@ -417,16 +494,18 @@
     }
     reset(front=false) {
       if(!this.bounds)return;this.center=this.bounds.map(n=>n/2);this.yaw=front?0:-.65;this.pitch=front?0:.4;this.zoom=1;this.cameraBasis=null;
+      this.resetSlicePlane();
       this.frameHeight=Math.hypot(...this.bounds)*1.12;this.radius=Math.hypot(...this.bounds)*3;this.navigationChanged('reset');this.schedule();
     }
     alignTo2D() {
       if(!this.volume||!this.gl||!this.bounds)return;
       // Fit the entire XY extent with a small margin, including in narrow panes.
-      // Reset the camera only; retain the current slice, marks and visibility.
+      // Restore the acquired XY plane and camera fit; retain selected Z, marks and visibility.
       const aspect=Math.max(1,this.stage.clientWidth)/Math.max(1,this.stage.clientHeight);
       this.center=this.bounds.map(n=>n/2);this.yaw=0;this.pitch=0;this.zoom=1;this.cameraBasis=null;
       this.frameHeight=Math.max(this.bounds[1],this.bounds[0]/aspect)*1.12;
       this.radius=Math.hypot(...this.bounds)*3;
+      this.resetSlicePlane();
       this.navigationChanged('fit-2d');this.schedule();
     }
     camera() {
@@ -452,7 +531,7 @@
       this.yaw=next.yaw;this.pitch=next.pitch;this.zoom=next.zoom;this.center=[...next.center_nm];this.frameHeight=next.frame_height_nm;this.radius=next.radius_nm;if(basis)this.cameraBasis=basis;else if(camera.yaw!==undefined||camera.pitch!==undefined)this.cameraBasis=null;this.navigationChanged('remote',emit);this.schedule();return this.getNavigationState();
     }
     bind() {
-      window.addEventListener('handoff:languagechange',()=>this.schedule());
+      window.addEventListener('handoff:languagechange',()=>{this.updatePlaneGeometry();this.schedule();});
       $('surfaceReset').addEventListener('click',()=>this.reset());$('surfaceXY').addEventListener('click',()=>this.alignTo2D());
       for(const id of ['surfacePlane','surfaceBox'])$(id).addEventListener('change',()=>this.schedule());
       $('surfaceOpacity').addEventListener('input',e=>{this.alpha=Number(e.target.value)/100;$('surfaceOpacityReadout').textContent=e.target.value+'%';this.schedule();});
@@ -462,6 +541,11 @@
       window.addEventListener('annotations:surface-ready',()=>{this.contextMode=$('surfaceContextMode')?.value==='full'?'full':'slice';this.contextAlpha=Number($('surfaceContextOpacity')?.value??25)/100;this.segmentationAlpha=Number($('surfaceSegmentationOpacity')?.value??25)/100;this.setSegmentationVisible(!!$('surfaceSegmentation')?.checked);});
       window.addEventListener('segmentation:slice',e=>this.setSliceSegmentation(e.detail));
       $('surfaceExport').addEventListener('click',()=>this.exportPNG());
+      $('surfaceRotateSlice')?.addEventListener('change',event=>{
+        try{const plane=this.getSlicePlane();if(!plane)return;plane.enabled=event.target.checked;if(plane.enabled){const position=window.ReviewViewer?.getNavigationState?.()?.position_nm;if(finite3(position))plane.center_global_nm=[...position];}this.setSlicePlane(plane);}
+        catch(error){this.updateSliceControls();this.setStatus('Не удалось подготовить наклонные срезы: '+error.message,'error');}
+      });
+      for(const [i,axis]of ['X','Y','Z'].entries())$('surfaceSlice'+axis)?.addEventListener('input',event=>{const plane=this.getSlicePlane();if(!plane?.enabled)return;plane.angles_deg[i]=Number(event.target.value);this.setSlicePlane(plane);});
       let drag=null;
       this.stage.addEventListener('contextmenu',e=>e.preventDefault());
       this.stage.addEventListener('pointerdown',e=>{if(!this.volume||!this.gl||drag)return;e.preventDefault();this.stage.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,moved:false,button:e.button,pan:e.button===2||e.button===1||e.shiftKey};this.stage.setPointerCapture(e.pointerId);});
@@ -493,9 +577,12 @@
       const ctx=this.labels.getContext('2d');ctx.clearRect(0,0,this.labels.width,this.labels.height);
       if(!this.gl)return;const gl=this.gl;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       if(!this.volume)return;const camera=this.camera();this.frame=camera;gl.useProgram(this.program);gl.uniformMatrix4fv(this.uniforms.uMVP,false,camera.mvp);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.uniform1i(this.uniforms.uTexture,0);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
-      if(this.slice&&$('surfacePlane').checked)this.drawGeometry(this.planeGeometry,[1,1,1,1],2);
+      const oblique=!!this.slicePlane?.enabled&&this.volumeTextureReady;
+      if(oblique){gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D_ARRAY,this.volumeTexture);gl.uniform1i(this.uniforms.uVolume,1);gl.uniform3fv(this.uniforms.uBounds,this.bounds);gl.uniform3fv(this.uniforms.uResolution,this.volume.resolution_nm);gl.uniform3fv(this.uniforms.uShape,this.volume.shape_xyz);gl.uniform2f(this.uniforms.uWindow,this.slice.black,this.slice.white);gl.uniform1i(this.uniforms.uInvert,!!this.tiff.pages[0].whiteIsZero);gl.activeTexture(gl.TEXTURE0);}
+      else gl.uniform1i(this.uniforms.uVolume,1);
+      if(this.slice&&$('surfacePlane').checked)this.drawGeometry(this.planeGeometry,[1,1,1,1],oblique?3:2);
       gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
-      for(const [ready,texture,alpha]of [[this.segmentationVisible&&this.segmentationReady,this.segmentationTexture,this.segmentationAlpha],[this.contextVisible&&this.contextMode==='slice'&&this.contextSliceReady,this.contextSliceTexture,this.contextAlpha]])if(ready&&alpha>0){gl.bindTexture(gl.TEXTURE_2D,texture);this.drawGeometry(this.planeGeometry,[1,1,1,alpha],2);}
+      for(const [ready,texture,alpha]of [[this.segmentationVisible&&this.segmentationReady,this.segmentationTexture,this.segmentationAlpha],[this.contextVisible&&this.contextMode==='slice'&&this.contextSliceReady,this.contextSliceTexture,this.contextAlpha]])if(!oblique&&ready&&alpha>0){gl.bindTexture(gl.TEXTURE_2D,texture);this.drawGeometry(this.planeGeometry,[1,1,1,alpha],2);}
       // Opaque meshes first, then independently translucent target and neighboring meshes.
       const visible=this.meshes.filter(m=>this.visibleMesh(m));
       for(const opaque of [true,false])for(const mesh of visible){const alpha=mesh.context?this.contextAlpha:this.alpha;if(alpha<=0||(alpha===1)!==opaque)continue;gl.depthMask(opaque);this.drawGeometry(mesh.geometry,[...(mesh.id===this.selectedObjectId?[1,.5,.24]:mesh.color),alpha]);}
@@ -541,10 +628,11 @@
     getViewState() {
       if(!this.volume||!this.gl||!this.modelReady)throw new Error('Дождитесь загрузки 3D-поверхностей.');
       if(this.contextLoading)throw new Error('Дождитесь загрузки окружающих сегментов или скройте их перед сохранением.');
-      if((this.segmentationVisible||this.contextVisible&&this.contextMode==='slice')&&!this.validSliceSegmentation())throw new Error('Дождитесь сегментации текущего среза или скройте её перед сохранением.');
+      if(!this.slicePlane?.enabled&&(this.segmentationVisible||this.contextVisible&&this.contextMode==='slice')&&!this.validSliceSegmentation())throw new Error('Дождитесь сегментации текущего среза или скройте её перед сохранением.');
       return {schema_version:1,source_view:'3d',source:'seg_m1300',case_id:this.caseId,volume_id:this.volume.volume_id,local_z:this.slice?.z??null,
         camera:{yaw:this.yaw,pitch:this.pitch,zoom:this.zoom,center_nm:[...this.center],frame_height_nm:this.frameHeight,radius_nm:this.radius,...(this.cameraBasis?{basis:structuredClone(this.cameraBasis)}:{})},opacity:this.alpha,
         plane_visible:$('surfacePlane').checked,box_visible:$('surfaceBox').checked,context_visible:this.contextVisible,
+        slice_plane:this.getSlicePlane(),
         context_mode:this.contextMode,context_opacity:this.contextAlpha,segmentation_visible:this.segmentationVisible,segmentation_opacity:this.segmentationAlpha,scale_bar:this.scaleBar(),
         context_limit:this.contextLimit,context_focus:this.contextFocus?[...this.contextFocus]:null,context_focus_label:this.contextFocusLabel,context_shown:[...this.contextShown],
         objects:this.meshes.map(m=>({object_id:m.id,segment_id:m.segment_id||null,visible:!!m.visible})),annotations_visible:this.annotationsVisible,selected_annotation_id:this.selectedAnnotationId,
@@ -554,6 +642,7 @@
     }
     async restoreEvidence(view) {
       const cam=view?.camera;
+      const savedPlane=view?.slice_plane?HandoffSlicePlane.normalize(view.slice_plane):null;
       if(view?.schema_version!==1||view.source_view!=='3d'||view.source!=='seg_m1300'||!cam||!finite3(cam.center_nm)||!['yaw','pitch','zoom','frame_height_nm','radius_nm'].every(k=>Number.isFinite(cam[k]))||Math.abs(cam.pitch)>1.48||cam.zoom<.08||cam.zoom>12||cam.frame_height_nm<=0||cam.radius_nm<=0||!Number.isFinite(view.opacity)||view.opacity<0||view.opacity>1||!['plane_visible','box_visible','context_visible','annotations_visible','seed_points_visible'].every(k=>typeof view[k]==='boolean')||!Array.isArray(view.objects)||view.objects.length>10000||view.objects.some(o=>!o||typeof o.object_id!=='string'||typeof o.visible!=='boolean'||!(o.segment_id===null||typeof o.segment_id==='string')))throw new Error('Сохранённые настройки 3D-вида повреждены.');
       if(!this.volume||view.case_id!==this.caseId||view.volume_id!==this.volume.volume_id)throw new Error('Сначала откройте объём, указанный в сохранённом 3D-виде.');
       if(!this.gl)throw new Error('В этом браузере 3D-восстановление недоступно. Сохранённый PNG можно открыть отдельно.');
@@ -578,6 +667,7 @@
       for(const mesh of this.meshes){const setting=view.objects.find(o=>o.segment_id&&mesh.segment_id?o.segment_id===mesh.segment_id:o.object_id===mesh.id);mesh.visible=setting?.visible??(mesh.context&&view.context_mode===undefined);if(mesh.control){const input=mesh.control.querySelector('input');if(input)input.checked=mesh.visible;}}
       this.yaw=cam.yaw;this.pitch=cam.pitch;this.zoom=cam.zoom;this.center=[...cam.center_nm];this.frameHeight=cam.frame_height_nm;this.radius=cam.radius_nm;this.cameraBasis=cameraBasis(cam.basis);this.alpha=view.opacity;
       $('surfaceOpacity').value=String(Math.round(view.opacity*100));$('surfaceOpacityReadout').textContent=Math.round(view.opacity*100)+'%';$('surfacePlane').checked=!!view.plane_visible;$('surfaceBox').checked=!!view.box_visible;
+      this.setSlicePlane(savedPlane||this.defaultSlicePlane(),{emit:false});
       this.annotationsVisible=!!view.annotations_visible;this.targetsVisible=!!view.seed_points_visible;this.selectedAnnotationId=view.selected_annotation_id||null;this.refreshSelectedObject();this.updateSliceTextures();this.draw();this.navigationChanged('restore');this.visibilityChanged();return this.getViewState();
     }
     snapshotEvidence() {
@@ -596,8 +686,8 @@
       }finally{
         this.canvas.width=old.width;this.canvas.height=old.height;this.labels.width=old.labelWidth;this.labels.height=old.labelHeight;this.ratio=old.ratio;this.draw();
       }
-      ctx.fillStyle='#fff';ctx.fillRect(0,height,width,250);ctx.fillStyle='#17313d';ctx.font='bold 34px system-ui';ctx.fillText(this.caseId+' · '+this.volume.volume_id+' · 3D',28,height+48);
-      ctx.font='26px system-ui';ctx.fillText(translateUI('Локальный Z ')+(this.slice?.z??'—')+translateUI(' · сегментация v1300 · цвета — метки объектов'),28,height+91);
+      ctx.fillStyle='#fff';ctx.fillRect(0,height,width,250);ctx.fillStyle='#17313d';ctx.font='bold 34px system-ui';ctx.fillText(this.caseId+' · '+this.volume.volume_id+' · 3D'+(view.slice_plane?.enabled?' · '+view.slice_plane.angles_deg.map((n,i)=>['X','Y','Z'][i]+' '+Math.round(n)+'°').join(' · '):''),28,height+48);
+      ctx.font='26px system-ui';ctx.fillText(translateUI('Локальный Z ')+(this.slice?.z??'-')+translateUI(' · сегментация v1300 · цвета - метки объектов'),28,height+91);
       const seedIds=this.meshes.filter(m=>!m.context&&this.visibleMesh(m)).map(m=>m.id).join(', ')||translateUI('нет'),contextCount=this.contextVisible?this.meshes.filter(m=>m.context&&m.visible&&this.contextShown.has(m.id)).length:0;
       ctx.fillText(translateUI('Объекты: ')+seedIds+translateUI(' · соседних структур: ')+contextCount+translateUI(this.contextVisible?(this.contextMode==='slice'?' (срез)':' (объём)'):'')+translateUI(' · меток: ')+(this.annotationsVisible?this.annotationHits.length:0),28,height+134);
       ctx.font='24px system-ui';ctx.fillText(translateUI('3D для навигации. Анатомию проверяйте по серийной ЭМ.'),28,height+177);ctx.fillText('MICrONS Consortium (2025) · doi:10.1038/s41586-025-08790-w · CC BY 4.0',28,height+216);
