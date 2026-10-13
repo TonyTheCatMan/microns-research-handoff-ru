@@ -55,6 +55,7 @@
   async function get(id){const found=(await api().store.getEvidence({}, {blobs:true})).find(r=>r.id===id);if(!found)throw new Error('Изображение уже удалено.');return found;}
   async function restoreView(row){
     const v=viewer(),settings=row.view_settings;
+    if(window.HandoffCaseSelection&&!HandoffCaseSelection.includes(row.case_id))throw new Error('Случай вне текущей подборки. Сохранённые результаты не удалены.');
     await v.select(row.case_id,row.volume_id,row.local_z);
     if(!v.ready||v.currentCase.case_id!==row.case_id||v.volume.volume_id!==row.volume_id||v.z!==row.local_z)throw new Error('Не удалось загрузить сохранённый срез. Повторите переход.');
     if(row.display_window){$('blackInput').value=row.display_window[0];$('whiteInput').value=row.display_window[1];$('blackInput').dispatchEvent(new Event('change'));}

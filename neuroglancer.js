@@ -1,11 +1,22 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/?v=20261013-drawing1',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=selection-nine1',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
+  const activeCase=id=>window.HandoffCaseSelection?.includes(id)===true;
+  function allowedCasePayload(payload){
+    if(!payload||!activeCase(payload.caseId))return false;
+    const metadata=window.ReviewViewer?.metadata,currentCase=metadata?.cases.find(c=>c.case_id===payload.caseId);
+    if(typeof payload.volumeId!=='string'||!payload.volumeId.startsWith(payload.caseId+'-')||metadata&&!currentCase?.volumes.some(v=>v.volume_id===payload.volumeId))return false;
+    const navigation=payload.main?.navigation;
+    if(navigation&&(navigation.case_id!==payload.caseId||navigation.volume_id!==payload.volumeId))return false;
+    const state=payload.state,volumes=[state?.title?.match(/\bR\d{3}-(?:main|extension-\d+)\b/)?.[0],...(state?.layers||[]).filter(l=>l.name?.startsWith('Границы ')).map(l=>l.name.slice('Границы '.length))].filter(Boolean);
+    return volumes.every(id=>id===payload.volumeId);
+  }
 
   function buildState(currentCase, volume, localZ, target, objects, focus = null, findings = {}) {
+    if(!activeCase(currentCase.case_id))throw new Error('Этот случай не входит в текущую подборку.');
     if (!currentCase.volumes.some(v => v.volume_id === volume.volume_id)) throw new Error('Случай и объём не совпадают.');
     if (!Number.isInteger(localZ) || localZ < 0 || localZ >= volume.shape_xyz[2]) throw new Error('Срез вне выбранного объёма.');
     const resolution = volume.resolution_nm;
@@ -210,6 +221,7 @@
     surface.updateNearby();surface.schedule();surface.visibilityChanged();
   }
   async function applyHost(payload){
+    if(!allowedCasePayload(payload))return;
     const main=payload.main;if(!main?.navigation)return;
     if(!lastNavigation||payload.reason!=='clear'&&(payload.navigate||payload.navigationRevision!==appliedNavigationRevision)||ReviewViewer.currentCase?.case_id!==payload.caseId||ReviewViewer.volume?.volume_id!==payload.volumeId)await ReviewViewer.applyNavigationState(main.navigation,{emit:false});
     ReviewViewer.applyTarget?.(main.target?.id||null,main.target?.key);
@@ -232,6 +244,7 @@
     return result;
   }
   async function applyNative(payload,type){
+    if(!allowedCasePayload(payload))return;
     const revision=bus.syncRevision,allowed=()=>bus.enabled&&bus.syncRevision===revision;
     if(!allowed())return;
     const controller=new AbortController();nativeApplication=controller;
@@ -300,6 +313,7 @@
     if(message.type==='hello'){if(latest)bus.send('state-reply',{message:latest},message.source);return;}
     if(message.type==='state-reply'){const nested=message.payload?.message;if(nested)receive(nested);return;}
     if(!['host-state','ng-state','ng-focus','ng-deselect'].includes(message.type)||message.source===bus.id||!bus.newer(message,latest))return;
+    if(!allowedCasePayload(message.payload))return;
     latest=message;pending=message;
     navigationRevision=message.payload.navigationRevision||`${message.source}:${message.clock}`;
     navigationFocus=message.type==='host-state'?message.payload.focus||null:null;

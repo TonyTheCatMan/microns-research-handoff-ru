@@ -1,12 +1,26 @@
 /* Live same-origin bridge for the pinned native viewer. Coordinates remain global voxels. */
 (() => {
   'use strict';
+  const selection=window.HandoffCaseSelection,activeCase=id=>selection?.includes(id)===true;
+  const stateVolumes=state=>[state?.title?.match(/\bR\d{3}-(?:main|extension-\d+)\b/)?.[0],...(state?.layers||[]).filter(l=>l.name?.startsWith('Границы ')).map(l=>l.name.slice('Границы '.length))].filter(Boolean);
+  const initialParams=new URLSearchParams(location.search);
+  let initialState=null;try{const hash=decodeURIComponent(location.hash.replace(/^#!?/,''));if(hash.startsWith('{'))initialState=JSON.parse(hash);}catch{}
+  const initialVolumes=stateVolumes(initialState),initialCase=initialParams.get('case')||initialParams.get('volume')?.split('-')[0]||initialVolumes[0]?.split('-')[0],initialVolume=initialParams.get('volume')||initialVolumes[0]||initialCase+'-main';
+  if(!activeCase(initialCase)||!initialVolume.startsWith(initialCase+'-')||initialVolumes.some(id=>id!==initialVolume)){
+    const caseId=selection?.defaultId||'R002',url=new URL('../',location.href);url.searchParams.set('case',caseId);url.searchParams.set('volume',caseId+'-main');url.hash='neuroglancer';location.replace(url.href);return;
+  }
+  function allowedCasePayload(payload){
+    if(!payload||!activeCase(payload.caseId)||typeof payload.volumeId!=='string'||!payload.volumeId.startsWith(payload.caseId+'-'))return false;
+    const navigation=payload.main?.navigation;
+    if(navigation&&(navigation.case_id!==payload.caseId||navigation.volume_id!==payload.volumeId))return false;
+    return stateVolumes(payload.state).every(id=>id===payload.volumeId);
+  }
   const bus=window.HandoffSync;if(!bus)return;
   const NAV=['position','crossSectionOrientation','crossSectionScale','crossSectionDepth','projectionOrientation','projectionScale','projectionDepth'];
   const SETTINGS=['showSlices','showAxisLines','showScaleBar','crossSectionBackgroundColor','projectionBackgroundColor'];
   const ownLayer=name=>name==='ЭМ MICrONS'||name==='Объекты · v1300'||name==='Соседние структуры · v1300'||name==='Заданные точки · не проверены'||name?.startsWith('Границы ')||name?.startsWith('Мои метки · ')||['Сегментация 2D · v1300','Сегментация среза 3D · v1300','Соседние на срезе 3D · v1300'].includes(name);
-  const params=new URLSearchParams(location.search),waiters=[];
-  let caseId=params.get('case')||'',volumeId=params.get('volume')||'',latest=null,applied=null,pending=null,applying=false,started=false,timer=null,lastNative='',lastNav='',hostPayload=null,lastNavigationRevision=null;
+  const waiters=[];
+  let caseId=initialCase,volumeId=initialVolume,latest=null,applied=null,pending=null,applying=false,started=false,timer=null,lastNative='',lastNav='',hostPayload=null,lastNavigationRevision=null;
   let clearButton=null,pointSelected=false,clearMessage=null,selectedPointId=null,mainOwner=null,deleteConfirmationPending=false;
   let modeGeneration=0,awaitingMain=false;
   const syncEnabled=()=>bus.enabled!==false;
@@ -176,6 +190,7 @@
     const generation=modeGeneration;
     if(!currentApplication(generation)||!bus.newer(message,clearMessage))return false;
     const p=message.payload;if(!p||!p.caseId||!p.volumeId)return;
+    if(!allowedCasePayload(p))return false;
     const changedCase=caseId!==p.caseId||volumeId!==p.volumeId;caseId=p.caseId;volumeId=p.volumeId;
     if(changedCase){const url=new URL(location.href);url.searchParams.set('case',caseId);url.searchParams.set('volume',volumeId);history.replaceState(history.state,'',url.href);}
     if(message.type==='ng-focus'){
@@ -235,6 +250,7 @@
       return;
     }
     if(!['host-state','ng-state','ng-focus'].includes(message.type)||message.source===bus.id||!bus.newer(message,latest)||!bus.newer(message,clearMessage))return;
+    if(!allowedCasePayload(message.payload))return;
     if(message.type==='host-state'&&message.role==='main')awaitingMain=false;
     latest=message;pending=message;drain();
   }

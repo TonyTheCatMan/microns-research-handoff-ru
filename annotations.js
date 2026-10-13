@@ -18,6 +18,7 @@
   const changed = () => window.dispatchEvent(new Event('annotations:changed'));
   const caseRecords = () => records.filter(r => r.case_id === currentCase).sort((a,b)=>a.number-b.number);
   const mode = () => $('annotationMode').value;
+  const activeCase = id => window.HandoffCaseSelection?.includes(id) ?? true;
   const visible = () => $('annotationsVisible').checked;
   const fmt = a => a.map(n=>Number(n.toFixed(2))).join(', ');
   const booleanPreferences=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext','segmentation2D','segmentationBorders','surfaceSegmentation'];
@@ -64,7 +65,9 @@
     if(followingMain){followAgain=true;return;}followingMain=true;
     try{do{
       followAgain=false;const main=mainWindow(),source=main?.HandoffAnnotations;if(!source?.store)break;
+      if(source.currentCase&&!activeCase(source.currentCase)){$('annotationSaveStatus').textContent='В основной странице открыт случай вне текущей подборки. Выберите на ней один из доступных случаев.';break;}
       main.HandoffAnnotations.attachNotes(window);await whenSettled();await source.whenSettled();
+      if(source.currentCase&&!activeCase(source.currentCase))break;
       const different=currentCase!==source.currentCase||selectedId!==source.selectedId;
       currentCase=source.currentCase;selectedId=source.selectedId;
       deleted=source.deletedRecord;$('annotationUndo').hidden=!deleted;
@@ -88,6 +91,7 @@
     let observer;
     try{
       if(main.HandoffAnnotations.isExporting)throw new Error('Сохранение на основной странице ещё выполняется.');
+      if(main.HandoffAnnotations.currentCase&&!activeCase(main.HandoffAnnotations.currentCase))throw new Error('В основной странице открыт случай вне текущей подборки. Сначала выберите на ней доступный случай.');
       exportBusy=true;buttons.forEach(b=>b.disabled=true);target.classList.remove('save-failed');target.textContent='Синхронизируем с основной страницей…';
       await settleForAction();await main.HandoffAnnotations.settleForAction();await main.HandoffAnnotations.refresh();
       observer=new MutationObserver(mirror);observer.observe(source,{childList:true,subtree:true,characterData:true,attributes:true});
@@ -102,7 +106,7 @@
     const generation=++refreshGeneration;
     const [nextRecords,nextCases]=await Promise.all([store.getAll(),store.getCases()]);
     if(generation!==refreshGeneration||pending||failures.length)return;
-    records=nextRecords;caseNotes=nextCases;const removed=selectedId&&!byId(selectedId);if(removed)selectedId=null;renderList();renderEditor();renderCaseNotes();draw();if(removed&&announce&&!notesWindow)clearSelection({source:'delete'});changed();notifyNotes();
+    records=nextRecords;caseNotes=nextCases;const removed=selectedId&&(!byId(selectedId)||!activeCase(byId(selectedId).case_id));if(removed)selectedId=null;renderList();renderEditor();renderCaseNotes();draw();if(removed&&announce&&!notesWindow)clearSelection({source:'delete'});changed();notifyNotes();
   }
   function locationInVolume(record,volume=viewer()?.volume) {
     if(!volume||record.case_id!==viewer()?.currentCase?.case_id||record.geometry&&record.volume_id!==volume.volume_id)return null;
@@ -200,6 +204,7 @@
   });
   function select(id,go=false,announce=true,source='api') {
     const record=byId(id);if(id!==null&&!record)return;
+    if(record&&!activeCase(record.case_id))return;
     if(record&&!notesWindow)viewer()?.applyTarget(null);
     selectedId=id;renderList();renderEditor(true);draw();viewer()?.surface?.setSelectedAnnotation(id);if(record)viewer()?.surface?.focusAnnotation(record);
     if(go&&!notesWindow){goToSelected({announce,source});return;}
@@ -210,6 +215,7 @@
   async function goToSelected({announce=true,source='go'}={}) {
     const record=byId(selectedId);if(!record)return;
     try{
+      if(!activeCase(record.case_id))throw new Error('Случай вне текущей подборки. Его сохранённые результаты остаются в общем экспорте.');
       location.hash='viewer';
       const volume=locationInVolume(record)?viewer().volume.volume_id:record.volume_id;
       await viewer().gotoPoint(record.case_id,volume,record.point_nm);if(selectedId!==record.id)return;
@@ -220,9 +226,9 @@
     }catch(error){$('annotationSelection').textContent='Не удалось перейти: '+error.message;}
   }
   async function applySelection(id,{focus=false}={}){
-    if(notesWindow){const main=mainWindow()?.HandoffAnnotations;return main?main.applySelection(id,{focus}):false;}
     if(id!==null&&!byId(id))await refresh({announce:false});
-    if(id!==null&&!byId(id))return false;
+    if(id!==null&&(!byId(id)||!activeCase(byId(id).case_id)))return false;
+    if(notesWindow){const main=mainWindow()?.HandoffAnnotations;return main?main.applySelection(id,{focus}):false;}
     select(id,false,false);if(focus&&id!==null)await goToSelected({announce:false});return selectedId===id;
   }
   for(const [id,key] of Object.entries(fields))$(id)?.addEventListener('input',()=>{
@@ -453,13 +459,15 @@
       if(!(file instanceof Blob))file=new File([await file.arrayBuffer()],file.name,{type:file.type});
       const result=/\.zip$/i.test(file.name)?await store.importZIP(file,{policy:'restore',caseOnly}):await store.importData(JSON.parse(await file.text()),{policy:'restore',caseOnly});
       selectedId=null;lastEditorId=null;await refresh();await window.HandoffAssessment?.refresh();await window.HandoffEvidence?.refresh();broadcast({type:'changed'});
-      const settings=result.settings||{},first=result.case_ids[0];
+      const settings=structuredClone(result.settings||{}),first=result.case_ids.find(activeCase),outsideSelection=result.case_ids.some(id=>!activeCase(id));
+      if(settings.last_view&&!activeCase(settings.last_view.case_id)||result.case_ids.length&&!first){delete settings.last_view;delete settings.display;delete settings.surface_view;}
+      if(settings.surface_view&&!activeCase(settings.surface_view.case_id))delete settings.surface_view;
       if(!settings.last_view&&first){const c=metadata.cases.find(c=>c.case_id===first);settings.last_view={case_id:first,volume_id:c.volumes[0].volume_id,z:0};}
       let viewError='';try{await applySettings(settings);}catch(error){viewError=' Не удалось открыть сохранённый вид: '+error.message;}
       $('annotationsVisible').checked=true;prefsSave();draw();renderEditor(true);renderCaseNotes(true);
       const firstPoint=caseRecords().find(r=>r.id===settings.surface_view?.selected_annotation_id)||caseRecords()[0];if(firstPoint)select(firstPoint.id,false);
       location.hash='viewer';
-      target.textContent=`Восстановление завершено: меток ${result.annotations_total}, с заметками ${result.notes_total}${result.evidence_total?', снимков '+(result.evidence_total-result.missingEvidence):''}. Все точки и заметки из файла загружены.`+(result.missingEvidence?' Для восстановления снимков загрузите исходный ZIP.':'')+viewError;
+      target.textContent=`Восстановление завершено: меток ${result.annotations_total}, с заметками ${result.notes_total}${result.evidence_total?', снимков '+(result.evidence_total-result.missingEvidence):''}. Все точки и заметки из файла загружены.`+(outsideSelection?' Результаты случаев вне текущей подборки сохранены и входят в «Сохранить все результаты».':'')+(result.missingEvidence?' Для восстановления снимков загрузите исходный ZIP.':'')+viewError;
       const undo=document.createElement('button');undo.id='annotationsUndoImport';undo.textContent='Отменить загрузку';target.append(document.createTextNode(' '),undo);
       undoImportAction=async()=>{undo.disabled=true;try{await settleForAction();await store.undoImport();selectedId=null;lastEditorId=null;await refresh();await window.HandoffEvidence?.refresh();await applySettings(previousSettings);renderEditor(true);renderCaseNotes(true);broadcast({type:'changed'});target.textContent='Загрузка отменена. Восстановлены предыдущие точки и заметки.';}catch(error){target.textContent=error.message;target.classList.add('save-failed');}};undo.addEventListener('click',undoImportAction);
       target.scrollIntoView({block:'center',behavior:'smooth'});
@@ -471,11 +479,12 @@
   $('neuroglancerImportCase').addEventListener('click',()=>$('annotationsImportCase').click());
   $('neuroglancerImportAll').addEventListener('click',()=>$('annotationsImport').click());
   async function applySettings(settings){
+    const allowedView=!settings.last_view||activeCase(settings.last_view.case_id);
     if(settings.preferences){for(const [id,value]of Object.entries(settings.preferences))if($(id)){if(typeof value==='boolean')$(id).checked=value;else $(id).value=String(value);$(id).dispatchEvent(new Event('change'));}prefsSave();}
-    if(settings.last_view){localStorage.setItem('microns-last-view-v1',JSON.stringify(settings.last_view));await viewer().select(settings.last_view.case_id,settings.last_view.volume_id,settings.last_view.z);}
+    if(settings.last_view&&allowedView){localStorage.setItem('microns-last-view-v1',JSON.stringify(settings.last_view));await viewer().select(settings.last_view.case_id,settings.last_view.volume_id,settings.last_view.z);}
     if(settings.annotation_mode){$('annotationMode').value=settings.annotation_mode;setMode();}
-    if(settings.display&&!notesWindow){const zoom=String(settings.display.zoom);if(![...$('zoomSelect').options].some(o=>o.value===zoom))$('zoomSelect').add(new Option('Сохранённый масштаб · '+Math.round(settings.display.zoom*100)+'%',zoom));$('zoomSelect').value=zoom;$('zoomSelect').dispatchEvent(new Event('change'));$('blackInput').value=settings.display.black;$('whiteInput').value=settings.display.white;$('blackInput').dispatchEvent(new Event('change'));}
-    if(settings.surface_view&&!notesWindow&&viewer()?.ready&&settings.surface_view.case_id===viewer().currentCase.case_id&&settings.surface_view.volume_id===viewer().volume.volume_id&&settings.surface_view.local_z===viewer().z)await viewer().surface.restoreEvidence(settings.surface_view);
+    if(settings.display&&allowedView&&!notesWindow){const zoom=String(settings.display.zoom);if(![...$('zoomSelect').options].some(o=>o.value===zoom))$('zoomSelect').add(new Option('Сохранённый масштаб · '+Math.round(settings.display.zoom*100)+'%',zoom));$('zoomSelect').value=zoom;$('zoomSelect').dispatchEvent(new Event('change'));$('blackInput').value=settings.display.black;$('whiteInput').value=settings.display.white;$('blackInput').dispatchEvent(new Event('change'));}
+    if(settings.surface_view&&allowedView&&activeCase(settings.surface_view.case_id)&&!notesWindow&&viewer()?.ready&&settings.surface_view.case_id===viewer().currentCase.case_id&&settings.surface_view.volume_id===viewer().volume.volume_id&&settings.surface_view.local_z===viewer().z)await viewer().surface.restoreEvidence(settings.surface_view);
   }
   async function recoverPending() {
     const keys=[];try{for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key.startsWith(JOURNAL))keys.push(key);}}catch{return;}

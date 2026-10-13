@@ -3,7 +3,7 @@
   'use strict';
   const byId = id => document.getElementById(id);
   const ui = Object.fromEntries(['status','caseSelect','volumeSelect','volumeDetails','contacts','targetStatus','overlayToggle','prevButton','nextButton','zSlider','zInput','zReadout','zoomSelect','fitButton','blackInput','whiteInput','rawButton','windowButton','exportButton','viewport','emptyState','canvasWrap','imageCanvas','overlayCanvas','scaleCanvas','scaleNote','cursorReadout'].map(id => [id, byId(id)]));
-  const state = { files:[], metadata:null, currentCase:null, volume:null, tiff:null, pixels:null, z:0, zoom:2, black:0, white:255, target:null, generation:0, viewCenter:null };
+  const state = { files:[], metadata:null, activeCases:[], currentCase:null, volume:null, tiff:null, pixels:null, z:0, zoom:2, black:0, white:255, target:null, generation:0, viewCenter:null };
   const MIN_ZOOM = .1, MAX_ZOOM = 8;
   const surface = new LocalSurfaceView();
   let navigationMute=0,navigationFrame=0,navigationLast='',navigationPending=null,navigationApplyToken=0;
@@ -61,12 +61,14 @@
     status('Загрузка списка случаев…');
     try {
       state.metadata=validateMetadata(JSON.parse(await HandoffAssets.read('case_index.json',true)));
-      ui.caseSelect.replaceChildren(...state.metadata.cases.map(c=>new Option(c.case_id,c.case_id)));
+      state.activeCases=HandoffCaseSelection.cases(state.metadata);
+      ui.caseSelect.replaceChildren(...state.activeCases.map(c=>new Option(c.case_id,c.case_id)));
       ui.caseSelect.disabled=false;
       const params=new URLSearchParams(location.search);
-      if(!params.has('case')&&!params.has('panel'))try{const saved=JSON.parse(localStorage.getItem('microns-last-view-v1')||'null');if(saved&&state.metadata.cases.some(c=>c.case_id===saved.case_id)){params.set('case',saved.case_id);params.set('volume',saved.volume_id);params.set('z',String(saved.z));}}catch{}
+      if(!params.has('case')&&!params.has('panel'))try{const saved=JSON.parse(localStorage.getItem('microns-last-view-v1')||'null');if(saved&&HandoffCaseSelection.includes(saved.case_id)){params.set('case',saved.case_id);params.set('volume',saved.volume_id);params.set('z',String(saved.z));}}catch{}
       const wanted=params.get('case');
-      if(state.metadata.cases.some(c=>c.case_id===wanted))ui.caseSelect.value=wanted;
+      if(HandoffCaseSelection.includes(wanted))ui.caseSelect.value=wanted;
+      else {params.delete('volume');params.delete('z');}
       window.dispatchEvent(new CustomEvent('review:ready',{detail:state.metadata}));
       selectCase(params.get('volume'),params.get('z'));
     } catch(error) { status(error.message,'error');byId('retryLoad').hidden=false; }
@@ -88,8 +90,9 @@
     ui.scaleCanvas.getContext('2d').clearRect(0,0,ui.scaleCanvas.width,ui.scaleCanvas.height);
   }
   function selectCase(wantedVolume, wantedZ) {
-    state.currentCase=state.metadata.cases.find(c=>c.case_id===ui.caseSelect.value);
+    state.currentCase=state.activeCases.find(c=>c.case_id===ui.caseSelect.value)||state.activeCases[0];
     if(!state.currentCase)return;
+    ui.caseSelect.value=state.currentCase.case_id;
     ui.volumeSelect.replaceChildren(...state.currentCase.volumes.map(v=>new Option(v.volume_id.replace('-main',' · основной').replace('-extension-',' · расширение '),v.volume_id)));
     if(state.currentCase.volumes.some(v=>v.volume_id===wantedVolume))ui.volumeSelect.value=wantedVolume;
     ui.volumeSelect.disabled=false;
@@ -128,7 +131,7 @@
       ui.imageCanvas.height = ui.overlayCanvas.height = tiff.height;
       ui.canvasWrap.hidden = false; ui.emptyState.hidden = true;
       renderContacts(); render(); state.needsFit=true;if(!byId('page-viewer').hidden){ui.fitButton.click();state.needsFit=false;}navigationChanged('load');
-      status('MICrONS · ' + state.metadata.cases.length + ' случаев · ' + volume.volume_id + ' · ' + tiff.depth + ' срезов TIFF · исходный диапазон яркости 0–255', 'success');
+      status('MICrONS · ' + state.activeCases.length + ' случаев · ' + volume.volume_id + ' · ' + tiff.depth + ' срезов TIFF · исходный диапазон яркости 0–255', 'success');
     } catch (error) { if (generation === state.generation && error.name!=='AbortError') {status(error.message,'error');byId('retryLoad').hidden=false;ui.emptyState.querySelector('h2').textContent='Объём не загружен';ui.emptyState.querySelector('p').textContent='Проверьте соединение и нажмите «Повторить загрузку».';} }
   }
   function toLocal(nm) { return nm.map((value,i) => Math.floor(value / state.volume.resolution_nm[i]) - state.volume.begin_vox_xyz[i]); }
@@ -409,6 +412,7 @@
     const checkAborted=()=>{if(signal?.aborted)throw abortError();};
     checkAborted();
     if(!value||typeof value!=='object')throw new Error('Неверное положение синхронизированного вида.');
+    if(value.case_id&&!HandoffCaseSelection.includes(value.case_id))return null;
     const caseId=value.case_id||state.currentCase?.case_id,volumeId=value.volume_id||state.volume?.volume_id,requested=state.metadata?.cases.find(c=>c.case_id===caseId),volume=requested?.volumes.find(v=>v.volume_id===volumeId);
     if(!volume||value.position_nm!==undefined&&!triple(value.position_nm,finite)||value.zoom!==undefined&&(!finite(value.zoom)||value.zoom<=0))throw new Error('Неверные координаты синхронизированного вида.');
     const applyToken=++navigationApplyToken,beforeNavigation=navigationSignature(getNavigationState());navigationMute++;if(navigationFrame){cancelAnimationFrame(navigationFrame);navigationFrame=0;}
@@ -436,10 +440,11 @@
     if(emit){navigationLast=beforeNavigation;navigationChanged('remote');}return getNavigationState();
   }
   window.ReviewViewer={
-    get metadata(){return state.metadata;},get currentCase(){return state.currentCase;},get volume(){return state.volume;},
+    get metadata(){return state.metadata;},get activeCases(){return [...state.activeCases];},get currentCase(){return state.currentCase;},get volume(){return state.volume;},
     get ready(){return Boolean(state.tiff);},get z(){return state.z;},get target(){return state.target;},get zoom(){return state.zoom;},get surface(){return surface;},get displayWindow(){return [state.black,state.white];},
     setZ,getNavigationState,applyNavigationState,applyTarget,
     async gotoPoint(caseId,volumeId,pointNm){
+      if(!HandoffCaseSelection.includes(caseId))return null;
       const requested=state.metadata?.cases.find(c=>c.case_id===caseId),volume=requested?.volumes.find(v=>v.volume_id===volumeId);
       if(!volume)throw new Error('Не найден объём для этой метки.');
       if(!state.tiff||state.currentCase?.case_id!==caseId||state.volume?.volume_id!==volumeId)await window.ReviewViewer.select(caseId,volumeId);
@@ -451,12 +456,12 @@
       return local;
     },
     async select(id,volumeId,z){
-      const requested=state.metadata?.cases.find(c=>c.case_id===id);if(!requested)return;
+      if(!HandoffCaseSelection.includes(id)){id=HandoffCaseSelection.defaultId;volumeId=undefined;z=undefined;}
+      const requested=state.activeCases.find(c=>c.case_id===id);if(!requested)return;
       if(volumeId&&!requested.volumes.some(v=>v.volume_id===volumeId))throw new Error('Указанный объём не принадлежит случаю '+id+'.');
-      // Saved evidence may belong to a case outside the currently displayed pilot group.
+      // Active navigation never expands the selection; full metadata remains for backups.
       if(!Array.from(ui.caseSelect.options).some(option=>option.value===id)){
-        const group=byId('caseGroup');if(group)group.value='all';
-        ui.caseSelect.replaceChildren(...state.metadata.cases.map(c=>new Option(c.case_id,c.case_id)));
+        ui.caseSelect.replaceChildren(...state.activeCases.map(c=>new Option(c.case_id,c.case_id)));
       }
       ui.caseSelect.value=id;return await selectCase(volumeId,z);
     }

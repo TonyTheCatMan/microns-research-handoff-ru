@@ -11,7 +11,7 @@
   const selected=()=>api()?.records.find(r=>r.id===api().selectedId);
   const ownMarks=()=>api()?.visible?api().records.filter(r=>r.geometry&&r.case_id===v()?.currentCase?.case_id&&r.volume_id===v()?.volume?.volume_id&&r.geometry.slice_index===v().volume.begin_vox_xyz[2]+v().z):[];
   const rectangle=()=>{const r=$('imageCanvas').getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height};};
-  function mainDrawing(){try{return api()?.isNotesWindow&&window.opener&&!window.opener.closed?window.opener.HandoffDrawings:null;}catch{return null;}}
+  function mainDrawing(){try{return api()?.isNotesWindow&&window.opener&&!window.opener.closed&&window.HandoffCaseSelection?.includes(window.opener.HandoffAnnotations?.currentCase)?window.opener.HandoffDrawings:null;}catch{return null;}}
   function message(text,error=false){$('drawingStatus').textContent=text;$('drawingStatus').classList.toggle('save-failed',error);}
   function redraw(){api()?.draw();}
   function queue(job){work=work.then(job).catch(error=>message(error.message,true));return work;}
