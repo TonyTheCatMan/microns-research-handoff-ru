@@ -802,6 +802,7 @@
 
   pairs.push(
     ['Вращать плоскость среза', 'Rotate slice plane'],
+    ['Срез: перетаскивание · Вращение 3D: Alt + перетаскивание · Сдвиг: Shift · Масштаб: колесо · Ctrl + колесо - срез', 'Slice: drag · Rotate 3D: Alt + drag · Pan: Shift + drag · Zoom: wheel · Ctrl + wheel: section'],
     ['Срез: перетаскивайте мышью; у края окна можно поворачивать в плоскости. Камера: Alt + перетаскивание. Отдельное изображение 2D остаётся в XY.', 'Slice: drag the mouse; drag near the window edge to rotate within the plane. Camera: Alt + drag. The separate 2D image stays in XY.'],
     ['Точные углы X / Y / Z', 'Exact X / Y / Z angles'],
     ['Плоскость среза: ползунки X / Y / Z. Камера: перетаскивание. Отдельное изображение 2D остаётся в XY.', 'Slice plane: X / Y / Z sliders. Camera: drag. The separate 2D image stays in XY.'],

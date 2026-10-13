@@ -417,6 +417,8 @@
       const plane=this.getSlicePlane(),enabled=!!plane?.enabled;
       if($('surfaceRotateSlice'))$('surfaceRotateSlice').checked=enabled;
       if($('surfaceSliceControls'))$('surfaceSliceControls').hidden=!enabled;
+      const hint=this.stage.querySelector('.surface-gesture-hint'),text=translateUI(enabled?'Срез: перетаскивание · Вращение 3D: Alt + перетаскивание · Сдвиг: Shift · Масштаб: колесо · Ctrl + колесо - срез':'Вращение: перетаскивание · Сдвиг: Shift · Масштаб: колесо · Ctrl + колесо - срез');
+      if(hint&&hint.textContent!==text)hint.textContent=text;
       for(const [i,axis]of ['X','Y','Z'].entries()){
         const value=plane?.angles_deg[i]??0,input=$('surfaceSlice'+axis),out=$('surfaceSlice'+axis+'Value');
         if(input){input.disabled=!enabled;input.value=String(value);}if(out)out.textContent=Math.round(value)+'°';
@@ -538,7 +540,7 @@
       this.yaw=next.yaw;this.pitch=next.pitch;this.zoom=next.zoom;this.center=[...next.center_nm];this.frameHeight=next.frame_height_nm;this.radius=next.radius_nm;if(basis)this.cameraBasis=basis;else if(camera.yaw!==undefined||camera.pitch!==undefined)this.cameraBasis=null;this.navigationChanged('remote',emit);this.schedule();return this.getNavigationState();
     }
     bind() {
-      window.addEventListener('handoff:languagechange',()=>{this.updatePlaneGeometry();this.schedule();});
+      window.addEventListener('handoff:languagechange',()=>{this.updateSliceControls();this.updatePlaneGeometry();this.schedule();});
       $('surfaceReset').addEventListener('click',()=>this.reset());$('surfaceXY').addEventListener('click',()=>this.alignTo2D());
       for(const id of ['surfacePlane','surfaceBox'])$(id).addEventListener('change',()=>this.schedule());
       $('surfaceOpacity').addEventListener('input',e=>{this.alpha=Number(e.target.value)/100;$('surfaceOpacityReadout').textContent=e.target.value+'%';this.schedule();});
