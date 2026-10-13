@@ -68,11 +68,12 @@
     if(message.source!==mainOwner||!p?.removed||p.caseId!==caseId||typeof p.id!=='string')return;
     // This is the result of an explicit saved-record deletion, including while
     // view synchronization is paused. It changes no camera or unrelated layers.
+    const retained=row=>row.id!==p.id&&!row.id.startsWith(p.id+'::draw:');
     for(const managed of viewer.layerManager.managedLayers){
       const local=managed.name.startsWith('Мои метки · ')&&managed.layer?.localAnnotations;
-      if(local?.annotationMap?.has(p.id))local.restoreState(clone(local.toJSON().filter(row=>row.id!==p.id)));
+      if(local?.annotationMap?.has(p.id))local.restoreState(clone(local.toJSON().filter(retained)));
     }
-    if(hostPayload?.caseId===caseId&&hostPayload.state?.layers)hostPayload={...hostPayload,state:{...hostPayload.state,layers:hostPayload.state.layers.map(layer=>layer.name?.startsWith('Мои метки · ')?{...layer,annotations:(layer.annotations||[]).filter(row=>row.id!==p.id)}:layer)}};
+    if(hostPayload?.caseId===caseId&&hostPayload.state?.layers)hostPayload={...hostPayload,state:{...hostPayload.state,layers:hostPayload.state.layers.map(layer=>layer.name?.startsWith('Мои метки · ')?{...layer,annotations:(layer.annotations||[]).filter(retained)}:layer)}};
     if(selectedPointId===p.id)clearNativeSelection();
     viewer.layerManager.layersChanged.dispatch();window.MicronsMarkers?.redraw();markBaseline();
   }

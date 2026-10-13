@@ -18,3 +18,29 @@
 .results-group-buttons>.button:has(input:disabled){opacity:.48;cursor:default}
 .neuroglancer-export{margin:16px 0}
 @media(max-width:560px){.results-actions{gap:16px}.results-group{padding:14px}.results-group-buttons{gap:10px}}
+
+/* Toolbar and SVG tool icons adapted from the second-paper annotation interface. */
+.annotation-toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:14px;background:#eef5fa;align-items:start}
+.annotation-toolbar [hidden]{display:none!important}
+.markup-heading{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.markup-heading>strong{font-size:16px;color:#244b68}
+.markup-heading>span{font-size:13px;color:#415c6c;flex:1;min-width:240px}
+.annotation-toolbar .segmented{display:flex;flex-wrap:wrap;gap:7px}
+.annotation-toolbar .mark-tool{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:8px 10px;border:1px solid #a6c0d2;border-radius:7px;background:#fff;font-size:14px;color:#244b68}
+.annotation-toolbar .mark-tool svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.annotation-toolbar .mark-tool.active{background:#126395;border-color:#126395;color:#fff;box-shadow:0 0 0 1px #126395}
+.drawing-options{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.drawing-options label{display:flex;align-items:center;gap:6px;font-size:13px}
+.drawing-options input[type=color]{width:38px;height:34px;padding:2px;border:1px solid #adc2d0;border-radius:5px;background:#fff}
+.drawing-options input[type=number],.drawing-options select{width:65px;min-height:34px;padding:5px}
+.drawing-3d-tools{display:inline-flex;align-items:center;gap:7px;margin-left:auto;font-size:13px;color:#415c6c}
+.drawing-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:4px 0}
+.drawing-actions button{min-height:34px;font-size:13px;padding:7px 10px}
+#drawingStatus{font-size:13px;color:#415c6c}
+.drawing-slice-hint{font-size:12px!important;color:#536774;line-height:1.5;margin:0}
+.drawing-active{cursor:crosshair}
+#drawingProperties{padding:12px 0;border-top:1px solid var(--line);margin-top:12px}
+#drawingProperties .hint{margin:8px 0 0}
+.marker-chip.arrow,.marker-chip.trace,.marker-chip.freehand,.marker-chip.distance{height:4px;width:16px;border-radius:1px;transform:rotate(-25deg)}
+.marker-chip.roi{border-radius:0}.marker-chip.ellipse{width:16px;height:10px}
+@media(max-width:800px){.markup-heading>span{min-width:100%}.annotation-toolbar .mark-tool{flex:1 1 105px}.drawing-options{gap:10px}.drawing-3d-tools{margin-left:0}.annotation-toolbar{padding:12px}.drawing-actions{gap:7px}}

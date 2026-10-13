@@ -1,7 +1,7 @@
 /* Durable, case-scoped researcher findings. Coordinates are global physical nm. */
 (() => {
   'use strict';
-  const SCHEMA_VERSION=3, FORMAT='microns-researcher-findings', MAX_RECORDS=100000;
+  const SCHEMA_VERSION=4, FORMAT='microns-researcher-findings', MAX_RECORDS=100000, MAX_DRAWING_POINTS=4096;
   const FORM_FIELDS={CASE_REVIEW:['case_id','reviewer_name','review_date','minutes_spent','common_head','neck_to_shaft','unitary_spine','at_least_two_contacts_same_spine','bounded_no_additional_contact','confidence','evidence_refs','limitations','prior_verdicts_seen','functional_results_seen','exposure_notes'],CONTACT_REVIEW:['case_id','contact_id','synaptic_junction','belongs_to_target_spine','location_head_neck_shaft','evidence_refs','reason_or_uncertainty'],ADDITIONAL_CONTACTS:['case_id','new_contact_id','volume_id','x_nm','y_nm','z_nm','synaptic_junction','belongs_to_target_spine','location_head_neck_shaft','evidence_refs','reason_or_uncertainty'],COVERAGE_LOG:['case_id','volume_id','inspected_local_z_inclusive','inspected_global_z_inclusive','inspected_xy_global_bounds','head_fully_included','neck_to_shaft_fully_included','all_relevant_available_sections_inspected','complete_membrane_inspected','continuous_boundary_resolved','missing_regions_or_defects','extra_crop_request_nm_bounds','evidence_refs']};
   const EXTRA_FIELDS={CASE_REVIEW:['combined_head_included','combined_neck_included','combined_all_sections_inspected','combined_complete_membrane','combined_boundary_resolved'],CONTACT_REVIEW:['junction_morphology','presynaptic_ownership','postsynaptic_ownership','ownership_notes'],ADDITIONAL_CONTACTS:['annotation_id','junction_morphology','presynaptic_ownership','postsynaptic_ownership','ownership_notes'],COVERAGE_LOG:[]};
   const REVIEWER_FIELDS=['package_id','reviewer_name','affiliation','professional_contact','relevant_serial_EM_experience','review_dates','software_and_version','assigned_cases','completed_cases','prior_verdicts_seen','functional_results_seen','exposure_notes','independent_initial_assessment','consultation_or_reconciliation','limitations_and_next_steps','signed_or_confirmed_by','confirmation_date'];
@@ -11,7 +11,8 @@
   for(const key of ['head_fully_included','neck_to_shaft_fully_included','all_relevant_available_sections_inspected','complete_membrane_inspected','continuous_boundary_resolved',...EXTRA_FIELDS.CASE_REVIEW])ENUM_FIELDS[key]=['','yes','no','uncertain'];
   for(const key of ['prior_verdicts_seen','functional_results_seen','independent_initial_assessment'])ENUM_FIELDS[key]=['','yes','no'];
   ENUM_FIELDS.location_head_neck_shaft=['','head','neck','shaft','other','uncertain'];ENUM_FIELDS.confidence=['','high','moderate','low'];
-  const kinds=['contact','point','object','region'], statuses=['uncertain','supported','rejected','note'], locations=['head','neck','shaft','other','uncertain'];
+  const drawingKinds=['trace','freehand','arrow','ellipse','roi','distance'];
+  const kinds=['contact','point','object','region',...drawingKinds], statuses=['uncertain','supported','rejected','note'], locations=['head','neck','shaft','other','uncertain'];
   const observationCategories=['unclassified','suspected_synapse','possible_adhesion','unresolved_other'];
   const encoder=new TextEncoder();
   const clone=value=>JSON.parse(JSON.stringify(value));
@@ -36,13 +37,32 @@
     const max=(v.end_vox_xyz_exclusive||v.begin_vox_xyz.map((b,i)=>b+v.shape_xyz[i])).map((v,i)=>v*res[i]);
     return {v,res,min,max};
   }
+  function validateGeometry(value,kind,{v,res,min,max}){
+    const keys=['points_nm','plane','slice_index','closed','color','stroke_width'];
+    if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!keys.includes(k)))fail('Неверная геометрия рисунка.');
+    if(value.plane!=='xy'||!Number.isSafeInteger(value.slice_index)||value.slice_index<v.begin_vox_xyz[2]||value.slice_index>=v.begin_vox_xyz[2]+v.shape_xyz[2])fail('Рисунок должен быть привязан к срезу XY указанного объёма.');
+    const points=value.points_nm,z=(value.slice_index+.5)*res[2];
+    if(!Array.isArray(points)||points.length<2||points.length>MAX_DRAWING_POINTS||points.some(p=>!point(p)||p.some((n,i)=>n<min[i]||n>=max[i])||Math.abs(p[2]-z)>1e-6))fail('Вершины рисунка должны находиться на одном срезе внутри объёма (не более 4096 точек).');
+    if(['arrow','ellipse','roi','distance'].includes(kind)&&points.length!==2)fail('Для этой фигуры нужны ровно две точки.');
+    const distinct=new Set(points.map(p=>p.join(',')));
+    if(distinct.size<2)fail('Рисунок должен содержать разные точки.');
+    if(['ellipse','roi'].includes(kind)&&[0,1].some(i=>Math.abs(points[0][i]-points[1][i])<=1e-6))fail('У области должны быть ненулевые ширина и высота.');
+    const closed=value.closed??['ellipse','roi'].includes(kind);
+    if(typeof closed!=='boolean'||['freehand','arrow','distance'].includes(kind)&&closed||['ellipse','roi'].includes(kind)&&!closed||kind==='trace'&&closed&&distinct.size<3)fail('Неверное замыкание рисунка: замкнутой трассе нужны минимум три разные точки.');
+    const color=value.color??'#ffd166',stroke_width=value.stroke_width??2;
+    if(typeof color!=='string'||!/^#[0-9a-f]{6}$/i.test(color)||typeof stroke_width!=='number'||!Number.isFinite(stroke_width)||stroke_width<1||stroke_width>12)fail('Неверные цвет или толщина линии рисунка.');
+    return {points_nm:points.map(p=>[...p]),plane:'xy',slice_index:value.slice_index,closed,color,stroke_width};
+  }
   function validateRecord(value,ctx){
     if(!value||typeof value!=='object'||Array.isArray(value))fail('Неверная запись аннотации.');
     if(typeof value.id!=='string'||! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id))fail('Неверный уникальный ID аннотации.');
     if(!Number.isSafeInteger(value.number)||value.number<1)fail('Неверный номер аннотации.');
-    const {min,max}=volumeInfo(ctx,value.case_id,value.volume_id);
-    if(!point(value.point_nm)||value.point_nm.some((v,i)=>v<min[i]||v>=max[i]))fail('Точка находится вне указанного объёма.');
-    const result={id:value.id,number:value.number,case_id:value.case_id,volume_id:value.volume_id,point_nm:[...value.point_nm],
+    const volume=volumeInfo(ctx,value.case_id,value.volume_id),{min,max}=volume;
+    const geometry=drawingKinds.includes(value.kind)?validateGeometry(value.geometry,value.kind,volume):null;
+    if(!geometry&&value.geometry!==undefined&&value.geometry!==null)fail('Геометрия рисунка не соответствует типу метки.');
+    const anchor=geometry?geometry.points_nm[0]:value.point_nm;
+    if(!point(anchor)||anchor.some((v,i)=>v<min[i]||v>=max[i]))fail('Точка находится вне указанного объёма.');
+    const result={id:value.id,number:value.number,case_id:value.case_id,volume_id:value.volume_id,point_nm:[...anchor],
       kind:choice(value.kind,kinds,'тип'),label:plain(value.label??'','название',1000),
       segment_id:value.segment_id??null,object_id:value.object_id??null,
       status:choice(value.status,statuses,'статус'),location:choice(value.location,locations,'часть структуры'),
@@ -51,6 +71,7 @@
       properties:plain(value.properties??'','свойства'),notes:plain(value.notes??'','заметки'),
       source_view:choice(value.source_view||'2d',['2d','3d'],'источник точки'),
       created_at:timestamp(value.created_at),updated_at:timestamp(value.updated_at)};
+    if(geometry){if(result.source_view!=='2d')fail('Рисунок должен быть привязан к 2D-срезу.');result.geometry=geometry;}
     if(result.segment_id!==null&&(typeof result.segment_id!=='string'||!/^\d{1,20}$/.test(result.segment_id)||BigInt(result.segment_id)>18446744073709551615n))fail('ID сегмента должен быть строкой целых цифр, без потери точности.');
     if(result.object_id!==null)plain(result.object_id,'ID объекта',1000);
     if(Date.parse(result.updated_at)<Date.parse(result.created_at))fail('Дата изменения предшествует созданию.');
@@ -117,7 +138,7 @@
       if(!prefs||typeof prefs!=='object'||Array.isArray(prefs)||Object.entries(prefs).some(([k,v])=>keys.includes(k)?typeof v!=='boolean':Object.hasOwn(numbers,k)?typeof v!=='number'||!Number.isFinite(v)||v<0||v>numbers[k]:k==='surfaceContextMode'?!['slice','full'].includes(v):k==='segmentationScope'?!['nearby','all'].includes(v):k==='segmentationLimit'?!Number.isSafeInteger(v)||v<1||v>30:true))fail('Неверные настройки видимости.');result.preferences={...prefs};
     }
     if(value.last_view!==undefined){const v=value.last_view;if(!v||typeof v!=='object')fail('Неверный последний вид.');const {v:volume}=volumeInfo(ctx,v.case_id,v.volume_id);if(!Number.isSafeInteger(v.z)||v.z<0||v.z>=volume.shape_xyz[2])fail('Последний срез вне объёма.');result.last_view={case_id:v.case_id,volume_id:v.volume_id,z:v.z};}
-    if(value.annotation_mode!==undefined)result.annotation_mode=choice(value.annotation_mode,['navigate','contact2d','point2d','point3d','object3d'],'инструмент');
+    if(value.annotation_mode!==undefined)result.annotation_mode=choice(value.annotation_mode,['navigate','contact2d','point2d','point3d','object3d','select','edit',...drawingKinds],'инструмент');
     if(value.display!==undefined){const d=value.display;if(!d||typeof d!=='object'||Object.keys(d).some(k=>!['zoom','black','white'].includes(k))||Object.values(d).some(n=>typeof n!=='number'||!Number.isFinite(n)))fail('Неверные настройки изображения.');if(d.zoom!==undefined&&(d.zoom<=0||d.zoom>128)||d.black!==undefined&&(d.black<0||d.black>255)||d.white!==undefined&&(d.white<0||d.white>255)||d.black!==undefined&&d.white!==undefined&&d.black>=d.white)fail('Настройки изображения вне диапазона.');result.display={...d};}
     if(value.surface_view!==undefined){const view=safeJSON(value.surface_view);if(!view||typeof view!=='object'||Array.isArray(view))fail('Неверный сохранённый 3D-вид.');const {v}=volumeInfo(ctx,view.case_id,view.volume_id);if(view.local_z!==undefined&&(!Number.isSafeInteger(view.local_z)||view.local_z<0||view.local_z>=v.shape_xyz[2]))fail('Срез 3D-вида вне объёма.');validateCameraBasis(view);result.surface_view=view;}
     if(result.last_view&&result.surface_view){const last=result.last_view,view=result.surface_view;if(view.case_id!==last.case_id||view.volume_id!==last.volume_id||view.local_z!==undefined&&view.local_z!==last.z)delete result.surface_view;}
@@ -158,7 +179,7 @@
   }
   const evidenceMatches=(r,filter)=>!filter.section||(r.source_view!=='3d'||r.linked_to_slice)&&filter.section.axis==='z'&&filter.section.index===r.local_z;
   function validatePackage(value,ctx){
-    if(!value||value.format!==FORMAT||![1,2,SCHEMA_VERSION].includes(value.schema_version)||value.package_id!==ctx.package_id)fail('Этот файл не является резервной копией аннотаций данного пакета MICrONS.');
+    if(!value||value.format!==FORMAT||![1,2,3,SCHEMA_VERSION].includes(value.schema_version)||value.package_id!==ctx.package_id)fail('Этот файл не является резервной копией аннотаций данного пакета MICrONS.');
     for(const key of ['annotations','cases','counters','deleted'])if(!Array.isArray(value[key])||value[key].length>MAX_RECORDS)fail('Неверный список: '+key);
     for(const key of ['review_records','evidence'])if(value[key]!==undefined&&(!Array.isArray(value[key])||value[key].length>MAX_RECORDS))fail('Неверный список: '+key);
     const result={...value,annotations:value.annotations.map(v=>validateRecord(v,ctx)),cases:value.cases.map(v=>validateCase(v,ctx)),counters:value.counters.map(v=>validateCounter(v,ctx)),deleted:value.deleted.map(v=>validateDeleted(v,ctx)),review_records:(value.review_records||[]).map(v=>validateReview(v,ctx)),reviewer:validateReviewer(value.reviewer||{}),reviewer_updated_at:value.reviewer_updated_at?timestamp(value.reviewer_updated_at):null,evidence:(value.evidence||[]).map(v=>validateEvidence(v,ctx)),settings:validateSettings(value.settings||{},ctx),settings_updated_at:value.settings_updated_at?timestamp(value.settings_updated_at):null};
@@ -181,6 +202,9 @@
   }
   function match(record,filter,ctx){
     if(filter.case_id&&record.case_id!==filter.case_id)return false;
+    // Legacy points may also appear in overlapping volumes. Drawings belong to
+    // the exact source volume and plane on which their vertices were created.
+    if(record.geometry&&filter.volume_id&&record.volume_id!==filter.volume_id)return false;
     if(filter.volume_id){if(!ctx.cases.get(record.case_id)?.volumes.some(v=>v.volume_id===filter.volume_id))return false;const {min,max}=volumeInfo(ctx,record.case_id,filter.volume_id);if(record.point_nm.some((n,i)=>n<min[i]||n>=max[i]))return false;}
     if(filter.section){
       if(!filter.volume_id)fail('Для среза необходимо указать объём.');
@@ -211,8 +235,8 @@
         const row=validateRecord({...old,...patch,updated_at:now(old.updated_at)},this.context);await request(records.put(row));return row;
       });
     }
-    async remove(id){
-      return transaction(this.db,['annotations','deleted'],'readwrite',async tx=>{const records=tx.objectStore('annotations'),row=await request(records.get(id));if(!row)return null;await request(records.delete(id));await request(tx.objectStore('deleted').put({id,case_id:row.case_id,number:row.number,deleted_at:now(row.updated_at)}));return row;});
+    async remove(id,options={}){
+      return transaction(this.db,['annotations','deleted'],'readwrite',async tx=>{const records=tx.objectStore('annotations'),row=await request(records.get(id));if(!row)return null;if(options.expected_updated_at&&row.updated_at!==options.expected_updated_at)fail('Аннотация изменена в другом окне. Обновите список перед удалением.');await request(records.delete(id));await request(tx.objectStore('deleted').put({id,case_id:row.case_id,number:row.number,deleted_at:now(row.updated_at)}));return row;});
     }
     async restore(record){
       const validated=validateRecord(record,this.context);
@@ -376,8 +400,8 @@
     }
     async exportFiles(filter={}, {backup,extraEvidence=[],includeImages=true}={}){
       const data=backup?validatePackage(backup,this.context):await this.exportData(filter);
-      const headers=['Случай','Метка','Тип метки','Категория наблюдения','Уверенность в синаптической природе','Часть структуры','Ссылки на доказательства','Заметка','Объём','Срез Z','X нм','Y нм','Z нм'],types={contact:'Контакт',point:'Особенность',object:'Объект',region:'Область'},categories={unclassified:'Не классифицировано',suspected_synapse:'Предполагаемый синапс',possible_adhesion:'Возможная адгезия',unresolved_other:'Другое / не разрешено'},certainty={supported:'Признаки синапса поддержаны',uncertain:'Неопределённо',rejected:'Признаки против синапса',note:'Не оценено'},locations={head:'Головка',neck:'Шейка',shaft:'Ствол дендрита',other:'Другое',uncertain:'Не определено'};
-      const rows=data.annotations.map(r=>{const {v,res}=volumeInfo(this.context,r.case_id,r.volume_id);return{'Случай':r.case_id,'Метка':r.number,'Тип метки':types[r.kind],'Категория наблюдения':categories[r.observation_category],'Уверенность в синаптической природе':certainty[r.status],'Часть структуры':locations[r.location],'Ссылки на доказательства':r.evidence_refs,'Заметка':[r.properties,r.notes].filter(Boolean).join('\n'),'Объём':r.volume_id,'Срез Z':Math.floor(r.point_nm[2]/res[2])-v.begin_vox_xyz[2],'X нм':r.point_nm[0],'Y нм':r.point_nm[1],'Z нм':r.point_nm[2]};});
+      const headers=['Случай','Метка','Тип метки','Категория наблюдения','Уверенность в синаптической природе','Часть структуры','Ссылки на доказательства','Заметка','Объём','Срез Z','X нм','Y нм','Z нм','Геометрия (глобальные нм)'],types={contact:'Контакт',point:'Особенность',object:'Объект',region:'Область',trace:'Трасса',freehand:'Свободная линия',arrow:'Стрелка',ellipse:'Эллипс',roi:'Рамка',distance:'Расстояние'},categories={unclassified:'Не классифицировано',suspected_synapse:'Предполагаемый синапс',possible_adhesion:'Возможная адгезия',unresolved_other:'Другое / не разрешено'},certainty={supported:'Признаки синапса поддержаны',uncertain:'Неопределённо',rejected:'Признаки против синапса',note:'Не оценено'},locations={head:'Головка',neck:'Шейка',shaft:'Ствол дендрита',other:'Другое',uncertain:'Не определено'};
+      const rows=data.annotations.map(r=>{const {v,res}=volumeInfo(this.context,r.case_id,r.volume_id);return{'Случай':r.case_id,'Метка':r.number,'Тип метки':types[r.kind],'Категория наблюдения':categories[r.observation_category],'Уверенность в синаптической природе':certainty[r.status],'Часть структуры':locations[r.location],'Ссылки на доказательства':r.evidence_refs,'Заметка':[r.properties,r.notes].filter(Boolean).join('\n'),'Объём':r.volume_id,'Срез Z':Math.floor(r.point_nm[2]/res[2])-v.begin_vox_xyz[2],'X нм':r.point_nm[0],'Y нм':r.point_nm[1],'Z нм':r.point_nm[2],'Геометрия (глобальные нм)':r.geometry?JSON.stringify(r.geometry):''};});
       const files=[{name:'results.csv',text:makeCSV(headers,rows)}];
       if(!includeImages){data.evidence=[];delete data.raw_images;files.push({name:'backup.json',text:JSON.stringify(data)});return files;}
       const all=new Map((await this.getEvidence({}, {blobs:true})).map(r=>[r.id,r]));
@@ -415,8 +439,8 @@
     return '\ufeff'+[headers,...rows.map(r=>headers.map(h=>r[h]??''))].map(row=>row.map(cell).join(',')).join('\r\n')+'\r\n';
   }
   function csv(records){
-    const headers=['id','number','case_id','volume_id','x_nm','y_nm','z_nm','kind','observation_category','status','location','evidence_refs','label','segment_id','object_id','properties','notes','source_view','bounds_nm','created_at','updated_at'];
-    return makeCSV(headers,records.map(r=>({...r,number:'N'+r.number,x_nm:r.point_nm[0],y_nm:r.point_nm[1],z_nm:r.point_nm[2],bounds_nm:r.bounds_nm?JSON.stringify(r.bounds_nm):'',segment_id:r.segment_id===null?'':"'"+r.segment_id})));
+    const headers=['id','number','case_id','volume_id','x_nm','y_nm','z_nm','kind','observation_category','status','location','evidence_refs','label','segment_id','object_id','properties','notes','source_view','bounds_nm','geometry','created_at','updated_at'];
+    return makeCSV(headers,records.map(r=>({...r,number:'N'+r.number,x_nm:r.point_nm[0],y_nm:r.point_nm[1],z_nm:r.point_nm[2],bounds_nm:r.bounds_nm?JSON.stringify(r.bounds_nm):'',geometry:r.geometry?JSON.stringify(r.geometry):'',segment_id:r.segment_id===null?'':"'"+r.segment_id})));
   }
   const casesCSV=records=>makeCSV(['case_id','coverage','notes','inspected_regions','extra_extent','updated_at'],records);
   function makeBackup(metadata,records,cases,filter={},extra={}){

@@ -287,6 +287,7 @@
     }
     annotationPosition(annotation) {
       if(!this.volume||!finite3(annotation.point_nm)||(annotation.case_id&&annotation.case_id!==this.caseId))return null;
+      if(annotation.geometry&&annotation.volume_id!==this.volume.volume_id)return null;
       const origin=this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]),point=vec.sub(annotation.point_nm,origin);
       return point.every((n,i)=>n>=0&&n<=this.bounds[i])?point:null;
     }
@@ -317,7 +318,7 @@
     }
     annotationClick(event) {
       const rect=this.stage.getBoundingClientRect(),x=(event.clientX-rect.left)*this.stage.clientWidth/rect.width,y=(event.clientY-rect.top)*this.stage.clientHeight/rect.height;
-      if(this.annotationsVisible){const hit=this.annotationHits.find(p=>Math.hypot(p.x-x,p.y-y)<=13);if(hit){this.setSelectedAnnotation(hit.id);window.dispatchEvent(new CustomEvent('annotations:select3d',{detail:{id:hit.id,case_id:this.caseId,volume_id:this.volume.volume_id}}));return;}}
+      if(this.annotationsVisible){const distance=(a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy||1)));return Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy);};const hit=this.annotationHits.find(p=>Math.hypot(p.x-x,p.y-y)<=13||p.paths?.some(path=>path.some((point,i)=>i&&distance(path[i-1],point)<=7)));if(hit){this.setSelectedAnnotation(hit.id);window.dispatchEvent(new CustomEvent('annotations:select3d',{detail:{id:hit.id,case_id:this.caseId,volume_id:this.volume.volume_id}}));return;}}
       const target=this.targetHits.find(p=>Math.hypot(p.x-x,p.y-y)<=12);if(target){window.dispatchEvent(new CustomEvent('surface:targetclick',{detail:{case_id:this.caseId,volume_id:this.volume.volume_id,target_id:target.id,target_key:target.key,point_nm:[...target.nm]}}));return;}
       if(this.annotationMode==='off'){window.dispatchEvent(new CustomEvent('review:deselect',{detail:{source:'surface-background',case_id:this.caseId,volume_id:this.volume.volume_id}}));return;}const hit=this.pickAt(event.clientX,event.clientY);
       if(hit){this.selectedObjectId=hit.object_id;this.schedule();window.dispatchEvent(new CustomEvent('annotations:pick3d',{detail:hit}));}
@@ -511,7 +512,18 @@
       this.targetHits=[];for(const target of targets){const [x,y]=this.project(target.position,camera);if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;MarkerStyles.draw(ctx,x,y,6,target.key);if(finite3(target.nm))this.targetHits.push({id:target.id,key:target.key,nm:[...target.nm],x,y});ctx.fillStyle=MarkerStyles.styles[target.key]?.color||'#edc229';ctx.strokeStyle='#13212c';ctx.lineWidth=4;ctx.font='12px system-ui';text(target.label||target.id,x+11,y-10);}
       this.annotationHits=[];
       if(this.annotationsVisible)for(const annotation of this.annotations){
-        const position=this.annotationPosition(annotation);if(!position)continue;const [x,y]=this.project(position,camera);if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;
+        const position=this.annotationPosition(annotation);if(!position)continue;const [x,y]=this.project(position,camera);
+        if(annotation.geometry){
+          const origin=this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]);
+          const paths=(window.HandoffDrawingGeometry?.pathsNm(annotation)||[]).map(path=>path.map(point=>this.project(vec.sub(point,origin),camera)));
+          const selected=annotation.id===this.selectedAnnotationId,color=annotation.geometry.color||'#ffd166',width=annotation.geometry.stroke_width||2;
+          ctx.save();ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
+          for(const path of paths){if(path.length<2)continue;ctx.moveTo(...path[0]);for(const point of path.slice(1))ctx.lineTo(...point);}
+          ctx.strokeStyle=selected?'#fff':'rgba(10,22,31,.8)';ctx.lineWidth=width+3;ctx.stroke();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
+          if(x>=0&&y>=0&&x<=this.stage.clientWidth&&y<=this.stage.clientHeight){ctx.font='bold 13px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#13212c';ctx.fillStyle=color;ctx.strokeText('№'+annotation.number,x+8,y-8);ctx.fillText('№'+annotation.number,x+8,y-8);}
+          ctx.restore();if(paths.length)this.annotationHits.push({id:annotation.id,x,y,paths});continue;
+        }
+        if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;
         const selected=annotation.id===this.selectedAnnotationId;MarkerStyles.draw(ctx,x,y,10,annotation.kind,annotation.number??'?',selected);this.annotationHits.push({id:annotation.id,x,y});
       }
       const scale=this.scaleBar(camera),bar=scale.pixels,y=this.stage.clientHeight-34,x=19;

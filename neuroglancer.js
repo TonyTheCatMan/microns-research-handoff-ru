@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/?v=20260928-reset3d1',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=20261013-drawing1',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
 
@@ -24,7 +24,7 @@
     const kinds=[['contact','Контакты','#166ac7'],['point','Особенности','#8844bd'],['object','Объекты','#c86b06'],['region','Области','#8844bd']];
     const categories={unclassified:'Не классифицировано',suspected_synapse:'Предполагаемый синаптический контакт',possible_adhesion:'Возможная несинаптическая адгезия',unresolved_other:'Неясный контакт / другая особенность'};
     const certainty={note:'Не оценено',uncertain:'Недостаточно / неясно',supported:'Поддерживают синапс',rejected:'Свидетельства против синапса'};
-    const records=(findings.records||[]).filter(r=>r.case_id===currentCase.case_id).sort((a,b)=>a.number-b.number);
+    const records=(findings.records||[]).filter(r=>r.case_id===currentCase.case_id&&(!r.geometry||r.volume_id===volume.volume_id)).sort((a,b)=>a.number-b.number);
     const selected=records.find(r=>r.id===findings.focusId);
     if(selected)position=selected.point_nm.map((n,i)=>n/resolution[i]);
     const userLayers=kinds.flatMap(([kind,label,color])=>{
@@ -39,6 +39,35 @@
             'Свидетельства синапса: '+(certainty[r.status]||certainty.note),r.notes,r.properties,
             r.evidence_refs?'Свидетельства: '+r.evidence_refs:''].filter(Boolean).join('\n')}))}];
     });
+    // The donor's polyline/ellipse/arrow geometry is shared with the main canvas.
+    // One hidden anchor keeps a drawing's number, selection and Delete tied to
+    // its saved record while its visible line segments retain source coordinates.
+    const drawingNames={trace:'Трассировка',freehand:'Свободная линия',arrow:'Стрелка',ellipse:'Эллипс',roi:'Прямоугольник',distance:'Расстояние'},drawingLayers=new Map();
+    for(const record of records.filter(r=>r.geometry)){
+      const paths=window.HandoffDrawingGeometry?.pathsNm(record)||[];if(!paths.length)continue;
+      const color=record.geometry.color||'#ffd166',width=record.geometry.stroke_width||2,key=color+' · '+width;
+      let layer=drawingLayers.get(key);
+      if(!layer){layer={type:'annotation',name:'Мои метки · Рисунки · '+key,visible:enabled('annotationsVisible'),source:{url:'local://annotations',transform:{outputDimensions:dimensions}},annotationColor:color,
+        annotationProperties:[{id:'number',type:'uint32',description:'Номер метки',default:0},...['x','y','z'].map(axis=>({id:'anchor_'+axis,type:'float32',description:'Координата '+axis,default:0}))],
+        // Respect the acquired XY section instead of Neuroglancer's usual
+        // two-section fade. The 3D projection still shows all anchored planes.
+        shader:`void main(){
+          if(!PROJECTION_VIEW){
+            float anchor[3]=float[3](prop_anchor_x(),prop_anchor_y(),prop_anchor_z());
+            vec4 center=uModelViewProjection*vec4(projectModelVectorToSubspace(anchor),1.0);
+            vec4 dx=uModelViewProjection*vec4(uSubspaceMatrix[0],0.0);
+            vec4 dy=uModelViewProjection*vec4(uSubspaceMatrix[1],0.0);
+            vec4 dz=uModelViewProjection*vec4(uSubspaceMatrix[2],0.0);
+            if(abs(dx.z)>abs(dz.z)*0.001||abs(dy.z)>abs(dz.z)*0.001||abs(center.z)>abs(dz.z)*0.5+0.00001)discard;
+          }
+          setColor(defaultColor());setLineWidth(${Number(width).toFixed(1)});setEndpointMarkerSize(0.0);setPointMarkerSize(0.0);setPointMarkerBorderWidth(0.0);
+        }`,annotations:[]};drawingLayers.set(key,layer);}
+      const description=[`№${record.number} · ${drawingNames[record.kind]||record.kind} · ${record.case_id} · ${record.volume_id}`,`Плоскость XY · Z ${record.geometry.slice_index} · редактирование в основном 2D-виде`,record.notes,record.properties].filter(Boolean).join('\n');
+      const anchor=record.point_nm.map((n,i)=>n/resolution[i]),props=[record.number,...anchor];
+      layer.annotations.push({type:'point',id:record.id,point:anchor,props,description});
+      paths.forEach((path,p)=>path.slice(1).forEach((point,i)=>layer.annotations.push({type:'line',id:`${record.id}::draw:${p}:${i}`,pointA:path[i].map((n,axis)=>n/resolution[axis]),pointB:point.map((n,axis)=>n/resolution[axis]),props,description})));
+    }
+    userLayers.push(...drawingLayers.values());
     return {
       title: `MICrONS · ${volume.volume_id} · Z ${localZ}`,
       dimensions,

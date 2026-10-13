@@ -5,7 +5,7 @@
   const params = new URLSearchParams(location.search), notesWindow = params.get('panel') === 'annotations';
   if (notesWindow) { document.body.classList.add('notes-window'); document.querySelector('#page-viewer h1').textContent = 'Отметки и свойства'; }
   const PREFS = 'microns-annotation-preferences-v1', JOURNAL = 'microns-annotation-pending-v1:';
-  const labels = {contact:'Контакт', point:'Особенность', object:'Объект', uncertain:'Неопределённо', supported:'Признаки синапса поддержаны', rejected:'Признаки против синапса', note:'Не оценено'};
+  const labels = {contact:'Контакт', point:'Особенность', object:'Объект', trace:'Трасса',freehand:'От руки',arrow:'Стрелка',ellipse:'Эллипс',roi:'Рамка',distance:'Расстояние', uncertain:'Неопределённо', supported:'Признаки синапса поддержаны', rejected:'Признаки против синапса', note:'Не оценено'};
   const categories={unclassified:'Не классифицировано',suspected_synapse:'Предполагаемый синапс',possible_adhesion:'Возможная адгезия',unresolved_other:'Другое / не разрешено'};
   const exportButtonIds=['annotationsExportAll','annotationsExportCase'];
   let store, metadata, records = [], caseNotes = [], selectedId = params.get('annotation'), currentCase = '', pending = 0;
@@ -58,7 +58,7 @@
   function activeNotes(){for(const peer of notesPeers)try{if(peer.closed)notesPeers.delete(peer);}catch{notesPeers.delete(peer);}return [...notesPeers];}
   function notifyNotes(){if(!notesWindow)for(const peer of activeNotes())try{peer.HandoffAnnotations?.syncFromMain();}catch{}}
   function attachNotes(peer){if(!notesWindow&&peer?.opener===window&&!notesPeers.has(peer)){notesPeers.add(peer);notifyNotes();}}
-  async function settleNotes(){for(const peer of activeNotes())await peer.HandoffAnnotations?.settleForAction();}
+  async function settleNotes(){for(const peer of activeNotes()){await peer.HandoffDrawings?.whenSettled();await peer.HandoffAnnotations?.settleForAction();}}
   async function syncFromMain(){
     if(!notesWindow||!store)return;
     if(followingMain){followAgain=true;return;}followingMain=true;
@@ -105,7 +105,7 @@
     records=nextRecords;caseNotes=nextCases;const removed=selectedId&&!byId(selectedId);if(removed)selectedId=null;renderList();renderEditor();renderCaseNotes();draw();if(removed&&announce&&!notesWindow)clearSelection({source:'delete'});changed();notifyNotes();
   }
   function locationInVolume(record,volume=viewer()?.volume) {
-    if(!volume||record.case_id!==viewer()?.currentCase?.case_id)return null;
+    if(!volume||record.case_id!==viewer()?.currentCase?.case_id||record.geometry&&record.volume_id!==volume.volume_id)return null;
     const p=record.point_nm.map((n,i)=>n/volume.resolution_nm[i]-volume.begin_vox_xyz[i]);
     return p.every((n,i)=>n>=0&&n<volume.shape_xyz[i])?p:null;
   }
@@ -120,13 +120,16 @@
     // Render labels at display resolution, independently of the enlarged EM pixels.
     ctx.save();ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
     for(const record of sectionRecords()){
+      if(record.geometry){if(!window.HandoffDrawings?.isPreviewed(record.id))HandoffDrawingGeometry.drawRecord(ctx,record,v.volume,v.z,{zoom:v.zoom,selected:record.id===selectedId,handles:mode()==='select'});continue;}
       const [x,y]=locationInVolume(record),selected=record.id===selectedId;
       MarkerStyles.draw(ctx,x*v.zoom,y*v.zoom,10,record.kind,record.number,selected);
     }
+    window.HandoffDrawings?.renderOverlay(ctx);
     ctx.restore();
   }
   function draw() {
     const v=viewer(), canvas=$('annotationCanvas');
+    window.HandoffDrawings?.refresh();
     drawOn(canvas);
     if(v?.ready)v.surface?.setAnnotations(caseRecords(),visible(),selectedId);
   }
@@ -134,14 +137,14 @@
     if(!store)return;
     $('annotationCaseLabel').textContent=currentCase?'· '+currentCase:'';
     const items=caseRecords(),counts={supported:0,unresolved:0,adhesion:0,rejected:0,unclassified:0};
-    for(const r of items){const category=r.observation_category||'unclassified';if(category==='unclassified')counts.unclassified++;else if(category==='possible_adhesion')counts.adhesion++;else if(category==='suspected_synapse'&&r.status==='supported')counts.supported++;else if(category==='suspected_synapse'&&r.status==='rejected')counts.rejected++;else counts.unresolved++;}
+    for(const r of items.filter(r=>!r.geometry)){const category=r.observation_category||'unclassified';if(category==='unclassified')counts.unclassified++;else if(category==='possible_adhesion')counts.adhesion++;else if(category==='suspected_synapse'&&r.status==='supported')counts.supported++;else if(category==='suspected_synapse'&&r.status==='rejected')counts.rejected++;else counts.unresolved++;}
     const unresolved=counts.unresolved+counts.unclassified+items.filter(r=>r.observation_category==='possible_adhesion'&&['uncertain','note'].includes(r.status)).length;
-    $('annotationCounter').textContent=`Меток: ${items.length} · признаки синапса поддержаны: ${counts.supported} · не разрешено: ${unresolved}`;
+    $('annotationCounter').textContent=`Меток: ${items.filter(r=>!r.geometry).length} · рисунков: ${items.filter(r=>r.geometry).length} · признаки синапса поддержаны: ${counts.supported} · не разрешено: ${unresolved}`;
     $('annotationCounter').title=`Возможная адгезия: ${counts.adhesion}; признаки против синапса: ${counts.rejected}; без категории: ${counts.unclassified}. Форма метки сама по себе не подтверждает синапс.`;
     const nodes=items.map(record=>{
       const button=document.createElement('button');button.className='annotation-row';button.setAttribute('aria-pressed',String(record.id===selectedId));
       const title=document.createElement('strong'),chip=document.createElement('i');chip.className='marker-chip '+record.kind;title.append(chip,document.createTextNode(` ${record.number} · ${labels[record.kind]}`));
-      const classification=document.createElement('small');classification.textContent=categories[record.observation_category||'unclassified']+' · '+labels[record.status];
+      const classification=document.createElement('small');classification.textContent=record.geometry?`${record.volume_id} · XY · Z ${record.geometry.slice_index-viewer().metadata.cases.find(c=>c.case_id===record.case_id).volumes.find(v=>v.volume_id===record.volume_id).begin_vox_xyz[2]}`:categories[record.observation_category||'unclassified']+' · '+labels[record.status];if(record.geometry)chip.style.background=record.geometry.color;
       const hint=document.createElement('small');hint.textContent=record.notes||record.properties||'Без заметки';
       button.append(title,classification,hint);button.addEventListener('click',()=>select(record.id,false,true,'list'));return button;
     });
@@ -165,6 +168,9 @@
     for(const [id,key] of Object.entries(fields))setFieldValue($(id),record[key]||(key==='observation_category'?'unclassified':''),force||lastEditorId!==record.id);
     $('annotationCoordinates').textContent='Глобальные XYZ (нм): '+fmt(record.point_nm)+(record.segment_id?'\nСегмент v1300: '+record.segment_id:'');lastEditorId=record.id;
     $('previousMarkerProperties').hidden=!record.properties;
+    $('annotationKind').disabled=!!record.geometry;
+    for(const id of ['annotationCategory','annotationVerdict'])$(id).closest('label').hidden=!!record.geometry;
+    window.HandoffDrawings?.renderProperties(record);
   }
   function announceSelection(record,intent='select',source='api'){
     window.dispatchEvent(new CustomEvent('annotations:selection',{detail:{id:record?.id||null,case_id:record?.case_id||currentCase,volume_id:record?.volume_id||viewer()?.volume?.volume_id||null,point_nm:record?[...record.point_nm]:null,intent,source}}));
@@ -221,9 +227,10 @@
   }
   for(const [id,key] of Object.entries(fields))$(id)?.addEventListener('input',()=>{
     const record=byId(selectedId);if(!record||!store)return;
+    const before=structuredClone(record);
     record[key]=$(id).value;record.updated_at=now(record.updated_at);const snapshot=structuredClone(record),token=journal('annotation',snapshot);
     renderList();draw();changed();
-    enqueue(async()=>{const current=byId(snapshot.id);if(!current)return;const saved=await store.update(snapshot.id,{[key]:current[key]});if(current.updated_at<=saved.updated_at)current.updated_at=saved.updated_at;forgetJournal('annotation',snapshot.id,token);broadcast({type:'changed'});});
+    enqueue(async()=>{const current=byId(snapshot.id);if(!current)return;const saved=await store.update(snapshot.id,{[key]:current[key]});if(current.updated_at<=saved.updated_at)current.updated_at=saved.updated_at;forgetJournal('annotation',snapshot.id,token);if(before.geometry)drawingMutation(before,saved);broadcast({type:'changed'});});
   });
   const caseFields={caseNotes:'notes',caseCoverage:'coverage',caseInspected:'inspected_regions',caseExtraExtent:'extra_extent'};
   function renderCaseNotes(force=false) {
@@ -236,6 +243,31 @@
     const record={...previous,[key]:$(id).value,updated_at:now(previous.updated_at)};updateLocalCase(record);const token=journal('case',record);changed();
     enqueue(async()=>{const current=caseNotes.find(r=>r.case_id===record.case_id);if(!current)return;await store.putCase({case_id:record.case_id,[key]:current[key]});forgetJournal('case',record.case_id,token);broadcast({type:'changed'});});
   });
+  function drawingMutation(before,after){window.dispatchEvent(new CustomEvent('annotations:mutation',{detail:{before:before?structuredClone(before):null,after:after?structuredClone(after):null}}));}
+  async function createDrawing(detail){
+    let result,error;await enqueue(async()=>{try{result=await store.add({...detail,source_view:'2d',status:'note',location:'uncertain'});updateLocal(result);drawingMutation(null,result);select(result.id,false,true,'drawing');changed();broadcast({type:'changed'});}catch(failure){error=failure;}});if(error)throw error;return result;
+  }
+  async function changeDrawing(id,patch,{expected}={}){
+    if(notesWindow){const main=mainWindow()?.HandoffAnnotations;return main?main.changeDrawing(id,patch,{expected}):null;}
+    const before=byId(id);if(!before?.geometry)throw new Error('Рисунок уже удалён. Обновите список.');
+    const snapshot=structuredClone(before);let result,error;
+    await enqueue(async()=>{try{result=await store.update(id,patch,{expected_updated_at:expected||snapshot.updated_at});updateLocal(result);drawingMutation(snapshot,result);renderList();renderEditor();draw();changed();broadcast({type:'changed'});notifyNotes();}catch(failure){error=failure;}});if(error){await refresh();throw error;}return result;
+  }
+  function comparableDrawing(record){return JSON.stringify(record?[record.kind,record.geometry,record.notes,record.properties,record.label,record.status,record.observation_category,record.location,record.evidence_refs]:null);}
+  async function applyDrawingHistory(entry,reverse){
+    await settleForAction();await refresh();
+    const expected=reverse?entry.after:entry.before,wanted=reverse?entry.before:entry.after,id=(expected||wanted).id,current=byId(id);
+    if(comparableDrawing(current)!==comparableDrawing(expected))throw new Error('Метка изменилась в другом окне. Отмена не применена.');
+    let result=null,error;
+    await enqueue(async()=>{
+      try{
+      if(!wanted){await store.remove(id,{expected_updated_at:current.updated_at});records=records.filter(r=>r.id!==id);if(deleted?.id===id){deleted=null;$('annotationUndo').hidden=true;}}
+      else if(!current){result=await store.restore(wanted);updateLocal(result);}
+      else {const {id:ignoreId,number,created_at,updated_at,...patch}=wanted;result=await store.update(id,patch,{expected_updated_at:current.updated_at});updateLocal(result);}
+      select(result?.id||null,false,true,'history');changed();broadcast({type:'changed'});notifyNotes();
+      }catch(failure){error=failure;}
+    });if(error){await refresh();throw error;}return result;
+  }
   async function addPoint(detail,kind) {
     if(!store||!viewer()?.ready)return;
     if(kind==='object'){
@@ -245,9 +277,10 @@
     await enqueue(async()=>{const record=await store.add({...detail,kind,status:'uncertain',observation_category:'unclassified',location:'uncertain'});updateLocal(record);select(record.id,false,true,detail.source_view||'api');changed();broadcast({type:'changed'});});
   }
   function setMode() {
+    window.HandoffDrawings?.toolChanged();
     const value=mode();viewer()?.surface?.setAnnotationMode(value==='point3d'?'point':value==='object3d'?'object':'off');
     $('viewport').classList.toggle('marking-2d',value.endsWith('2d'));
-    $('annotationModeHelp').textContent={navigate:'Нажмите на метку, чтобы открыть свойства. Снять выбор: щелчок вне меток или Esc. Delete — удалить выбранную метку.',contact2d:'Нажмите на контакт в 2D: появится следующий номер. При необходимости добавьте заметку ниже.',point2d:'Нажмите на особенность в 2D и заполните её свойства в панели ниже.',point3d:'Нажмите на видимую поверхность в 3D. Перетаскивание по-прежнему вращает модель.',object3d:'Нажмите на объект в 3D для выбора и записи его свойств. При необходимости скройте плоскость XY.'}[value];
+    $('annotationModeHelp').textContent={navigate:'Нажмите на метку, чтобы открыть свойства. Снять выбор: щелчок вне меток или Esc. Delete — удалить выбранную метку.',contact2d:'Нажмите на контакт в 2D: появится следующий номер. При необходимости добавьте заметку ниже.',point2d:'Нажмите на особенность в 2D и заполните её свойства в панели ниже.',point3d:'Нажмите на видимую поверхность в 3D. Перетаскивание по-прежнему вращает модель.',object3d:'Нажмите на объект в 3D для выбора и записи его свойств. При необходимости скройте плоскость XY.'}[value]||window.HandoffDrawings?.toolHint(value)||'Выберите инструмент.';
   }
   $('annotationMode').addEventListener('change',setMode);
   $('annotationsVisible').addEventListener('change',()=>{prefsSave();draw();});
@@ -267,6 +300,7 @@
     deletingIds.add(id);let removed=false;
     try{await enqueue(async()=>{
       const saved=await store.remove(id);if(!saved)return;
+      if(saved.geometry)drawingMutation(saved,null);
       deleted=saved;removed=true;viewer()?.surface?.forgetAnnotationFocus(saved.number);records=records.filter(r=>r.id!==id);
       if(selectedId===id){
         if(notesWindow){select(null,false,false);const main=mainWindow()?.HandoffAnnotations;if(main?.selectedId===id)main.clearSelection({source:'delete'});}
@@ -297,7 +331,7 @@
     const main=notesWindow?mainWindow()?.HandoffAnnotations:null;
     if(main){await main.undoDeletion();await syncFromMain();return;}
     if(!deleted)return;const record=deleted;
-    await enqueue(async()=>{const restored=await store.restore(record);updateLocal(restored);if(deleted?.id===record.id)deleted=null;$('annotationUndo').hidden=!deleted;select(restored.id);changed();broadcast({type:'changed'});notifyNotes();});
+    await enqueue(async()=>{const restored=await store.restore(record);if(restored.geometry)drawingMutation(null,restored);updateLocal(restored);if(deleted?.id===record.id)deleted=null;$('annotationUndo').hidden=!deleted;select(restored.id);changed();broadcast({type:'changed'});notifyNotes();});
   }
   $('annotationUndo').addEventListener('click',undoDeletion);
   let pointer;
@@ -308,8 +342,8 @@
     const start=pointer;pointer=null;if(event.micronsTargetHandled||!start||start.moved||Math.hypot(event.clientX-start.x,event.clientY-start.y)>5||!viewer()?.ready||!store)return;
     const v=viewer(),image=$('imageCanvas'),rect=image.getBoundingClientRect(),x=(event.clientX-rect.left)/rect.width*image.width,y=(event.clientY-rect.top)/rect.height*image.height;
     if(x<0||y<0||x>=image.width||y>=image.height){if(mode()==='navigate')clearSelection({source:'2d-background'});return;}
-    const near=visible()?sectionRecords().find(r=>{const p=locationInVolume(r);return Math.hypot(p[0]-x,p[1]-y)*v.zoom<12;}):null;
-    if(near){select(near.id,false,true,'2d');return;}if(mode()==='navigate'){clearSelection({source:'2d-background'});return;}if(!['contact2d','point2d'].includes(mode()))return;
+    const near=visible()?sectionRecords().find(r=>{if(r.geometry)return false;const p=locationInVolume(r);return Math.hypot(p[0]-x,p[1]-y)*v.zoom<12;}):null;
+    if(near&&!near.geometry){select(near.id,false,true,'2d');return;}if(mode()==='navigate'){clearSelection({source:'2d-background'});return;}if(!['contact2d','point2d'].includes(mode()))return;
     const point=[Math.floor(x)+.5,Math.floor(y)+.5,v.z+.5].map((n,i)=>(n+v.volume.begin_vox_xyz[i])*v.volume.resolution_nm[i]);
     addPoint({case_id:v.currentCase.case_id,volume_id:v.volume.volume_id,point_nm:point,source_view:'2d',segment_id:null,object_id:null},mode()==='contact2d'?'contact':'point');
   });
@@ -337,7 +371,7 @@
   }
   watchPixelDensity();
   $('annotationPopout').addEventListener('click',()=>{
-    const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('v','20260929-results1');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);else url.searchParams.delete('annotation');url.hash='viewer';
+    const url=new URL(location.href);url.searchParams.set('panel','annotations');url.searchParams.set('v','20261013-drawing1');url.searchParams.set('case',currentCase);url.searchParams.delete('z');if(selectedId)url.searchParams.set('annotation',selectedId);else url.searchParams.delete('annotation');url.hash='viewer';
     const opened=activeNotes()[0]||window.open(url.href,'microns-annotation-properties-'+crypto.randomUUID(),'width=680,height=900');if(!opened)$('annotationModeHelp').textContent='Разрешите всплывающее окно для свойств или используйте панель ниже.';
     if(opened){attachNotes(opened);notifyNotes();opened.focus();}
   });
@@ -374,7 +408,7 @@
       const x=left+(p[0]+.5)*scale,y=top+(p[1]+.5)*scale;MarkerStyles.draw(ctx,x,y,6*unit,key,'',false,unit);
       ctx.font='bold '+13*unit+'px system-ui';ctx.lineWidth=3*unit;ctx.strokeStyle='#172632';ctx.strokeText(contact.contact_id+suffix,x+10*unit,y-10*unit);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(contact.contact_id+suffix,x+10*unit,y-10*unit);
     }
-    if(withAnnotations&&visible())for(const record of sectionRecords()){const [x,y]=locationInVolume(record);MarkerStyles.draw(ctx,left+x*scale,top+y*scale,10*unit,record.kind,record.number,record.id===selectedId,unit);}
+    if(withAnnotations&&visible())for(const record of sectionRecords()){if(record.geometry){HandoffDrawingGeometry.drawRecord(ctx,record,v.volume,v.z,{zoom:scale,x:left,y:top,unit});continue;}const [x,y]=locationInVolume(record);MarkerStyles.draw(ctx,left+x*scale,top+y*scale,10*unit,record.kind,record.number,record.id===selectedId,unit);}
     const y=top+image.height*scale+38,bar=500/v.volume.resolution_nm[0]*scale;ctx.strokeStyle='#18344b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+bar,y);ctx.stroke();ctx.fillStyle='#18344b';ctx.font='26px system-ui';ctx.fillText('500 нм',left+bar+16,y+8);
     ctx.fillText(`Исходное изображение: ${image.width} × ${image.height} пикселей · без потери исходных пикселей`,left,y+43);ctx.font='24px system-ui';ctx.fillText('MICrONS Consortium (2025) · CC BY 4.0 · doi:10.1038/s41586-025-08790-w',left,y+82);
     return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Не удалось создать PNG.')),'image/png'));
@@ -387,7 +421,7 @@
     const exportButtons=[...exportButtonIds,'neuroglancerExportAll','neuroglancerExportCase'].map($).filter(Boolean);
     exportButtons.forEach(button=>button.disabled=true);
     try{
-      await settleForAction();await settleNotes();await refresh();
+      await window.HandoffDrawings?.whenSettled();await settleForAction();await settleNotes();await refresh();
       const v=viewer(),frozenCase=currentCase,isCase=scope!=='all',filter=isCase?{case_id:frozenCase}:{};
       if(isCase&&!frozenCase)throw new Error('Сначала выберите случай.');
       const settings={preferences:readPreferences(),annotation_mode:mode()};
@@ -413,7 +447,8 @@
     const previousSettings={preferences:readPreferences(),annotation_mode:mode()};
     if(viewer()?.ready){const v=viewer();previousSettings.last_view={case_id:currentCase,volume_id:v.volume.volume_id,z:v.z};previousSettings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)try{previousSettings.surface_view=v.surface.getViewState();}catch{}}
     try{
-      await settleForAction();await settleNotes();
+      await window.HandoffDrawings?.whenSettled();await settleForAction();await settleNotes();
+      window.HandoffDrawings?.resetHistory();
       // File objects selected in the notes window belong to a different JavaScript realm.
       if(!(file instanceof Blob))file=new File([await file.arrayBuffer()],file.name,{type:file.type});
       const result=/\.zip$/i.test(file.name)?await store.importZIP(file,{policy:'restore',caseOnly}):await store.importData(JSON.parse(await file.text()),{policy:'restore',caseOnly});
@@ -452,5 +487,5 @@
   }
   window.addEventListener('review:ready',event=>boot(event.detail),{once:true});
   if(viewer()?.metadata)boot(viewer().metadata);
-  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},get deletedRecord(){return deleted;},get isExporting(){return exportBusy;},isNotesWindow:notesWindow,enqueue,exportFindings,importFindings,imageBlob,select,applySelection,clearSelection,requestDelete,deleteConfirmed,undoDeletion,refresh,whenSettled,settleForAction,attachNotes,syncFromMain,undoImport:()=>undoImportAction?.(),goTo:async id=>{select(id,false,false);await goToSelected();window.focus();}};
+  window.HandoffAnnotations={get visible(){return visible();},get captures2D(){return !!store&&['contact2d','point2d'].includes(mode());},get store(){return store;},get records(){return records;},get cases(){return caseNotes;},get currentCase(){return currentCase;},get selectedId(){return selectedId;},get deletedRecord(){return deleted;},get isExporting(){return exportBusy;},isNotesWindow:notesWindow,enqueue,createDrawing,changeDrawing,applyDrawingHistory,draw,exportFindings,importFindings,imageBlob,select,applySelection,clearSelection,requestDelete,deleteConfirmed,undoDeletion,refresh,whenSettled,settleForAction,attachNotes,syncFromMain,undoImport:()=>undoImportAction?.(),goTo:async id=>{select(id,false,false);await goToSelected();window.focus();}};
 })();
