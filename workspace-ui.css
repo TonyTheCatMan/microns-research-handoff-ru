@@ -1,0 +1,54 @@
+/* Interface language and compact, aligned viewer controls. */
+.masthead-actions{display:flex;align-items:center;gap:24px;min-width:0}
+.interface-language{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;letter-spacing:.02em;color:#d7e9f3;white-space:nowrap}
+.interface-language select{min-width:108px;min-height:34px;padding:5px 9px;font-size:14px;border-color:#7296ad;border-radius:6px;background:#fff;color:#18344b}
+.paired-views{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
+.raw-panel,.surface-panel{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:subgrid;grid-row:span 4;min-width:0;align-items:start}
+.raw-panel{grid-column:1;border-right:1px solid var(--line);border-bottom:0}
+.surface-panel{grid-column:2}
+.paired-views .pane-heading{align-self:stretch}
+.viewer-panel-controls{min-width:0;align-self:stretch;background:#f6f9fc;border-bottom:1px solid var(--line)}
+.raw-controls .annotation-toolbar{padding:9px 10px;gap:6px;border-bottom:0}
+.raw-controls .markup-heading{gap:5px;align-items:start}
+.raw-controls .markup-heading>strong{font-size:13px;white-space:nowrap}
+.raw-controls .markup-heading>span{font-size:11px;min-width:0;flex-basis:100%;line-height:1.35}
+.raw-controls .segmented{gap:4px}
+.raw-controls .mark-tool{min-height:30px;padding:4px 6px;gap:4px;font-size:11px;line-height:1.2;flex:0 1 auto;border-radius:5px}
+.raw-controls .mark-tool svg{width:16px;height:16px;stroke-width:1.8}
+.raw-controls .drawing-options{gap:5px 9px}
+.raw-controls .drawing-options label{gap:4px;font-size:11px}
+.raw-controls .drawing-options input[type=color]{width:30px;height:28px}
+.raw-controls .drawing-options select{width:47px;min-height:28px;padding:3px 5px;font-size:12px}
+.raw-controls .drawing-options input[type=checkbox]{width:14px;height:14px}
+.raw-controls .drawing-options>button,.raw-controls .drawing-actions button{min-height:28px;padding:4px 6px;font-size:11px}
+.raw-controls .drawing-actions{gap:4px;margin:0}
+.raw-controls .drawing-3d-tools{margin-left:0;gap:4px;font-size:11px}
+.raw-controls .drawing-slice-hint{font-size:10px!important;line-height:1.35;margin:0}
+.raw-controls #annotationCounter,.raw-controls #drawingStatus{font-size:10px;line-height:1.35}
+.raw-controls .view-reset-actions,.surface-controls .view-reset-actions{padding:7px 10px}
+.viewer-panel-controls .view-reset-button{min-height:34px;padding:5px 9px;font-size:12px}
+.surface-mark-tools{padding:9px 10px 0}
+.surface-mark-tools .drawing-3d-tools{margin:0;font-size:12px}
+.surface-mark-tools .mark-tool{min-height:30px;padding:4px 8px;font-size:12px}
+.surface-mark-tools .mark-tool.active{background:#126395;border-color:#126395;color:#fff}
+.surface-controls .surface-tools{min-height:0;padding:9px 10px;gap:7px;align-content:start}
+.surface-controls .surface-tools button,.surface-controls .surface-tools label,.surface-controls .segmentation-tools label{font-size:12px}
+.surface-controls .surface-tools button{min-height:31px;padding:5px 8px}
+.surface-controls .surface-alpha{flex-basis:100%}
+.paired-views .slice-stage,.paired-views .surface-stage{align-self:start;height:clamp(360px,54vh,640px);min-height:0}
+.paired-views .viewport{height:100%;min-height:0;max-height:none}
+.paired-views .surface-gesture-hint{font-size:10px;line-height:1.35;max-width:calc(100% - 18px)}
+.viewer-panel-details{min-width:0}
+@media(max-width:1000px){
+  .paired-views{grid-template-columns:minmax(0,1fr)}
+  .raw-panel,.surface-panel{display:block;grid-column:auto;grid-row:auto}
+  .raw-panel{border-right:0;border-bottom:1px solid var(--line)}
+  .paired-views .slice-stage,.paired-views .surface-stage{height:430px}
+  .raw-controls .mark-tool{min-height:32px;padding:5px 7px}
+}
+@media(max-width:800px){
+  .masthead{gap:10px;flex-wrap:wrap}
+  .masthead-actions{gap:10px;margin-left:auto}
+  .interface-language select{min-width:98px}
+  .raw-controls .annotation-toolbar{padding:9px}
+}

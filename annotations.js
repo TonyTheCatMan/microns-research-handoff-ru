@@ -149,7 +149,7 @@
       const button=document.createElement('button');button.className='annotation-row';button.setAttribute('aria-pressed',String(record.id===selectedId));
       const title=document.createElement('strong'),chip=document.createElement('i');chip.className='marker-chip '+record.kind;title.append(chip,document.createTextNode(` ${record.number} · ${labels[record.kind]}`));
       const classification=document.createElement('small');classification.textContent=record.geometry?`${record.volume_id} · XY · Z ${record.geometry.slice_index-viewer().metadata.cases.find(c=>c.case_id===record.case_id).volumes.find(v=>v.volume_id===record.volume_id).begin_vox_xyz[2]}`:categories[record.observation_category||'unclassified']+' · '+labels[record.status];if(record.geometry)chip.style.background=record.geometry.color;
-      const hint=document.createElement('small');hint.textContent=record.notes||record.properties||'Без заметки';
+      const hint=document.createElement('small');hint.textContent=record.notes||record.properties||'Без заметки';if(record.notes||record.properties)hint.setAttribute('translate','no');
       button.append(title,classification,hint);button.addEventListener('click',()=>select(record.id,false,true,'list'));return button;
     });
     if(!nodes.length){const empty=document.createElement('p');empty.className='hint';empty.textContent='Пока нет отметок. Выберите инструмент над изображениями и нажмите на нужное место.';nodes.push(empty);}

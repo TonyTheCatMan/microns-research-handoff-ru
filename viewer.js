@@ -192,6 +192,15 @@
     state.z = Math.max(0, Math.min(state.tiff.depth - 1, Math.floor(Number(value))));
     render();if(state.z!==previous)navigationChanged('slice');
   }
+  function handleSectionWheel(event) {
+    if (!event.ctrlKey) return false;
+    event.preventDefault();event.stopPropagation();
+    const editing=element=>element?.closest?.('input,select,textarea,[contenteditable]:not([contenteditable="false"])');
+    if (!state.tiff || byId('page-viewer').hidden || editing(event.target) || !Number.isFinite(event.deltaY) || event.deltaY===0) return true;
+    // One section per wheel event, including small trackpad deltas; reuse slider synchronization.
+    setZ(state.z+Math.sign(event.deltaY));
+    return true;
+  }
   function render() {
     if (!state.tiff) return;
     state.pixels = state.tiff.plane(state.z);
@@ -350,6 +359,7 @@
     setZoom(Math.min((ui.viewport.clientWidth-20)/state.tiff.width,(ui.viewport.clientHeight-20)/state.tiff.height,4),viewportCenter(),true);
   });
   ui.viewport.addEventListener('wheel',event=>{
+    if (handleSectionWheel(event)) return;
     if (!state.tiff || ui.canvasWrap.hidden || byId('page-viewer').hidden || !ui.viewport.clientWidth || !ui.viewport.clientHeight || !Number.isFinite(event.deltaY) || event.deltaY === 0) return;
     event.preventDefault();
     const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? ui.viewport.clientHeight : 1;
@@ -444,7 +454,7 @@
   window.ReviewViewer={
     get metadata(){return state.metadata;},get activeCases(){return [...state.activeCases];},get currentCase(){return state.currentCase;},get volume(){return state.volume;},
     get ready(){return Boolean(state.tiff);},get z(){return state.z;},get target(){return state.target;},get zoom(){return state.zoom;},get surface(){return surface;},get displayWindow(){return [state.black,state.white];},
-    setZ,getNavigationState,applyNavigationState,applyTarget,
+    setZ,handleSectionWheel,getNavigationState,applyNavigationState,applyTarget,
     async gotoPoint(caseId,volumeId,pointNm){
       if(!HandoffCaseSelection.includes(caseId))return null;
       const requested=state.metadata?.cases.find(c=>c.case_id===caseId),volume=requested?.volumes.find(v=>v.volume_id===volumeId);
