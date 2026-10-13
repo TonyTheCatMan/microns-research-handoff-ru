@@ -103,7 +103,7 @@
       this.sliceSegmentation=null;this.contextSliceReady=false;this.segmentationReady=false;
       ++this.token;this.volume=null;this.slice=null;this.target=null;this.meshes.forEach(m=>this.deleteGeometry(m.geometry));this.meshes=[];
       this.tiff=null;this.sliceSource=null;this.slicePlane=null;this.volumeTextureReady=false;
-      if(this.volumeTexture&&this.gl)this.gl.deleteTexture(this.volumeTexture);this.volumeTexture=null;this.updateSliceControls();
+      if(this.volumeTexture&&this.gl)this.gl.deleteTexture(this.volumeTexture);this.volumeTexture=null;this.bindVolumeTexture();this.updateSliceControls();
       if(this.boxGeometry)this.deleteGeometry(this.boxGeometry);if(this.axisGeometry)this.deleteGeometry(this.axisGeometry);
       this.boxGeometry=this.axisGeometry=null;this.objectsUI.replaceChildren();this.enable(false);
       $('surfaceReadout').textContent='Объём не загружен.';
@@ -362,6 +362,12 @@
       if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
       this.program=p;this.position=gl.getAttribLocation(p,'aPosition');this.uv=gl.getAttribLocation(p,'aUV');
       this.uniforms=Object.fromEntries(['uMVP','uColor','uMode','uTexture','uVolume','uBounds','uResolution','uShape','uWindow','uInvert'].map(n=>[n,gl.getUniformLocation(p,n)]));
+      // Every active sampler must have a complete texture even when its shader branch is unused.
+      // Keep default meshes/XY reliable before oblique mode has ever uploaded a volume.
+      this.fallbackVolumeTexture=gl.createTexture();gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D_ARRAY,this.fallbackVolumeTexture);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texStorage3D(gl.TEXTURE_2D_ARRAY,1,gl.R8,1,1,1);gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,0,1,1,1,gl.RED,gl.UNSIGNED_BYTE,new Uint8Array([0]));gl.activeTexture(gl.TEXTURE0);
       this.texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       for(const name of ['segmentationTexture','contextSliceTexture']){this[name]=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this[name]);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);}
       this.planeGeometry=this.geometry(new Float32Array(12),new Uint32Array([0,1,2,0,2,3]),new Float32Array([0,0,1,0,1,1,0,1]));
@@ -384,8 +390,9 @@
     setTiff(tiff){
       if(!this.volume||!tiff||![tiff.width,tiff.height,tiff.depth].every((n,i)=>n===this.volume.shape_xyz[i]))throw new Error('Размеры стопки для наклонных срезов не совпадают с объёмом.');
       this.tiff=tiff;this.volumeTextureReady=false;
-      if(this.volumeTexture&&this.gl)this.gl.deleteTexture(this.volumeTexture);this.volumeTexture=null;
+      if(this.volumeTexture&&this.gl)this.gl.deleteTexture(this.volumeTexture);this.volumeTexture=null;this.bindVolumeTexture();
     }
+    bindVolumeTexture(){if(!this.gl)return;const gl=this.gl;gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D_ARRAY,this.volumeTextureReady&&this.volumeTexture||this.fallbackVolumeTexture);gl.activeTexture(gl.TEXTURE0);}
     prepareVolumeTexture(){
       if(this.volumeTextureReady)return;
       if(!this.tiff||!this.gl)throw new Error('Дождитесь загрузки стопки TIFF.');
@@ -419,7 +426,7 @@
     }
     setSlicePlane(value,{emit=true}={}){
       if(!this.volume)return null;const next=HandoffSlicePlane.normalize(value),previous=this.getSlicePlane();
-      if(!next.enabled)next.angles_deg=[0,0,0];else this.prepareVolumeTexture();
+      if(!next.enabled){next.angles_deg=[0,0,0];delete next.orientation_quat;}else this.prepareVolumeTexture();
       this.slicePlane=next;this.updateSliceControls();this.updatePlaneGeometry();this.schedule();
       if(emit&&JSON.stringify(previous)!==JSON.stringify(next))window.dispatchEvent(new CustomEvent('surface:slice-plane',{detail:{case_id:this.caseId,volume_id:this.volume.volume_id,plane:this.getSlicePlane()}}));
       return this.getSlicePlane();
@@ -437,7 +444,7 @@
       let vertices;
       if(enabled){
         const center=this.slicePlane.center_global_nm.map((n,i)=>n-this.volume.begin_vox_xyz[i]*this.volume.resolution_nm[i]);
-        this.planeSection=HandoffSlicePlane.rectangle(this.bounds,center,this.slicePlane.angles_deg);this.planeSection.center=center;vertices=this.planeSection.vertices;
+        this.planeSection=HandoffSlicePlane.rectangle(this.bounds,center,this.slicePlane.angles_deg,this.slicePlane.orientation_quat);this.planeSection.center=center;vertices=this.planeSection.vertices;
         $('surfaceReadout').textContent=translateUI('Наклонный срез 3D: ')+this.slicePlane.angles_deg.map((n,i)=>['X','Y','Z'][i]+' '+Math.round(n)+'°').join(', ')+translateUI('. Цветная сегментация XY скрыта; рисунки сохраняют исходные координаты.');
       }else{
         this.planeSection={center:[x/2,y/2,zn],normal:[0,0,1]};vertices=new Float32Array([0,0,zn,x,0,zn,x,y,zn,0,y,zn]);
@@ -545,15 +552,20 @@
         try{const plane=this.getSlicePlane();if(!plane)return;plane.enabled=event.target.checked;if(plane.enabled){const position=window.ReviewViewer?.getNavigationState?.()?.position_nm;if(finite3(position))plane.center_global_nm=[...position];}this.setSlicePlane(plane);}
         catch(error){this.updateSliceControls();this.setStatus('Не удалось подготовить наклонные срезы: '+error.message,'error');}
       });
-      for(const [i,axis]of ['X','Y','Z'].entries())$('surfaceSlice'+axis)?.addEventListener('input',event=>{const plane=this.getSlicePlane();if(!plane?.enabled)return;plane.angles_deg[i]=Number(event.target.value);this.setSlicePlane(plane);});
+      for(const [i,axis]of ['X','Y','Z'].entries())$('surfaceSlice'+axis)?.addEventListener('input',event=>{const plane=this.getSlicePlane();if(!plane?.enabled)return;delete plane.orientation_quat;plane.angles_deg[i]=Number(event.target.value);this.setSlicePlane(plane);});
       let drag=null;
       this.stage.addEventListener('contextmenu',e=>e.preventDefault());
-      this.stage.addEventListener('pointerdown',e=>{if(!this.volume||!this.gl||drag)return;e.preventDefault();this.stage.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,moved:false,button:e.button,pan:e.button===2||e.button===1||e.shiftKey};this.stage.setPointerCapture(e.pointerId);});
-      this.stage.addEventListener('pointermove',e=>{if(!drag||drag.pointerId!==e.pointerId)return;if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<5)return;drag.moved=true;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
+      this.stage.addEventListener('pointerdown',e=>{if(!this.volume||!this.gl||drag)return;e.preventDefault();this.stage.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,token:this.token,moved:false,button:e.button,pan:e.button===2||e.button===1||e.shiftKey};
+        if(this.slicePlane?.enabled&&e.button===0&&!drag.pan&&!e.altKey){
+          const camera=this.camera(),rect=this.stage.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,radius=Math.max(1,Math.min(rect.width,rect.height)*.45);
+          drag.plane={cx,cy,radius,start:HandoffSlicePlane.trackballVector(e.clientX,e.clientY,cx,cy,radius),initial:this.getSlicePlane(),camera:{right:camera.right,up:camera.up,eye_direction:vec.norm(vec.sub(camera.eye,this.center))}};
+        }this.stage.setPointerCapture(e.pointerId);});
+      this.stage.addEventListener('pointermove',e=>{if(!drag||drag.pointerId!==e.pointerId)return;if(drag.token!==this.token||drag.plane&&!this.slicePlane?.enabled){drag=null;if(this.stage.hasPointerCapture(e.pointerId))this.stage.releasePointerCapture(e.pointerId);return;}if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<5)return;drag.moved=true;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
+        if(drag.plane){const p=drag.plane,end=HandoffSlicePlane.trackballVector(e.clientX,e.clientY,p.cx,p.cy,p.radius),delta=HandoffSlicePlane.trackballRotation(p.start,end,p.camera),initial=p.initial.orientation_quat||HandoffSlicePlane.quaternionFromAngles(p.initial.angles_deg);this.setSlicePlane({...p.initial,orientation_quat:HandoffSlicePlane.multiplyQuaternion(delta,initial)});return;}
         if(drag.pan){const camera=this.camera(),scale=camera.height/Math.max(1,this.stage.clientHeight);this.center=vec.add(this.center,vec.add(vec.mul(camera.right,-dx*scale),vec.mul(camera.up,dy*scale)));}
         else if(this.cameraBasis){let basis=this.cameraBasis;for(const [axis,angle]of [[basis.up,-dx*.007]])basis={right:rotateVector(basis.right,axis,angle),up:basis.up,eye_direction:rotateVector(basis.eye_direction,axis,angle)};const axis=basis.right,angle=-dy*.007;this.cameraBasis=cameraBasis({right:basis.right,up:rotateVector(basis.up,axis,angle),eye_direction:rotateVector(basis.eye_direction,axis,angle)});}
         else{this.yaw-=dx*.007;this.pitch=Math.max(-1.48,Math.min(1.48,this.pitch+dy*.007));}this.navigationChanged(drag.pan?'pan':'rotate');this.schedule();});
-      this.stage.addEventListener('pointerup',e=>{if(!drag||drag.pointerId!==e.pointerId)return;const click=!drag.moved&&!drag.pan&&drag.button===0;drag=null;if(this.stage.hasPointerCapture(e.pointerId))this.stage.releasePointerCapture(e.pointerId);if(click)this.annotationClick(e);});
+      this.stage.addEventListener('pointerup',e=>{if(!drag||drag.pointerId!==e.pointerId)return;const click=drag.token===this.token&&(!drag.plane||this.slicePlane?.enabled)&&!drag.moved&&!drag.pan&&drag.button===0;drag=null;if(this.stage.hasPointerCapture(e.pointerId))this.stage.releasePointerCapture(e.pointerId);if(click)this.annotationClick(e);});
       for(const event of ['pointercancel','lostpointercapture'])this.stage.addEventListener(event,()=>{drag=null;});
       this.stage.addEventListener('wheel',e=>{
         if(window.ReviewViewer?.handleSectionWheel(e))return;
@@ -578,8 +590,8 @@
       if(!this.gl)return;const gl=this.gl;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       if(!this.volume)return;const camera=this.camera();this.frame=camera;gl.useProgram(this.program);gl.uniformMatrix4fv(this.uniforms.uMVP,false,camera.mvp);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.texture);gl.uniform1i(this.uniforms.uTexture,0);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
       const oblique=!!this.slicePlane?.enabled&&this.volumeTextureReady;
-      if(oblique){gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D_ARRAY,this.volumeTexture);gl.uniform1i(this.uniforms.uVolume,1);gl.uniform3fv(this.uniforms.uBounds,this.bounds);gl.uniform3fv(this.uniforms.uResolution,this.volume.resolution_nm);gl.uniform3fv(this.uniforms.uShape,this.volume.shape_xyz);gl.uniform2f(this.uniforms.uWindow,this.slice.black,this.slice.white);gl.uniform1i(this.uniforms.uInvert,!!this.tiff.pages[0].whiteIsZero);gl.activeTexture(gl.TEXTURE0);}
-      else gl.uniform1i(this.uniforms.uVolume,1);
+      this.bindVolumeTexture();gl.uniform1i(this.uniforms.uVolume,1);
+      if(oblique){gl.uniform3fv(this.uniforms.uBounds,this.bounds);gl.uniform3fv(this.uniforms.uResolution,this.volume.resolution_nm);gl.uniform3fv(this.uniforms.uShape,this.volume.shape_xyz);gl.uniform2f(this.uniforms.uWindow,this.slice.black,this.slice.white);gl.uniform1i(this.uniforms.uInvert,!!this.tiff.pages[0].whiteIsZero);}
       if(this.slice&&$('surfacePlane').checked)this.drawGeometry(this.planeGeometry,[1,1,1,1],oblique?3:2);
       gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
       for(const [ready,texture,alpha]of [[this.segmentationVisible&&this.segmentationReady,this.segmentationTexture,this.segmentationAlpha],[this.contextVisible&&this.contextMode==='slice'&&this.contextSliceReady,this.contextSliceTexture,this.contextAlpha]])if(!oblique&&ready&&alpha>0){gl.bindTexture(gl.TEXTURE_2D,texture);this.drawGeometry(this.planeGeometry,[1,1,1,alpha],2);}

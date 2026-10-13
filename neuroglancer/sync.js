@@ -22,7 +22,7 @@
   const waiters=[];
   let caseId=initialCase,volumeId=initialVolume,latest=null,applied=null,pending=null,applying=false,started=false,timer=null,lastNative='',lastNav='',hostPayload=null,lastNavigationRevision=null;
   let clearButton=null,pointSelected=false,clearMessage=null,selectedPointId=null,mainOwner=null,deleteConfirmationPending=false;
-  let modeGeneration=0,awaitingMain=false,normalizationPending=false,slicePlane=null;
+  let modeGeneration=0,awaitingMain=false,normalizationPending=false,slicePlane=null,pendingLocalSlicePlane=null;
   const syncEnabled=()=>bus.enabled!==false;
   const currentApplication=generation=>syncEnabled()&&generation===modeGeneration;
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b),clone=value=>value===undefined?undefined:structuredClone(value),valid3=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
@@ -268,7 +268,15 @@
     if(!started||applying||!syncEnabled())return;applying=true;clearTimeout(timer);timer=null;window.dispatchEvent(new CustomEvent('microns:view-sync-status'));
     try{while(pending&&syncEnabled()){const message=pending;pending=null;const didApply=await applyMessage(message);if(didApply!==false){const display=viewer.display;if(display.canvas.offsetWidth&&display.canvas.offsetHeight){display.resizeCallback();display.draw();}applied=message;}markBaseline();}}
     catch(error){window.dispatchEvent(new CustomEvent('microns:sync-error',{detail:{message:error.message}}));console.error('Neuroglancer synchronization:',error);}
-    finally{markBaseline();applying=false;finishWaiters();if(normalizationPending){normalizationPending=false;lastNative='';lastNav='';schedule();}}
+    finally{
+      markBaseline();applying=false;
+      const local=pendingLocalSlicePlane;pendingLocalSlicePlane=null;
+      if(local&&syncEnabled()&&local.caseId===caseId&&local.volumeId===volumeId){
+        setSlicePlane(local.plane,{emit:false});lastNative='';publish('slice-plane');
+      }
+      finishWaiters();
+      if(normalizationPending){normalizationPending=false;lastNative='';lastNav='';schedule();}
+    }
   }
   function receive(message){
     if(message.type==='annotation-delete-result'){acceptDeleteResult(message);return;}
@@ -303,7 +311,7 @@
     ++modeGeneration;clearTimeout(timer);timer=null;
     // Forget work from the former mode, but retain the current scene and saved
     // record owner so an explicit Delete still edits the correct research record.
-    pending=null;latest=null;applied=null;clearMessage=null;lastNavigationRevision=null;normalizationPending=false;
+    pending=null;latest=null;applied=null;clearMessage=null;lastNavigationRevision=null;normalizationPending=false;pendingLocalSlicePlane=null;
     awaitingMain=syncEnabled();
     if(started){markBaseline();finishWaiters();if(syncEnabled())bus.send('hello');}
   });
@@ -312,18 +320,17 @@
   // Zoom and physical-unit metadata remain shared, as do the volume data chunks.
   const splitSlices=new Map();
   const currentCenterNm=()=>Array.from(viewer.position.value,(n,i)=>n*resolution()[i]);
-  function planeQuaternion(angles){
-    const [x,y,z]=angles.map(n=>n*Math.PI/360),sx=Math.sin(x),cx=Math.cos(x),sy=Math.sin(y),cy=Math.cos(y),sz=Math.sin(z),cz=Math.cos(z);
-    // Right-handed physical axes: Rz * Ry * Rx.
-    return [sx*cy*cz-cx*sy*sz,cx*sy*cz+sx*cy*sz,cx*cy*sz-sx*sy*cz,cx*cy*cz+sx*sy*sz];
-  }
+  const planeQuaternion=angles=>HandoffSlicePlane.quaternionFromAngles(angles);
   function getSlicePlane(){
     return clone(slicePlane||{enabled:false,angles_deg:[0,0,0],center_global_nm:currentCenterNm()});
   }
   function setSlicePlane(value,{announce=true,emit=announce}={}){
     if(!value||!valid3(value.angles_deg)||!valid3(value.center_global_nm))return false;
-    const next={enabled:value.enabled===true,angles_deg:value.angles_deg.map(n=>((n+180)%360+360)%360-180),center_global_nm:[...value.center_global_nm]};
-    if(!next.enabled)next.angles_deg=[0,0,0];
+    let next;try{next=HandoffSlicePlane.normalize(value);}catch{return false;}
+    if(!next.enabled){next.angles_deg=[0,0,0];delete next.orientation_quat;}
+    // A local drag may continue while an incoming layer update awaits data.
+    // Keep its newest plane until that older application has finished.
+    if(emit&&(applying||pending))pendingLocalSlicePlane={caseId,volumeId,plane:clone(next)};
     if(same(slicePlane,next))return false;
     const visibilityChanged=slicePlane?.enabled!==next.enabled;slicePlane=next;
     for(const [panel,entry]of splitSlices){applySlicePlane(entry);if(visibilityChanged)entry.slice.updateVisibleLayers();panel.scheduleRedraw();}
@@ -335,7 +342,7 @@
   function applySlicePlane({slice}){
     const plane=getSlicePlane(),res=resolution(),pose=slice.navigationState.pose;
     if(res.length!==3||res.some(n=>!Number.isFinite(n)||n<=0))return;
-    const center=plane.center_global_nm.map((n,i)=>n/res[i]),q=plane.enabled?planeQuaternion(plane.angles_deg):[0,0,0,1];
+    const center=plane.center_global_nm.map((n,i)=>n/res[i]),q=plane.enabled?(plane.orientation_quat||planeQuaternion(plane.angles_deg)):[0,0,0,1];
     if(!same(Array.from(pose.position.value),center))pose.position.restoreState(center);
     if(!same(Array.from(pose.orientation.orientation),q))pose.orientation.restoreState(q);
     slice.flushBackendProjectionParameters();

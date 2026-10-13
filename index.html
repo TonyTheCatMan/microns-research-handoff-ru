@@ -7,8 +7,8 @@
   <meta name="description" content="Рабочее пространство исследователя: серийные ЭМ-изображения, синхронные 3D-модели и Neuroglancer для анатомической разметки выбранных случаев MICrONS.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="viewer.css"><link rel="stylesheet" href="surface3d.css?v=20261013-oblique1"><link rel="stylesheet" href="site.css?v=20260929-results1"><link rel="stylesheet" href="annotations.css?v=20261013-drawing1">
-  <link rel="stylesheet" href="workspace-ui.css?v=20261013-language1"><script defer src="i18n.js?v=20261013-oblique1"></script>
-  <script defer src="case-selection.js?v=20261013-caselabels2"></script><script defer src="point-actions.js?v=20260919-delete2"></script><script defer src="view-sync.js?v=20260919-toggle1"></script><script defer src="online.js"></script><script defer src="tiff.js"></script><script defer src="marker-styles.js?v=20260916-sync1"></script><script defer src="drawing-geometry.js?v=20261013-width1"></script><script defer src="slice-plane.js?v=20261013-oblique1"></script><script defer src="surface3d.js?v=20261013-oblique1"></script><script defer src="viewer.js?v=20261013-oblique1"></script><script defer src="slice-segmentation.js?v=20260918-nearby2d"></script><script defer src="review-data.js?v=20261013-oblique1"></script><script defer src="site.js?v=20261013-caselabels2"></script><script defer src="neuroglancer.js?v=20261013-oblique1"></script><script defer src="neuroglancer-capture.js?v=20260929-results1"></script><script defer src="annotations-core.js?v=20261013-drawing1"></script><script defer src="annotations.js?v=20261013-oblique1"></script><script defer src="drawing-tools.js?v=20261013-undo1"></script><script defer src="evidence.js?v=20261013-case9"></script>
+  <link rel="stylesheet" href="workspace-ui.css?v=20261013-language1"><script defer src="i18n.js?v=20261013-freeplane1"></script>
+  <script defer src="case-selection.js?v=20261013-caselabels2"></script><script defer src="point-actions.js?v=20260919-delete2"></script><script defer src="view-sync.js?v=20260919-toggle1"></script><script defer src="online.js"></script><script defer src="tiff.js"></script><script defer src="marker-styles.js?v=20260916-sync1"></script><script defer src="drawing-geometry.js?v=20261013-width1"></script><script defer src="slice-plane.js?v=20261013-freeplane1"></script><script defer src="surface3d.js?v=20261013-freeplane1"></script><script defer src="viewer.js?v=20261013-oblique1"></script><script defer src="slice-segmentation.js?v=20260918-nearby2d"></script><script defer src="review-data.js?v=20261013-oblique1"></script><script defer src="site.js?v=20261013-caselabels2"></script><script defer src="neuroglancer.js?v=20261013-freeplane1"></script><script defer src="neuroglancer-capture.js?v=20260929-results1"></script><script defer src="annotations-core.js?v=20261013-drawing1"></script><script defer src="annotations.js?v=20261013-oblique1"></script><script defer src="drawing-tools.js?v=20261013-undo1"></script><script defer src="evidence.js?v=20261013-case9"></script>
 </head>
 <body>
 <a class="skip-link" href="#workspace">К рабочей области</a>
@@ -86,12 +86,14 @@
           <div class="segmentation-tools surface-section-tools"><label><input id="surfaceSegmentation" type="checkbox">Сегментация на срезе</label><label>Непрозрачность <input id="surfaceSegmentationOpacity" type="range" min="0" max="100" value="25" aria-label="Непрозрачность сегментации среза в 3D"></label></div>
           <div class="view-reset-actions"><button id="surfaceXY" class="view-reset-button" type="button" disabled title="Вернуть 3D как в 2D, вписать весь объём в окно и сбросить сдвиг"><span aria-hidden="true">↶</span> Вернуть вид как в 2D</button><label class="slice-plane-toggle"><input id="surfaceRotateSlice" type="checkbox" disabled>Вращать плоскость среза</label></div>
           <div id="surfaceSliceControls" class="slice-plane-controls" hidden>
-            <p class="hint">Плоскость среза: ползунки X / Y / Z. Камера: перетаскивание. Отдельное изображение 2D остаётся в XY.</p>
+            <p class="hint">Срез: перетаскивайте мышью; у края окна можно поворачивать в плоскости. Камера: Alt + перетаскивание. Отдельное изображение 2D остаётся в XY.</p>
+            <details class="slice-plane-precise"><summary>Точные углы X / Y / Z</summary>
             <div class="slice-plane-axes">
               <label>X <input id="surfaceSliceX" type="range" min="-180" max="180" step="1" value="0" aria-label="Угол плоскости X"><output id="surfaceSliceXValue" for="surfaceSliceX">0°</output></label>
               <label>Y <input id="surfaceSliceY" type="range" min="-180" max="180" step="1" value="0" aria-label="Угол плоскости Y"><output id="surfaceSliceYValue" for="surfaceSliceY">0°</output></label>
               <label>Z <input id="surfaceSliceZ" type="range" min="-180" max="180" step="1" value="0" aria-label="Угол плоскости Z"><output id="surfaceSliceZValue" for="surfaceSliceZ">0°</output></label>
             </div>
+            </details>
             <p class="hint">Косой срез вычисляется из объёма. Рисунки остаются на исходных срезах XY; цветная маска XY здесь скрыта.</p>
           </div>
           </div>
