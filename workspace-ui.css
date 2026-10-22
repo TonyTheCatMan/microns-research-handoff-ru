@@ -39,6 +39,11 @@
 .paired-views .viewport{height:100%;min-height:0;max-height:none}
 .paired-views .surface-gesture-hint{font-size:10px;line-height:1.35;max-width:calc(100% - 18px)}
 .viewer-panel-details{min-width:0}
+/* The case sidebar remains a single readable column beside the image. Older
+   900px rules must not turn its 240px-wide column into two nested columns. */
+.workspace>.sidebar{display:block;min-width:0;overflow-wrap:anywhere}
+.workspace>.sidebar>*{min-width:0;max-width:100%}
+@media(min-width:801px){.workspace>.sidebar{border-right:1px solid var(--line);border-bottom:0}}
 @media(max-width:1000px){
   .paired-views{grid-template-columns:minmax(0,1fr)}
   .raw-panel,.surface-panel{display:block;grid-column:auto;grid-row:auto}
@@ -51,4 +56,44 @@
   .masthead-actions{gap:10px;margin-left:auto}
   .interface-language select{min-width:98px}
   .raw-controls .annotation-toolbar{padding:9px}
+}
+
+/* Settings fold independently; slice navigation stays next to the actual image. */
+.viewer-settings{min-width:0;background:#f6f9fc;border-bottom:1px solid var(--line)}
+.viewer-settings>summary{margin:0;padding:10px 13px;min-height:44px;font-size:13px;line-height:1.6;color:#244b68;cursor:pointer;touch-action:manipulation}
+.viewer-settings>summary::marker{color:#126395}
+.viewer-settings[open]>summary{border-bottom:1px solid #dce7ee}
+.viewer-settings .segmentation-tools{border-bottom:0}
+.drawing-settings>summary>span:first-child{margin-right:9px}
+.active-tool-summary{display:inline-block;max-width:100%;padding:1px 7px;border:1px solid #c4d7e4;border-radius:4px;background:#fff;font-size:11px;font-weight:500;vertical-align:middle;overflow-wrap:anywhere}
+.raw-controls{display:flex;flex-direction:column}
+.raw-controls .slice-bar{margin: auto 0 0;border-top:1px solid var(--line);border-bottom:0;background:#fff;padding:8px 10px;gap:7px}
+.raw-controls .slice-bar input[type=range]{min-width:80px;min-height:36px;touch-action:pan-y}
+.raw-controls .slice-bar button{min-width:40px;min-height:40px;padding:3px 8px;touch-action:manipulation}
+.raw-controls .slice-bar label{font-size:12px}
+.raw-controls .slice-bar input[type=number]{min-height:36px;width:65px;padding:4px}
+.raw-controls .slice-bar .mono{font-size:11px;flex-basis:100%;line-height:1.4}
+.raw-controls .view-reset-actions{padding:6px 10px}
+.raw-controls .slice-bar + *{margin-top:0}
+#viewport{overflow-anchor:none}
+@media(max-width:1180px),(pointer:coarse){
+  .paired-views{grid-template-columns:minmax(0,1fr)}
+  .raw-panel,.surface-panel{display:block;grid-column:auto;grid-row:auto}
+  .raw-panel{border-right:0;border-bottom:1px solid var(--line)}
+  .paired-views .slice-stage,.paired-views .surface-stage{height:clamp(200px,calc(100vh - 250px),620px);height:clamp(200px,calc(100svh - 250px),620px)}
+  .raw-controls .mark-tool{min-height:44px;padding:6px 8px;flex:1 1 95px;font-size:12px}
+  .raw-controls .drawing-options{gap:9px 12px}
+  .raw-controls .drawing-options label{min-height:40px;font-size:13px}
+  .raw-controls .drawing-options input[type=color]{width:42px;height:40px}
+  .raw-controls .drawing-options select{width:56px;min-height:40px;font-size:14px}
+  .raw-controls .drawing-options input[type=checkbox],.segmentation-settings input[type=checkbox]{width:20px;height:20px}
+  .raw-controls .drawing-options>button,.raw-controls .drawing-actions button{min-height:40px;padding:7px 10px;font-size:12px}
+  .raw-controls .drawing-slice-hint{font-size:12px!important}
+  .raw-controls .view-reset-button{min-height:40px;font-size:13px}
+  .raw-controls .slice-bar button{min-width:44px;min-height:44px}
+  .raw-controls .slice-bar input[type=range]{min-height:44px}
+  .raw-controls .slice-bar input[type=number]{min-height:40px}
+  .segmentation-settings label{min-height:40px}
+  .segmentation-settings input[type=range]{min-height:40px;touch-action:pan-y}
+  .segmentation-settings select{min-height:40px}
 }

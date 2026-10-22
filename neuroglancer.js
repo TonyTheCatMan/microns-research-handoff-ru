@@ -51,12 +51,13 @@
             r.evidence_refs?'Свидетельства: '+r.evidence_refs:''].filter(Boolean).join('\n')}))}];
     });
     // The donor's polyline/ellipse/arrow geometry is shared with the main canvas.
-    // One hidden anchor keeps a drawing's number, selection and Delete tied to
-    // its saved record while its visible line segments retain source coordinates.
+    // An anchor keeps a drawing's number, selection and Delete tied to its
+    // saved record. Only brush dabs display that anchor as a filled point.
     const drawingNames={trace:'Трассировка',freehand:'Свободная линия',arrow:'Стрелка',ellipse:'Эллипс',roi:'Прямоугольник',distance:'Расстояние'},drawingLayers=new Map();
     for(const record of records.filter(r=>r.geometry)){
       const paths=window.HandoffDrawingGeometry?.pathsNm(record)||[];if(!paths.length)continue;
-      const color=record.geometry.color||'#ffd166',width=record.geometry.stroke_width||2,key=color+' · '+width;
+      const dab=record.kind==='freehand'&&record.geometry.points_nm.length===1;
+      const color=record.geometry.color||'#ffd166',width=record.geometry.stroke_width||2,key=color+' · '+width+(dab?' · Точки кисти':'');
       let layer=drawingLayers.get(key);
       if(!layer){layer={type:'annotation',name:'Мои метки · Рисунки · '+key,visible:enabled('annotationsVisible'),source:{url:'local://annotations',transform:{outputDimensions:dimensions}},annotationColor:color,
         annotationProperties:[{id:'number',type:'uint32',description:'Номер метки',default:0},...['x','y','z'].map(axis=>({id:'anchor_'+axis,type:'float32',description:'Координата '+axis,default:0}))],
@@ -71,7 +72,7 @@
             vec4 dz=uModelViewProjection*vec4(uSubspaceMatrix[2],0.0);
             if(abs(dx.z)>abs(dz.z)*0.001||abs(dy.z)>abs(dz.z)*0.001||abs(center.z)>abs(dz.z)*0.5+0.00001)discard;
           }
-          setColor(defaultColor());setLineWidth(${Number(width).toFixed(1)});setEndpointMarkerSize(0.0);setPointMarkerSize(0.0);setPointMarkerBorderWidth(0.0);
+          setColor(defaultColor());setLineWidth(${Number(width).toFixed(1)});setEndpointMarkerSize(0.0);setPointMarkerSize(${Number(dab?width:0).toFixed(1)});setPointMarkerBorderWidth(0.0);
         }`,annotations:[]};drawingLayers.set(key,layer);}
       const description=[`№${record.number} · ${drawingNames[record.kind]||record.kind} · ${record.case_id} · ${record.volume_id}`,`Плоскость XY · Z ${record.geometry.slice_index} · редактирование в основном 2D-виде`,record.notes,record.properties].filter(Boolean).join('\n');
       const anchor=record.point_nm.map((n,i)=>n/resolution[i]),props=[record.number,...anchor];
@@ -136,10 +137,10 @@
   function sectionLayers(settings){
     const data=window.SliceSegmentation?.current,selection=window.SliceSegmentation?.selection;
     if(!data?.ready||data.volume_id!==ReviewViewer.volume?.volume_id||data.local_z!==ReviewViewer.z)return[];
-    const make=(name,ids,alpha,visible)=>({type:'segmentation',name,source:SEG,segments:ids,segmentColors:Object.fromEntries(ids.map(id=>[id,color(id)])),selectedAlpha:alpha/100,notSelectedAlpha:0,objectAlpha:0,visible});
+    const make=(name,ids,alpha,visible,customColors={})=>({type:'segmentation',name,source:SEG,segments:ids,segmentColors:Object.fromEntries(ids.map(id=>[id,customColors[id]||color(id)])),selectedAlpha:alpha/100,notSelectedAlpha:0,objectAlpha:0,visible});
     const surface=ReviewViewer.surface,nearby=surface.meshes.filter(m=>m.context&&m.visible&&surface.contextShown.has(m.id)).map(m=>m.segment_id);
     return[
-      make('Сегментация 2D · v1300',selection?.segment_ids||[],settings.segmentationOpacity,settings.segmentation2D),
+      make('Сегментация 2D · v1300',selection?.segment_ids||[],settings.segmentationOpacity,settings.segmentation2D,selection?.colors),
       make('Сегментация среза 3D · v1300',data.objects.map(o=>o.segment_id),settings.surfaceSegmentationOpacity,settings.surfaceSegmentation),
       make('Соседние на срезе 3D · v1300',nearby,settings.surfaceContextOpacity,settings.surfaceContext&&settings.surfaceContextMode==='slice')
     ];

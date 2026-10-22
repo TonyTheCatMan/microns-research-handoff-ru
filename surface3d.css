@@ -30,6 +30,7 @@
 .surface-stage canvas{position:absolute;inset:0;display:block}
 #surfaceLabels{pointer-events:none}
 .surface-gesture-hint{position:absolute;top:9px;left:8px;right:8px;text-align:center;color:#bdcdd7;font-size:10px;pointer-events:none;text-shadow:0 1px 3px #071017;background:#13212c99;border-radius:3px;padding:3px}
+.surface-stage .surface-gesture-hint{font-size:11px;line-height:1.4;padding:5px 8px}
 .surface-objects{display:flex;flex-wrap:wrap;gap:8px 13px;padding:11px 12px;border-top:1px solid var(--line);min-height:36px}
 .surface-object{display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;line-height:1.5}
 .surface-object input{width:14px;height:14px;margin:0}

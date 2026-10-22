@@ -42,10 +42,10 @@
     if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!keys.includes(k)))fail('Неверная геометрия рисунка.');
     if(value.plane!=='xy'||!Number.isSafeInteger(value.slice_index)||value.slice_index<v.begin_vox_xyz[2]||value.slice_index>=v.begin_vox_xyz[2]+v.shape_xyz[2])fail('Рисунок должен быть привязан к срезу XY указанного объёма.');
     const points=value.points_nm,z=(value.slice_index+.5)*res[2];
-    if(!Array.isArray(points)||points.length<2||points.length>MAX_DRAWING_POINTS||points.some(p=>!point(p)||p.some((n,i)=>n<min[i]||n>=max[i])||Math.abs(p[2]-z)>1e-6))fail('Вершины рисунка должны находиться на одном срезе внутри объёма (не более 4096 точек).');
+    if(!Array.isArray(points)||points.length<(kind==='freehand'?1:2)||points.length>MAX_DRAWING_POINTS||points.some(p=>!point(p)||p.some((n,i)=>n<min[i]||n>=max[i])||Math.abs(p[2]-z)>1e-6))fail('Вершины рисунка должны находиться на одном срезе внутри объёма (не более 4096 точек).');
     if(['arrow','ellipse','roi','distance'].includes(kind)&&points.length!==2)fail('Для этой фигуры нужны ровно две точки.');
     const distinct=new Set(points.map(p=>p.join(',')));
-    if(distinct.size<2)fail('Рисунок должен содержать разные точки.');
+    if(distinct.size<2&&!(kind==='freehand'&&points.length===1))fail('Рисунок должен содержать разные точки.');
     if(['ellipse','roi'].includes(kind)&&[0,1].some(i=>Math.abs(points[0][i]-points[1][i])<=1e-6))fail('У области должны быть ненулевые ширина и высота.');
     const closed=value.closed??['ellipse','roi'].includes(kind);
     if(typeof closed!=='boolean'||['freehand','arrow','distance'].includes(kind)&&closed||['ellipse','roi'].includes(kind)&&!closed||kind==='trace'&&closed&&distinct.size<3)fail('Неверное замыкание рисунка: замкнутой трассе нужны минимум три разные точки.');
@@ -82,10 +82,21 @@
     }
     return result;
   }
+  function validateStructureSelection(value,caseId){
+    const s=value,keys=['schema_version','source_version','case_id','structures','scope','fill','borders','opacity'];
+    if(!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(k=>!keys.includes(k))||s.schema_version!==1||s.source_version!=='seg_m1300'||s.case_id!==caseId||!Array.isArray(s.structures)||s.structures.length>256||!['selected','nearby','all'].includes(s.scope)||typeof s.fill!=='boolean'||typeof s.borders!=='boolean'||typeof s.opacity!=='number'||!Number.isFinite(s.opacity)||s.opacity<0||s.opacity>.7)fail('Неверные настройки выбранных структур seg_m1300.');
+    const seen=new Set(),structures=s.structures.map(o=>{
+      if(!o||typeof o!=='object'||Array.isArray(o)||Object.keys(o).some(k=>!['segment_id','color','visible'].includes(k))||typeof o.segment_id!=='string'||!/^[1-9]\d{0,19}$/.test(o.segment_id)||BigInt(o.segment_id)>18446744073709551615n||seen.has(o.segment_id)||typeof o.visible!=='boolean'||typeof o.color!=='string'||!/^#[\da-f]{6}$/i.test(o.color))fail('Неверные настройки выбранных структур seg_m1300.');
+      seen.add(o.segment_id);return{segment_id:o.segment_id,color:o.color.toLowerCase(),visible:o.visible};
+    });
+    return{schema_version:1,source_version:'seg_m1300',case_id:caseId,structures,scope:s.scope,fill:s.fill,borders:s.borders,opacity:s.opacity};
+  }
   function validateCase(value,ctx){
     if(!value||!ctx.cases.has(value.case_id))fail('Неизвестный случай в заметках.');
-    return {case_id:value.case_id,notes:plain(value.notes??'','заметки случая'),coverage:choice(value.coverage||'uncertain',['uncertain','incomplete','complete'],'полнота просмотра'),
+    const result={case_id:value.case_id,notes:plain(value.notes??'','заметки случая'),coverage:choice(value.coverage||'uncertain',['uncertain','incomplete','complete'],'полнота просмотра'),
       inspected_regions:plain(value.inspected_regions??'','просмотренные области'),extra_extent:plain(value.extra_extent??'','нужное расширение'),updated_at:timestamp(value.updated_at)};
+    if(value.segmentation_selection!==undefined)result.segmentation_selection=validateStructureSelection(value.segmentation_selection,value.case_id);
+    return result;
   }
   function validateCounter(value,ctx){
     if(!value||!ctx.cases.has(value.case_id)||!Number.isSafeInteger(value.last_number)||value.last_number<0)fail('Неверный счётчик аннотаций.');
@@ -135,7 +146,7 @@
     if(Object.keys(value).some(k=>!allowed.includes(k)))fail('Неизвестный раздел настроек.');
     if(value.preferences!==undefined){
       const prefs=value.preferences,keys=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext','segmentation2D','segmentationBorders','surfaceSegmentation'],numbers={segmentationOpacity:70,surfaceContextOpacity:100,surfaceSegmentationOpacity:100};
-      if(!prefs||typeof prefs!=='object'||Array.isArray(prefs)||Object.entries(prefs).some(([k,v])=>keys.includes(k)?typeof v!=='boolean':Object.hasOwn(numbers,k)?typeof v!=='number'||!Number.isFinite(v)||v<0||v>numbers[k]:k==='surfaceContextMode'?!['slice','full'].includes(v):k==='segmentationScope'?!['nearby','all'].includes(v):k==='segmentationLimit'?!Number.isSafeInteger(v)||v<1||v>30:true))fail('Неверные настройки видимости.');result.preferences={...prefs};
+      if(!prefs||typeof prefs!=='object'||Array.isArray(prefs)||Object.entries(prefs).some(([k,v])=>keys.includes(k)?typeof v!=='boolean':Object.hasOwn(numbers,k)?typeof v!=='number'||!Number.isFinite(v)||v<0||v>numbers[k]:k==='surfaceContextMode'?!['slice','full'].includes(v):k==='segmentationScope'?!['selected','nearby','all'].includes(v):k==='segmentationLimit'?!Number.isSafeInteger(v)||v<1||v>30:true))fail('Неверные настройки видимости.');result.preferences={...prefs};
     }
     if(value.last_view!==undefined){const v=value.last_view;if(!v||typeof v!=='object')fail('Неверный последний вид.');const {v:volume}=volumeInfo(ctx,v.case_id,v.volume_id);if(!Number.isSafeInteger(v.z)||v.z<0||v.z>=volume.shape_xyz[2])fail('Последний срез вне объёма.');result.last_view={case_id:v.case_id,volume_id:v.volume_id,z:v.z};}
     if(value.annotation_mode!==undefined)result.annotation_mode=choice(value.annotation_mode,['navigate','contact2d','point2d','point3d','object3d','select','edit',...drawingKinds],'инструмент');
@@ -157,10 +168,19 @@
     if(result.contact_id!==null&&!ctx.cases.get(value.case_id).contacts.some(r=>r.contact_id===result.contact_id)&&!/^N[1-9]\d*$/.test(result.contact_id))fail('Неверная ссылка на контакт.');
     if(value.display_window!==undefined){if(!Array.isArray(value.display_window)||value.display_window.length!==2||!value.display_window.every(Number.isFinite)||value.display_window[0]>=value.display_window[1])fail('Неверная яркость доказательства.');result.display_window=[...value.display_window];}
     if(value.segmentation2d!==undefined){
-      const s=value.segmentation2d,keys=['included','source_version','volume_id','local_z','fill','borders','opacity','boundary_method','scope','nearby_limit','segment_ids','focus_local_nm'];
+      const s=value.segmentation2d,keys=['included','source_version','volume_id','local_z','fill','borders','opacity','boundary_method','scope','nearby_limit','segment_ids','focus_local_nm','colors','selected_structures'];
       if(source_view!=='2d'||!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(k=>!keys.includes(k))||typeof s.included!=='boolean'||s.volume_id!==value.volume_id||s.local_z!==value.local_z||s.source_version!=='seg_m1300')fail('Настройки сегментации не соответствуют снимку.');
       if(s.included&&(typeof s.fill!=='boolean'||typeof s.borders!=='boolean'||typeof s.opacity!=='number'||!Number.isFinite(s.opacity)||s.opacity<0||s.opacity>1||s.boundary_method!=='native_xy_label_transition_pixels'))fail('Неверные настройки слоя сегментации.');
-      if(s.scope!==undefined&&!['nearby','all'].includes(s.scope)||s.nearby_limit!==undefined&&(!Number.isSafeInteger(s.nearby_limit)||s.nearby_limit<1||s.nearby_limit>30)||s.segment_ids!==undefined&&(!Array.isArray(s.segment_ids)||s.segment_ids.length>MAX_RECORDS||s.segment_ids.some(id=>typeof id!=='string'||!/^\d+$/.test(id)||/^0+$/.test(id))||new Set(s.segment_ids).size!==s.segment_ids.length)||s.focus_local_nm!==undefined&&!point(s.focus_local_nm))fail('Неверные настройки выбора ближайших сегментов.');
+      if(s.scope!==undefined&&!['selected','nearby','all'].includes(s.scope)||s.nearby_limit!==undefined&&(!Number.isSafeInteger(s.nearby_limit)||s.nearby_limit<1||s.nearby_limit>30)||s.segment_ids!==undefined&&(!Array.isArray(s.segment_ids)||s.segment_ids.length>MAX_RECORDS||s.segment_ids.some(id=>typeof id!=='string'||!/^\d+$/.test(id)||/^0+$/.test(id))||new Set(s.segment_ids).size!==s.segment_ids.length)||s.focus_local_nm!==undefined&&!point(s.focus_local_nm))fail('Неверные настройки выбора ближайших сегментов.');
+      if(s.colors!==undefined){
+        if(!s.colors||typeof s.colors!=='object'||Array.isArray(s.colors)||Object.keys(s.colors).length>MAX_RECORDS||Object.entries(s.colors).some(([id,color])=>!/^[1-9]\d{0,19}$/.test(id)||BigInt(id)>18446744073709551615n||typeof color!=='string'||!/^#[\da-f]{6}$/i.test(color)))fail('Неверные цвета выбранных структур.');
+      }
+      if(s.selected_structures!==undefined)validateStructureSelection({schema_version:1,source_version:'seg_m1300',case_id:value.case_id,structures:s.selected_structures,scope:s.scope||'selected',fill:!!s.fill,borders:!!s.borders,opacity:Math.min(.7,s.opacity??.25)},value.case_id);
+      if(s.scope==='selected'){
+        const selection=validateStructureSelection({schema_version:1,source_version:'seg_m1300',case_id:value.case_id,structures:s.selected_structures,scope:'selected',fill:s.fill,borders:s.borders,opacity:s.opacity},value.case_id);
+        const expectedIds=selection.structures.filter(o=>o.visible).map(o=>o.segment_id).sort(),actualIds=[...(s.segment_ids||[])].sort(),expectedColors=Object.fromEntries(selection.structures.map(o=>[o.segment_id,o.color]));
+        if(!Array.isArray(s.segment_ids)||JSON.stringify(expectedIds)!==JSON.stringify(actualIds)||!s.colors||Object.keys(s.colors).length!==selection.structures.length||Object.entries(expectedColors).some(([id,color])=>s.colors[id]?.toLowerCase()!==color))fail('Сохранённые выбранные структуры не совпадают с ID и цветами слоя.');
+      }
       result.segmentation2d=clone(s);
     }
     if(value.t_points_visible!==undefined)result.t_points_visible=!!value.t_points_visible;
@@ -349,7 +369,9 @@
         for(const row of data.cases){
           const old=await request(cases.get(row.case_id));if(old&&identical(old,row))continue;
           if(old&&policy!=='restore'&&(policy!=='newer'||Date.parse(row.updated_at)<=Date.parse(old.updated_at))){report.conflicts.push({case_id:row.case_id,reason:'case_notes_kept'});continue;}
-          await request(cases.put(row));if(old){report.cases_updated++;report.conflicts.push({case_id:row.case_id,reason:'newer_case_notes_used'});}else report.cases_added++;
+          // Backups made before deliberate structure selection cannot erase it.
+          const merged=old?.segmentation_selection&&row.segmentation_selection===undefined?{...row,segmentation_selection:old.segmentation_selection}:row;
+          await request(cases.put(merged));if(old){report.cases_updated++;report.conflicts.push({case_id:row.case_id,reason:'newer_case_notes_used'});}else report.cases_added++;
         }
         for(const [case_id,last_number] of counts)await request(counterStore.put({case_id,last_number}));
         const reviews=tx.objectStore('reviews');

@@ -10,6 +10,8 @@
   const exportButtonIds=['annotationsExportAll','annotationsExportCase'];
   let store, metadata, records = [], caseNotes = [], selectedId = params.get('annotation'), currentCase = '', pending = 0;
   let saveChain = Promise.resolve(), failures = [], deleted = null, refreshGeneration = 0, lastEditorId = null, refreshNeeded = false;
+  const earlyStructurePreferences = new Map();
+  const structurePreferenceIds = new Set(['segmentation2D','segmentationBorders','segmentationOpacity','segmentationScope']);
   let exportBusy=false;
   const deletingIds=new Set();
   const notesPeers=new Set();let followingMain=false,followAgain=false,undoImportAction=null;
@@ -32,7 +34,7 @@
     return result;
   }
   function prefsSave() { try { localStorage.setItem(PREFS,JSON.stringify(readPreferences())); } catch {} }
-  try { const preferences=JSON.parse(localStorage.getItem(PREFS)||'{}'); for(const [id,value] of Object.entries(preferences))if($(id)){if(booleanPreferences.includes(id)&&typeof value==='boolean')$(id).checked=value;else if(id in numberPreferences&&typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=numberPreferences[id])$(id).value=value;else if(id==='surfaceContextMode'&&['slice','full'].includes(value)||id==='segmentationScope'&&['nearby','all'].includes(value)||id==='segmentationLimit'&&Number.isSafeInteger(value)&&value>=1&&value<=30)$(id).value=value;} } catch {}
+  try { const preferences=JSON.parse(localStorage.getItem(PREFS)||'{}'); for(const [id,value] of Object.entries(preferences))if($(id)){if(booleanPreferences.includes(id)&&typeof value==='boolean')$(id).checked=value;else if(id in numberPreferences&&typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=numberPreferences[id])$(id).value=value;else if(id==='surfaceContextMode'&&['slice','full'].includes(value)||id==='segmentationScope'&&['selected','nearby','all'].includes(value)||id==='segmentationLimit'&&Number.isSafeInteger(value)&&value>=1&&value<=30)$(id).value=value;} } catch {}
   const recoveryKey = (type,id) => JOURNAL + type + ':' + id;
   function journal(type,record) {
     const value = JSON.stringify({type,record,stamp:crypto.randomUUID()});
@@ -101,12 +103,17 @@
   }
   function updateLocal(record) { const i=records.findIndex(r=>r.id===record.id);if(i<0)records.push(record);else records[i]=record; }
   function updateLocalCase(record) { const i=caseNotes.findIndex(r=>r.case_id===record.case_id);if(i<0)caseNotes.push(record);else caseNotes[i]=record; }
+  function hydrateStructurePreferences() {
+    const preferences=new Map(caseNotes.filter(row=>row.segmentation_selection).map(row=>[row.case_id,row.segmentation_selection]));
+    for(const [id,value] of earlyStructurePreferences)preferences.set(id,value);
+    window.StructureSelection?.replaceAllPreferences([...preferences.values()],{emit:false});
+  }
   async function refresh({announce=true}={}) {
     if(!store)return;if(pending||failures.length){refreshNeeded=true;return;}
     const generation=++refreshGeneration;
     const [nextRecords,nextCases]=await Promise.all([store.getAll(),store.getCases()]);
     if(generation!==refreshGeneration||pending||failures.length)return;
-    records=nextRecords;caseNotes=nextCases;const removed=selectedId&&(!byId(selectedId)||!activeCase(byId(selectedId).case_id));if(removed)selectedId=null;renderList();renderEditor();renderCaseNotes();draw();if(removed&&announce&&!notesWindow)clearSelection({source:'delete'});changed();notifyNotes();
+    records=nextRecords;caseNotes=nextCases;hydrateStructurePreferences();const removed=selectedId&&(!byId(selectedId)||!activeCase(byId(selectedId).case_id));if(removed)selectedId=null;renderList();renderEditor();renderCaseNotes();draw();if(removed&&announce&&!notesWindow)clearSelection({source:'delete'});changed();notifyNotes();
   }
   function locationInVolume(record,volume=viewer()?.volume) {
     if(!volume||record.case_id!==viewer()?.currentCase?.case_id||record.geometry&&record.volume_id!==volume.volume_id)return null;
@@ -243,11 +250,19 @@
     const data=caseNotes.find(r=>r.case_id===currentCase)||{};
     for(const [id,key] of Object.entries(caseFields)){setFieldValue($(id),data[key]||(key==='coverage'?'uncertain':''),force);$(id).disabled=!store||!currentCase;}
   }
-  for(const [id,key] of Object.entries(caseFields))$(id).addEventListener('input',()=>{
-    if(!store||!currentCase)return;
-    const previous=caseNotes.find(r=>r.case_id===currentCase)||{case_id:currentCase,notes:'',coverage:'uncertain',inspected_regions:'',extra_extent:'',created_at:now()};
-    const record={...previous,[key]:$(id).value,updated_at:now(previous.updated_at)};updateLocalCase(record);const token=journal('case',record);changed();
+  function saveCaseField(caseId,key,value) {
+    if(!store||!caseId)return;
+    const previous=caseNotes.find(r=>r.case_id===caseId)||{case_id:caseId,notes:'',coverage:'uncertain',inspected_regions:'',extra_extent:'',created_at:now()};
+    if(JSON.stringify(previous[key])===JSON.stringify(value))return;
+    const record={...previous,[key]:structuredClone(value),updated_at:now(previous.updated_at)};updateLocalCase(record);const token=journal('case',record);changed();
     enqueue(async()=>{const current=caseNotes.find(r=>r.case_id===record.case_id);if(!current)return;await store.putCase({case_id:record.case_id,[key]:current[key]});forgetJournal('case',record.case_id,token);broadcast({type:'changed'});});
+  }
+  for(const [id,key] of Object.entries(caseFields))$(id).addEventListener('input',()=>saveCaseField(currentCase,key,$(id).value));
+  window.addEventListener('structures:changed',event=>{
+    const {case_id,preferences}=event.detail||{};
+    if(!case_id||!preferences||preferences.case_id!==case_id)return;
+    if(!store){earlyStructurePreferences.set(case_id,structuredClone(preferences));return;}
+    saveCaseField(case_id,'segmentation_selection',preferences);
   });
   function drawingMutation(before,after){window.dispatchEvent(new CustomEvent('annotations:mutation',{detail:{before:before?structuredClone(before):null,after:after?structuredClone(after):null}}));}
   async function createDrawing(detail){
@@ -481,11 +496,23 @@
   $('neuroglancerImportAll').addEventListener('click',()=>$('annotationsImport').click());
   async function applySettings(settings){
     const allowedView=!settings.last_view||activeCase(settings.last_view.case_id);
-    if(settings.preferences){for(const [id,value]of Object.entries(settings.preferences))if($(id)){if(typeof value==='boolean')$(id).checked=value;else $(id).value=String(value);$(id).dispatchEvent(new Event('change'));}prefsSave();}
+    if(settings.preferences){for(const [id,value]of Object.entries(settings.preferences))if($(id)&&!structurePreferenceIds.has(id)){if(typeof value==='boolean')$(id).checked=value;else $(id).value=String(value);$(id).dispatchEvent(new Event('change'));}prefsSave();}
     if(settings.last_view&&allowedView){localStorage.setItem('microns-last-view-v1',JSON.stringify(settings.last_view));await viewer().select(settings.last_view.case_id,settings.last_view.volume_id,settings.last_view.z);}
     if(settings.annotation_mode){$('annotationMode').value=settings.annotation_mode;setMode();}
     if(settings.display&&allowedView&&!notesWindow){const zoom=String(settings.display.zoom);if(![...$('zoomSelect').options].some(o=>o.value===zoom))$('zoomSelect').add(new Option('Сохранённый масштаб · '+Math.round(settings.display.zoom*100)+'%',zoom));$('zoomSelect').value=zoom;$('zoomSelect').dispatchEvent(new Event('change'));$('blackInput').value=settings.display.black;$('whiteInput').value=settings.display.white;$('blackInput').dispatchEvent(new Event('change'));}
     if(settings.surface_view&&allowedView&&activeCase(settings.surface_view.case_id)&&!notesWindow&&viewer()?.ready&&settings.surface_view.case_id===viewer().currentCase.case_id&&settings.surface_view.volume_id===viewer().volume.volume_id&&settings.surface_view.local_z===viewer().z)await viewer().surface.restoreEvidence(settings.surface_view);
+    const selectedCase=viewer()?.currentCase?.case_id||currentCase,selection=caseNotes.find(row=>row.case_id===selectedCase)?.segmentation_selection;
+    if(selection)window.StructureSelection?.applyPreferences(selection,{emit:false});
+    else if(settings.preferences&&window.StructureSelection&&selectedCase&&[...structurePreferenceIds].some(id=>id in settings.preferences)){
+      const preferences=window.StructureSelection.getPreferences(selectedCase),saved=settings.preferences;
+      if(typeof saved.segmentation2D==='boolean')preferences.fill=saved.segmentation2D;
+      if(typeof saved.segmentationBorders==='boolean')preferences.borders=saved.segmentationBorders;
+      if(typeof saved.segmentationOpacity==='number')preferences.opacity=saved.segmentationOpacity/100;
+      if(['selected','nearby','all'].includes(saved.segmentationScope))preferences.scope=saved.segmentationScope;
+      window.StructureSelection.applyPreferences(preferences,{emit:false});
+      saveCaseField(selectedCase,'segmentation_selection',preferences);
+    }
+    prefsSave();
   }
   async function recoverPending() {
     const keys=[];try{for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key.startsWith(JOURNAL))keys.push(key);}}catch{return;}
@@ -493,7 +520,7 @@
   }
   async function boot(data) {
     metadata=data;
-    try{store=await AnnotationsCore.open(data);await recoverPending();await refresh();currentCase=viewer()?.currentCase?.case_id||'';if(params.get('annotation')&&byId(params.get('annotation'))?.case_id===currentCase)selectedId=params.get('annotation');for(const id of [...exportButtonIds,'annotationsImport','annotationsImportCase'])if($(id))$(id).disabled=false;syncCase();renderList();renderEditor(true);renderCaseNotes(true);saveStatus();window.dispatchEvent(new Event("annotations:ready"));}catch(error){$('annotationSaveStatus').textContent='Локальное сохранение недоступно: '+error.message+'. Разрешите хранение данных сайта и обновите страницу.';$('annotationSaveStatus').classList.add('save-failed');}
+    try{store=await AnnotationsCore.open(data);await recoverPending();await refresh();for(const [caseId,preferences] of earlyStructurePreferences)saveCaseField(caseId,'segmentation_selection',preferences);earlyStructurePreferences.clear();await whenSettled();currentCase=viewer()?.currentCase?.case_id||'';if(params.get('annotation')&&byId(params.get('annotation'))?.case_id===currentCase)selectedId=params.get('annotation');for(const id of [...exportButtonIds,'annotationsImport','annotationsImportCase'])if($(id))$(id).disabled=false;syncCase();renderList();renderEditor(true);renderCaseNotes(true);saveStatus();window.dispatchEvent(new Event("annotations:ready"));}catch(error){$('annotationSaveStatus').textContent='Локальное сохранение недоступно: '+error.message+'. Разрешите хранение данных сайта и обновите страницу.';$('annotationSaveStatus').classList.add('save-failed');}
   }
   window.addEventListener('review:ready',event=>boot(event.detail),{once:true});
   if(viewer()?.metadata)boot(viewer().metadata);

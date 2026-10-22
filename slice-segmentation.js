@@ -23,32 +23,34 @@
     const value=Number($('segmentationLimit')?.value??5),limit=Number.isFinite(value)?Math.max(1,Math.min(30,Math.round(value))):5;
     if($('segmentationLimit'))$('segmentationLimit').value=String(limit);if($('segmentationLimitReadout'))$('segmentationLimitReadout').textContent=String(limit);return limit;
   }
-  function selection2D(){
+  function selection2D(options={}){
     if(!current.ready||!entry)return null;
-    const scope=$('segmentationScope')?.value==='all'?'all':'nearby',limit=limitValue(),surface=window.ReviewViewer?.surface;
+    const requested=options.scope??$('segmentationScope')?.value,scope=['selected','all','nearby'].includes(requested)?requested:'selected',limit=limitValue(),surface=window.ReviewViewer?.surface;
+    const preferences=window.StructureSelection?.getPreferences(entry.case_id),chosen=preferences?.structures||[],visibleChosen=chosen.filter(o=>o.visible),chosenColors=Object.fromEntries(chosen.map(o=>[o.segment_id,o.color]));
     const matches=surface?.caseId===entry.case_id&&surface?.volume?.volume_id===entry.volume_id,point=matches&&surface.contextFocus;
     const focus=Array.isArray(point)&&point.length===3&&point.every(Number.isFinite)?[...point]:[entry.shape_xyz[0]*entry.resolution_nm[0]/2,entry.shape_xyz[1]*entry.resolution_nm[1]/2,(wantedZ+.5)*entry.resolution_nm[2]];
-    const key=JSON.stringify([scope,limit,focus]);
+    const key=JSON.stringify([scope,limit,focus,scope==='selected'?chosen:null]);
     // Zoom and brightness updates reuse the native selection and its painted canvases.
     if(!selectionCache||selectionCache.labels!==labels||selectionCache.key!==key){
       const present=new Set(current.objects.map(o=>o.segment_id)),seeds=entry.seed_objects.map(o=>o.segment_id).filter(id=>present.has(id));
       const neighbors=scope==='nearby'?nearest({point_local_nm:focus,limit,exclude_segment_ids:entry.seed_objects.map(o=>o.segment_id)}):current.objects.filter(o=>!seeds.includes(o.segment_id));
-      const ids=scope==='all'?current.objects.map(o=>o.segment_id):[...seeds,...neighbors.map(o=>o.segment_id)];
-      selectionCache={labels,key,settings:{scope,nearby_limit:limit,segment_ids:ids,focus_local_nm:focus},neighborCount:neighbors.length,seedCount:seeds.length,source:null,fillCanvas:null,bordersCanvas:null};
+      const ids=scope==='selected'?visibleChosen.map(o=>o.segment_id):scope==='all'?current.objects.map(o=>o.segment_id):[...seeds,...neighbors.map(o=>o.segment_id)];
+      selectionCache={labels,key,settings:{scope,nearby_limit:limit,segment_ids:ids,focus_local_nm:focus,colors:scope==='selected'?chosenColors:{},selected_structures:scope==='selected'?chosen.map(o=>({...o})):undefined},neighborCount:neighbors.length,seedCount:seeds.length,source:null,fillCanvas:null,bordersCanvas:null};
     }
     if(selectionCache.source!==current.canvas){
       const ids=selectionCache.settings.segment_ids;selectionCache.source=current.canvas;
-      selectionCache.fillCanvas=scope==='all'?current.canvas:paint({segment_ids:ids});
+      selectionCache.fillCanvas=scope==='all'?current.canvas:paint({segment_ids:ids,colors:selectionCache.settings.colors});
       selectionCache.bordersCanvas=scope==='all'?current.bordersCanvas:paint({segment_ids:ids,fill:false,borders:true});
     }
     const focusLabel=point?(surface.contextFocusLabel||'выбранная точка'):'центр среза';
-    status(scope==='all'?`Все: ${selectionCache.settings.segment_ids.length} · Z ${wantedZ}`:`Рядом: ${selectionCache.neighborCount} · основных: ${selectionCache.seedCount} · ${focusLabel} · Z ${wantedZ}`);
+    const chosenHere=visibleChosen.filter(o=>current.objects.some(s=>s.segment_id===o.segment_id)).length;
+    if(!options.silent)status(scope==='selected'?`Выбрано: ${chosen.length} · видимы на срезе: ${chosenHere} · Z ${wantedZ}`:scope==='all'?`Все: ${selectionCache.settings.segment_ids.length} · Z ${wantedZ}`:`Рядом: ${selectionCache.neighborCount} · основных: ${selectionCache.seedCount} · ${focusLabel} · Z ${wantedZ}`);
     return selectionCache;
   }
   function display(){
     const c=overlay(),image=$('imageCanvas');if(!c||!image)return;
     c.style.width=image.style.width;c.style.height=image.style.height;
-    limitValue();const all=$('segmentationScope')?.value==='all';if($('segmentationLimitControl'))$('segmentationLimitControl').hidden=all;if($('segmentationLimit'))$('segmentationLimit').disabled=all;const selection=selection2D();
+    limitValue();const nearby=$('segmentationScope')?.value==='nearby';if($('segmentationLimitControl'))$('segmentationLimitControl').hidden=!nearby;if($('segmentationLimit'))$('segmentationLimit').disabled=!nearby;const selection=selection2D();
     const fill=!!$('segmentation2D')?.checked,borders=!!$('segmentationBorders')?.checked;
     c.hidden=!current.ready||(!fill&&!borders);if(c.hidden)return;
     if(c.width!==image.width){c.width=image.width;displayCache=null;}if(c.height!==image.height){c.height=image.height;displayCache=null;}
@@ -127,18 +129,23 @@
   }
   function ensure(){const v=window.ReviewViewer;if(current.error&&v?.ready)load(v.volume,v.currentCase.case_id,v.z);else sync();return current.ready?Promise.resolve(current):new Promise((resolve,reject)=>waiters.push({resolve,reject}));}
   const segmentAt=(x,y)=>current.ready&&Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<entry.shape_xyz[0]&&y<entry.shape_xyz[1]?entry.palette[labels[y*entry.shape_xyz[0]+x]]:null;
-  function captureFor(volume_id,local_z){
-    const fill=!!$('segmentation2D')?.checked,borders=!!$('segmentationBorders')?.checked;
+  function captureFor(volume_id,local_z,options={}){
+    const fill='fill'in options?!!options.fill:!!$('segmentation2D')?.checked,borders='borders'in options?!!options.borders:!!$('segmentationBorders')?.checked;
     if(!current.ready||current.volume_id!==volume_id||current.local_z!==local_z||(!fill&&!borders))return null;
-    display();const source=$('segmentationCanvas'),copy=canvas(source.width,source.height);copy.getContext('2d').drawImage(source,0,0);
-    const selected=selection2D().settings;
-    return{canvas:copy,settings:{source_version:'seg_m1300',volume_id,local_z,fill,borders,opacity:opacityValue(),boundary_method:'native_xy_label_transition_pixels',scope:selected.scope,nearby_limit:selected.nearby_limit,segment_ids:[...selected.segment_ids],focus_local_nm:[...selected.focus_local_nm]}};
+    const selection=selection2D({scope:options.scope,silent:true}),selected=selection.settings,opacity=Number.isFinite(options.opacity)?Math.max(0,Math.min(.7,options.opacity)):opacityValue(),copy=canvas(entry.shape_xyz[0],entry.shape_xyz[1]),ctx=copy.getContext('2d');
+    if(fill){ctx.globalAlpha=opacity;ctx.drawImage(selection.fillCanvas,0,0);}
+    if(borders){ctx.globalAlpha=Math.max(.4,opacity);ctx.drawImage(selection.bordersCanvas,0,0);}ctx.globalAlpha=1;
+    return{canvas:copy,settings:{source_version:'seg_m1300',volume_id,local_z,fill,borders,opacity,boundary_method:'native_xy_label_transition_pixels',scope:selected.scope,nearby_limit:selected.nearby_limit,segment_ids:[...selected.segment_ids],focus_local_nm:[...selected.focus_local_nm],colors:{...selected.colors},...(selected.selected_structures?{selected_structures:selected.selected_structures.map(o=>({...o}))}:{})}};
   }
   async function restore(settings){
     const data=await ensure(),s=settings;
     if(!s||data.volume_id!==s.volume_id||data.local_z!==s.local_z||s.source_version!=='seg_m1300')throw new Error('Сегментация не соответствует сохранённому срезу.');
     const scope=s.scope??'all',limit=s.nearby_limit??5;
-    if(!['nearby','all'].includes(scope)||!Number.isInteger(limit)||limit<1||limit>30||s.focus_local_nm!==undefined&&(!Array.isArray(s.focus_local_nm)||s.focus_local_nm.length!==3||!s.focus_local_nm.every(Number.isFinite)))throw new Error('Неверные настройки сохранённой сегментации.');
+    if(!['selected','nearby','all'].includes(scope)||!Number.isInteger(limit)||limit<1||limit>30||s.focus_local_nm!==undefined&&(!Array.isArray(s.focus_local_nm)||s.focus_local_nm.length!==3||!s.focus_local_nm.every(Number.isFinite)))throw new Error('Неверные настройки сохранённой сегментации.');
+    if(scope==='selected'){
+      if(!window.StructureSelection||!Array.isArray(s.selected_structures))throw new Error('Неверные настройки сохранённой сегментации.');
+      window.StructureSelection.applyPreferences({schema_version:1,source_version:'seg_m1300',case_id:data.case_id,structures:s.selected_structures,scope,fill:!!s.fill,borders:!!s.borders,opacity:s.opacity},{emit:false});
+    }
     if($('segmentationScope'))$('segmentationScope').value=scope;if($('segmentationLimit'))$('segmentationLimit').value=String(limit);
     for(const [id,value]of [['segmentation2D',s.fill],['segmentationBorders',s.borders]])if($(id))$(id).checked=!!value;
     if($('segmentationOpacity')&&Number.isFinite(s.opacity))$('segmentationOpacity').value=String(s.opacity*100);
@@ -156,7 +163,9 @@
     if(JSON.stringify(volumeColors.get(forVolume)||{})===JSON.stringify(next))return;volumeColors.set(forVolume,next);
     if(current.ready&&forVolume===volumeId){colorTable=entry.palette.map(colorForSegment);current={...current,canvas:paint(),bordersCanvas:paint({fill:false,borders:true})};display();announce();}
   }
-  window.SliceSegmentation={get current(){return current;},get selection(){return selection2D()?.settings||null;},ensure,render:paint,captureFor,restore,setColors,colorForSegment,segmentAt,lookup:segmentAt,nearest};
+  function refresh(){selectionCache=null;displayCache=null;display();announce();}
+  function availability(segmentId){const id=String(segmentId);return{source_version:'seg_m1300',case_id:entry?.case_id??window.ReviewViewer?.currentCase?.case_id,volume_id:volumeId,ready:current.ready,present_in_volume:entry?entry.palette.includes(id):null,present_in_slice:current.ready?current.objects.some(o=>o.segment_id===id):null};}
+  window.SliceSegmentation={get current(){return current;},get selection(){return selection2D()?.settings||null;},get seedObjects(){return entry?entry.seed_objects.map(o=>({...o})):[];},availability,refresh,ensure,render:paint,captureFor,restore,setColors,colorForSegment,segmentAt,lookup:segmentAt,nearest};
   window.addEventListener('review:volume',()=>{worker?.terminate();worker=null;volumeId=null;generation++;for(const waiter of waiters.splice(0))waiter.reject(new Error('Выбран другой объём.'));invalidate();status('Подготавливаем сегментацию…');});
   window.addEventListener('review:position',sync);window.addEventListener('review:display',display);window.addEventListener('resize',display);
   window.addEventListener('surface:visibility',event=>{if(event.detail?.volume_id===volumeId)display();});

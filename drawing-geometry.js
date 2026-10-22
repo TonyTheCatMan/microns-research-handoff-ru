@@ -13,7 +13,9 @@
 const escapeSvg = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]));
 const markPoints = mark => mark.pointsNm || mark.points || (mark.pointNm ? [mark.pointNm] : []);
 const markPlane = mark => {const value=typeof mark.plane === 'string' ? mark.plane : mark.plane?.plane ?? {x:'yz',y:'xz',z:'xy'}[mark.plane?.axis];return typeof value === 'string' ? value.toLowerCase() : undefined;};
-const markStyle = mark => ({color:/^#[0-9a-f]{6}$/i.test(mark.color || '') ? mark.color : '#ffd166', strokeWidth:Number.isFinite(mark.strokeWidth) && mark.strokeWidth >= 1 && mark.strokeWidth <= 12 ? mark.strokeWidth : 2});
+// Stored widths are validated separately (1-12); rendered export widths may
+// exceed 12 after multiplying by the output resolution.
+const markStyle = mark => ({color:/^#[0-9a-f]{6}$/i.test(mark.color || '') ? mark.color : '#ffd166', strokeWidth:Number.isFinite(mark.strokeWidth) && mark.strokeWidth > 0 ? mark.strokeWidth : 2});
 function visibleMarks(marks, plan) {
   return marks.filter(mark => mark.visible !== false && (!mark.plane || markPlane(mark) === plan.plane.toLowerCase()))
     .map(mark => ({...mark, projected:markPoints(mark).map(point => projectPoint(plan, point))}));
@@ -27,7 +29,10 @@ function markGeometry(mark, projectedPoints, {x=0, y=0, sx=1, sy=1, offset=.5, p
   const line = (a,b) => ({tag:'line', attrs:{x1:a[0],y1:a[1],x2:b[0],y2:b[1]}});
   const polyline = vertices => ({tag:'polyline', attrs:{points:vertices.map(point => point.join(',')).join(' ')}, points:vertices});
   if (points.length === 1 && finiteOnPlane(points[0])) {
-    const [cx,cy] = position(points[0]); return [{tag:'circle',attrs:{cx,cy,r:pointRadius}}];
+    const [cx,cy] = position(points[0]);
+    // A one-vertex freehand mark is a brush dab, with the same diameter as
+    // the selected line width. Other single vertices remain draft handles.
+    return [{tag:'circle',attrs:{cx,cy,r:kind==='freehand'?markStyle(mark).strokeWidth/2:pointRadius,...(kind==='freehand'?{fill:markStyle(mark).color,stroke:'none'}:{})}}];
   }
   if (['roi','ellipse','arrow'].includes(kind)) {
     if (points.length < 2 || !finiteOnPlane(points[0]) || !finiteOnPlane(points.at(-1))) return [];
@@ -62,7 +67,7 @@ function drawMark(ctx, mark, projectedPoints, options={}) {
     else if(tag==='line'){ctx.moveTo(a.x1,a.y1);ctx.lineTo(a.x2,a.y2);}
     else if(tag==='polyline'){ctx.moveTo(...points[0]);for(const point of points.slice(1))ctx.lineTo(...point);}
   }
-  ctx.stroke();ctx.restore();return geometry;
+  if(mark.kind==='freehand'&&projectedPoints.length===1){ctx.fillStyle=style.color;ctx.fill();}else ctx.stroke();ctx.restore();return geometry;
 }
 /** Sample only the requested ellipse overlay for 3D annotation transports. */
 function ellipsePointsNm(mark, steps=64) {
@@ -108,6 +113,7 @@ function moveAnnotation(mark,plan,startNm,endNm,index=null){
   return points.map(p=>p.map((n,i)=>n+delta[i]));
 }
 function validDraw(kind,points,plan){
+  if(kind==='freehand'&&points.length===1)return points[0].length===3&&points[0].every(Number.isFinite)&&projectPoint(plan,points[0]).onPlane;
   if(points.length<2)return false;const [u,v]=plan.axes,a=points[0],b=points.at(-1);
   if(kind==='roi'||kind==='ellipse')return a[u]!==b[u]&&a[v]!==b[v];
   return points.some(p=>p[u]!==a[u]||p[v]!==a[v]);
@@ -132,7 +138,7 @@ function validDraw(kind,points,plan){
     drawMark(ctx,{...mark,strokeWidth:mark.strokeWidth*unit},projected,opts);
     const first=projected[0],cx=x+(first.x+.5)*zoom,cy=y+(first.y+.5)*zoom;
     ctx.save();ctx.font=`bold ${13*unit}px system-ui`;ctx.lineWidth=3*unit;ctx.strokeStyle='#10202d';ctx.fillStyle=mark.color;
-    let label=record.number?'№'+record.number:'';
+    let label=record.number&&!(mark.kind==='freehand'&&mark.pointsNm.length===1)?'№'+record.number:'';
     if(mark.kind==='distance')label+=' · '+(Math.hypot(...mark.pointsNm[0].map((n,i)=>n-mark.pointsNm.at(-1)[i]))/1000).toFixed(3)+' мкм';
     ctx.strokeText(label,cx+9*unit,cy-9*unit);ctx.fillText(label,cx+9*unit,cy-9*unit);
     if(selected&&handles){for(const index of handleIndices(mark)){const point=projected[index],hx=x+(point.x+.5)*zoom,hy=y+(point.y+.5)*zoom;ctx.fillStyle='#fff';ctx.strokeStyle='#126395';ctx.lineWidth=1.5*unit;ctx.beginPath();ctx.rect(hx-4*unit,hy-4*unit,8*unit,8*unit);ctx.fill();ctx.stroke();}}

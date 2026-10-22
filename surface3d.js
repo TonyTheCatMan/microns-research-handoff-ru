@@ -623,11 +623,14 @@
         if(annotation.geometry){
           const origin=this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]);
           const paths=(window.HandoffDrawingGeometry?.pathsNm(annotation)||[]).map(path=>path.map(point=>this.project(vec.sub(point,origin),camera)));
-          const selected=annotation.id===this.selectedAnnotationId,color=annotation.geometry.color||'#ffd166',width=annotation.geometry.stroke_width||2;
+          const selected=annotation.id===this.selectedAnnotationId,color=annotation.geometry.color||'#ffd166',width=annotation.geometry.stroke_width||2,dab=annotation.kind==='freehand'&&annotation.geometry.points_nm.length===1;
           ctx.save();ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
-          for(const path of paths){if(path.length<2)continue;ctx.moveTo(...path[0]);for(const point of path.slice(1))ctx.lineTo(...point);}
-          ctx.strokeStyle=selected?'#fff':'rgba(10,22,31,.8)';ctx.lineWidth=width+3;ctx.stroke();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
-          if(x>=0&&y>=0&&x<=this.stage.clientWidth&&y<=this.stage.clientHeight){ctx.font='bold 13px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#13212c';ctx.fillStyle=color;ctx.strokeText('№'+annotation.number,x+8,y-8);ctx.fillText('№'+annotation.number,x+8,y-8);}
+          if(dab){ctx.arc(x,y,width/2,0,Math.PI*2);ctx.strokeStyle=selected?'#fff':'rgba(10,22,31,.8)';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle=color;ctx.fill();}
+          else{
+            for(const path of paths){if(path.length<2)continue;ctx.moveTo(...path[0]);for(const point of path.slice(1))ctx.lineTo(...point);}
+            ctx.strokeStyle=selected?'#fff':'rgba(10,22,31,.8)';ctx.lineWidth=width+3;ctx.stroke();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
+            if(x>=0&&y>=0&&x<=this.stage.clientWidth&&y<=this.stage.clientHeight){ctx.font='bold 13px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#13212c';ctx.fillStyle=color;ctx.strokeText('№'+annotation.number,x+8,y-8);ctx.fillText('№'+annotation.number,x+8,y-8);}
+          }
           ctx.restore();if(paths.length)this.annotationHits.push({id:annotation.id,x,y,paths});continue;
         }
         if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;

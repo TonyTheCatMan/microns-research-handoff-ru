@@ -3,9 +3,10 @@
   'use strict';
   const $=id=>document.getElementById(id),api=()=>window.HandoffAnnotations,v=()=>window.ReviewViewer,G=window.HandoffDrawingGeometry;
   const clone=value=>structuredClone(value),viewport=$('viewport'),draftKey='microns-drawing-draft-v1',histories=new Map();
-  const hints={select:'Нажмите на рисунок. Перетащите его целиком или за белые узлы. E: заметка; Delete: удалить.',trace:'Щёлкайте вдоль структуры. Enter: завершить. Первая точка или «Замкнуть трассу»: замкнуть. Точки сохраняются по мере добавления.',freehand:'Удерживайте кнопку мыши и обведите участок. Отпустите, чтобы сохранить.',arrow:'Протяните стрелку к интересующему участку. Отпустите, чтобы сохранить.',ellipse:'Протяните от одного угла области к противоположному. Shift после начала рисования: круг.',roi:'Протяните рамку вокруг интересующей области.',distance:'Протяните между двумя точками. Длина показана в микрометрах.'};
+  const hints={select:'Нажмите на рисунок. Перетащите его целиком или за белые узлы. E: заметка; Delete: удалить.',trace:'Щёлкайте вдоль структуры. Enter: завершить. Первая точка или «Замкнуть трассу»: замкнуть. Точки сохраняются по мере добавления.',freehand:'Нажмите или коснитесь, чтобы поставить точку кистью. Для линии перетаскивайте. Цвет и размер задаются ниже.',arrow:'Протяните стрелку к интересующему участку. Отпустите, чтобы сохранить.',ellipse:'Протяните от одного угла области к противоположному. Shift после начала рисования: круг.',roi:'Протяните рамку вокруг интересующей области.',distance:'Протяните между двумя точками. Длина показана в микрометрах.'};
   const shortcuts={h:'navigate',v:'select',a:'arrow',p:'point2d',t:'trace',f:'freehand',b:'roi',o:'ellipse',d:'distance'};
   let gesture=null,draft=null,preview=null,work=Promise.resolve(),lastScope='',lastMode='navigate',replaying=false,restoredScope='',intent=0;
+  const touchPointers=new Set();
   const mode=()=>$('annotationMode').value,scope=()=>v()?.volume?[v().currentCase.case_id,v().volume.volume_id,v().z].join(':'):'';
   const isDrawing=record=>!!record?.geometry;
   const selected=()=>api()?.records.find(r=>r.id===api().selectedId);
@@ -77,6 +78,15 @@
   function consume(event){event.preventDefault();event.stopImmediatePropagation();}
   function startCapture(event){viewport.focus({preventScroll:true});viewport.setPointerCapture(event.pointerId);consume(event);}
   viewport.addEventListener('pointerdown',event=>{
+    if(event.pointerType==='touch'){
+      touchPointers.add(event.pointerId);
+      // A second finger cancels unfinished ink. Never save a stray dab or
+      // let one finger complete another finger's drawing during a pinch.
+      if(touchPointers.size>1&&(gesture||G.kinds.has(mode())||mode()==='select')){
+        gesture=null;preview=null;startCapture(event);redraw();return;
+      }
+    }
+    if(gesture&&gesture.pointer!==event.pointerId)return;
     if(!v()?.ready||!api()?.store||api().isExporting||api().isNotesWindow||![0,1].includes(event.button))return;
     const rect=rectangle(),inside=event.clientX>=rect.x&&event.clientY>=rect.y&&event.clientX<rect.x+rect.w&&event.clientY<rect.y+rect.h;
     const plan=G.plan(v().volume,v().z),point=pointAt(event,rect,plan),common={scope:scope(),pointer:event.pointerId,start:[event.clientX,event.clientY],point,plan,rect,moved:false};
@@ -95,7 +105,7 @@
     return points;
   }
   viewport.addEventListener('pointermove',event=>{
-    if(!gesture)return;if(!currentGesture()){gesture=null;preview=null;return;}
+    if(!gesture||gesture.pointer!==event.pointerId)return;if(!currentGesture()){gesture=null;preview=null;return;}
     consume(event);const g=gesture;g.moved||=Math.hypot(event.clientX-g.start[0],event.clientY-g.start[1])>3;
     if(g.type==='pan'||g.type==='pick'&&g.moved){viewport.scrollLeft=g.left-(event.clientX-g.start[0]);viewport.scrollTop=g.top-(event.clientY-g.start[1]);return;}
     if(!g.moved)return;const end=pointAt(event,g.rect,g.plan);
@@ -116,16 +126,17 @@
     saveDraft();persistTrace(draft);message(draft.geometry.points_nm.length<2?'Добавьте вторую точку, чтобы сохранить трассу.':'Трасса сохраняется. Enter: завершить.');redraw();
   }
   viewport.addEventListener('pointerup',event=>{
-    if(!gesture)return;consume(event);const g=gesture,validScope=currentGesture();gesture=null;const savedPreview=preview;preview=null;
+    touchPointers.delete(event.pointerId);
+    if(!gesture||gesture.pointer!==event.pointerId)return;consume(event);const g=gesture,validScope=currentGesture();gesture=null;const savedPreview=preview;preview=null;
     if(viewport.hasPointerCapture(event.pointerId))viewport.releasePointerCapture(event.pointerId);
     if(!validScope){redraw();return;}
     if(['pick','edit'].includes(g.type)&&!g.moved)api().select(g.record.id,false,true,'2d');
     if(g.type==='trace'&&!g.moved)tracePoint(g.point,event);
-    if(g.type==='draw'&&g.moved&&valid(g.record,g.plan)){const record=clone(g.record);queue(async()=>{await api().createDrawing(record);message('Рисунок сохранён. Заметка: E или панель «Мои отметки».');redraw();});}
+    if(g.type==='draw'&&(g.moved||g.kind==='freehand')&&valid(g.record,g.plan)){const record=clone(g.record);queue(async()=>{await api().createDrawing(record);message('Рисунок сохранён. Заметка: E или панель «Мои отметки».');redraw();});}
     if(g.type==='edit'&&g.moved&&savedPreview&&valid(savedPreview,g.plan)){const record=clone(savedPreview);queue(async()=>{await api().changeDrawing(record.id,{geometry:record.geometry},{expected:g.record.updated_at});message('Геометрия сохранена.');redraw();});}
     redraw();
   },true);
-  const cancelGesture=event=>{if(!gesture)return;consume(event);gesture=null;preview=null;redraw();};
+  const cancelGesture=event=>{touchPointers.delete(event.pointerId);if(!gesture||gesture.pointer!==event.pointerId)return;consume(event);gesture=null;preview=null;redraw();};
   viewport.addEventListener('pointercancel',cancelGesture,true);viewport.addEventListener('lostpointercapture',cancelGesture,true);
   viewport.addEventListener('wheel',()=>{if(gesture){gesture=null;preview=null;redraw();}},true);
   function endTrace(){if(draft){draft=null;saveDraft();}refresh();}
