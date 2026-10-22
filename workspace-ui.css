@@ -81,6 +81,7 @@
   .raw-panel,.surface-panel{display:block;grid-column:auto;grid-row:auto}
   .raw-panel{border-right:0;border-bottom:1px solid var(--line)}
   .paired-views .slice-stage,.paired-views .surface-stage{height:clamp(200px,calc(100vh - 250px),620px);height:clamp(200px,calc(100svh - 250px),620px)}
+  .paired-views .slice-stage{height:clamp(200px,calc(100vh - 300px),620px);height:clamp(200px,calc(100svh - 300px),620px)}
   .raw-controls .mark-tool{min-height:44px;padding:6px 8px;flex:1 1 95px;font-size:12px}
   .raw-controls .drawing-options{gap:9px 12px}
   .raw-controls .drawing-options label{min-height:40px;font-size:13px}

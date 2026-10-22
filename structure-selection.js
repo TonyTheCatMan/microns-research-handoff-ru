@@ -55,9 +55,9 @@
   }
   function message(text,error=false){const node=$('structureSelectionStatus');if(node){node.textContent=text;node.classList.toggle('save-failed',error);}}
   function setPicking(value){
-    picking=!!value;pointer=null;const button=$('structurePick');if(button){button.setAttribute('aria-pressed',String(picking));button.classList.toggle('active',picking);button.textContent=picking?'Завершить выбор':'Выбрать на срезе';}
+    picking=!!value;pointer=null;const button=$('structurePick');if(button){button.setAttribute('aria-pressed',String(picking));button.classList.toggle('active',picking);button.textContent=picking?'Завершить выбор':'Выбрать любую структуру';}
     $('viewport')?.classList.toggle('structure-picking',picking);
-    if(picking)message('Нажмите или коснитесь структуры на ЭМ-срезе. Можно выбрать несколько. Esc: завершить.');
+    if(picking)message('Нажмите или коснитесь любой сегментированной структуры на ЭМ-срезе. Можно выбрать несколько. Esc: завершить.');
   }
   function addSegment(segmentId){
     const id=String(segmentId),s=getPreferences(),availability=window.SliceSegmentation?.availability(id);
@@ -75,8 +75,8 @@
     const host=$('structureSelectionControls');if(!host)return;
     const s=getPreferences(),ready=!!window.SliceSegmentation?.current.ready&&!!window.HandoffAnnotations?.store;
     if(!$('structurePick')){
-      const actions=element('div','structure-selection-actions'),pick=element('button','','Выбрать на срезе');pick.type='button';pick.id='structurePick';pick.setAttribute('aria-pressed','false');pick.addEventListener('click',()=>setPicking(!picking));actions.append(pick);
-      const scopeHint=element('span','hint','Только выбранные: получатель и нужные аксоны выбираются вручную.');actions.append(scopeHint);
+      const actions=element('div','structure-selection-actions'),pick=element('button','','Выбрать любую структуру');pick.type='button';pick.id='structurePick';pick.setAttribute('aria-pressed','false');pick.addEventListener('click',()=>setPicking(!picking));actions.append(pick);
+      const scopeHint=element('span','hint','Нажмите на любую сегментированную структуру в 2D. Можно выбрать несколько.');actions.append(scopeHint);
       const hint=element('p','hint structure-source-note','Источник: seg_m1300. Один ID сохраняется на всех срезах этого случая. Назначение структуры проверяет исследователь.');
       const seeds=element('div','structure-seed-controls');seeds.id='structureSeeds';
       const rows=element('div','structure-selection-list');rows.id='structureSelectionList';
@@ -86,11 +86,11 @@
     $('structurePick').disabled=!ready||!s;
     const seeds=$('structureSeeds');seeds.replaceChildren();
     const originals=window.SliceSegmentation?.seedObjects||[];
-    if(originals.length){seeds.append(element('span','hint','Исходные объекты:'));for(const object of originals){
+    if(originals.length){seeds.append(element('span','hint','Быстрый выбор исходных объектов:'));for(const object of originals){
       const button=element('button','structure-seed',object.id);button.type='button';button.dataset.segmentId=object.segment_id;button.title=`${source}: ${object.segment_id}`;button.disabled=!ready;button.addEventListener('click',()=>addSegment(object.segment_id));seeds.append(button);
     }}
     const rows=$('structureSelectionList');rows.replaceChildren();
-    if(!s?.structures.length)rows.append(element('p','hint structure-selection-empty','Ничего не выбрано. Нажмите «Выбрать на срезе» или выберите исходный объект.'));
+    if(!s?.structures.length)rows.append(element('p','hint structure-selection-empty','Ничего не выбрано. Нажмите «Выбрать любую структуру», затем на нужное место в 2D.'));
     for(const object of s?.structures||[]){
       const row=element('div','structure-selection-row');row.dataset.segmentId=object.segment_id;
       const visibility=element('label','structure-visibility'),checkbox=element('input');checkbox.type='checkbox';checkbox.checked=object.visible;checkbox.setAttribute('aria-label','Показать структуру');checkbox.addEventListener('change',()=>{const next=getPreferences();next.structures.find(o=>o.segment_id===object.segment_id).visible=checkbox.checked;commit(next,{rerender:false});});visibility.append(checkbox);
