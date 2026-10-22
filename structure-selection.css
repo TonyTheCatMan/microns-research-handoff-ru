@@ -1,7 +1,8 @@
 .structure-selection-actions,.structure-seed-controls{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .6rem}
 #structureSelectionControls{flex-basis:100%;min-width:0;width:100%;padding-top:.4rem;border-top:1px solid #d3dfe8}
-.structure-seed-controls{margin:.4rem 0}.structure-seed{min-width:2.7rem}
-.structure-selection-list{display:grid;gap:.35rem;margin:.5rem 0}
+.structure-seed-controls{margin:0}.structure-seed{min-width:2.7rem}
+.structure-selection-list{display:grid;gap:.25rem;margin:.35rem 0;max-height:160px;overflow-y:auto;overscroll-behavior:contain}
+.structure-selection-list:empty,#structureSelectionStatus:empty{display:none}
 .structure-selection-row{display:grid;grid-template-columns:2rem 2.5rem minmax(0,1fr) auto;align-items:center;gap:.45rem;padding:.35rem .5rem;border:1px solid #c9d9e5;border-radius:.4rem;background:#fff}
 .structure-selection-row .structure-visibility{display:flex;align-items:center;justify-content:center;min-height:2.25rem}
 .structure-selection-row input[type=checkbox]{width:1.2rem;height:1.2rem;flex:none}
@@ -13,3 +14,20 @@
 .viewport.structure-picking{cursor:crosshair;touch-action:none}
 .structure-scope-inactive .structure-selection-list{opacity:.8}
 @media(max-width:600px){.structure-selection-row{grid-template-columns:1.7rem 2.4rem minmax(0,1fr) auto;gap:.3rem;padding:.25rem}.structure-remove{font-size:.75rem;padding:.4rem}.structure-identity code{font-size:.7rem}}
+
+/* Keep structure choices compact within the 2D panel. */
+.raw-controls .segmentation-settings>summary{padding:7px 10px;min-height:36px}
+.raw-controls .segmentation-tools{gap:6px 10px;padding:7px 10px;font-size:12px}
+.raw-controls .segmentation-tools label{gap:4px}
+.raw-controls .segmentation-tools select{min-width:0;max-width:100%;padding:5px 7px;font-size:12px}
+.raw-controls .segmentation-tools input[type=range]{width:72px}
+.raw-controls .segmentation-tools .hint{font-size:11px;line-height:1.35}
+.raw-controls #structureSelectionControls{padding-top:6px}
+.raw-controls .structure-selection-actions,.raw-controls .structure-seed-controls{gap:5px}
+.raw-controls .structure-selection-actions button{min-height:32px;padding:5px 7px;font-size:12px}
+.raw-controls .structure-seed{min-width:32px}
+@media(max-width:1180px),(pointer:coarse){
+  .raw-controls .segmentation-settings>summary{min-height:44px;padding:10px}
+  .raw-controls .structure-selection-actions button{min-height:40px;padding:7px 9px}
+  .raw-controls .structure-seed{min-width:40px}
+}
