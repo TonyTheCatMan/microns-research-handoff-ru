@@ -543,6 +543,8 @@
       window.addEventListener('handoff:languagechange',()=>{this.updateSliceControls();this.updatePlaneGeometry();this.schedule();});
       $('surfaceReset').addEventListener('click',()=>this.reset());$('surfaceXY').addEventListener('click',()=>this.alignTo2D());
       for(const id of ['surfacePlane','surfaceBox'])$(id).addEventListener('change',()=>this.schedule());
+      $('drawingNumbers')?.addEventListener('change',()=>this.schedule());
+      window.addEventListener('drawings:style',()=>this.schedule());
       $('surfaceOpacity').addEventListener('input',e=>{this.alpha=Number(e.target.value)/100;$('surfaceOpacityReadout').textContent=e.target.value+'%';this.schedule();});
       $('surfaceContextMode')?.addEventListener('change',e=>this.setContextMode(e.target.value));
       $('surfaceSegmentation')?.addEventListener('change',e=>this.setSegmentationVisible(e.target.checked));
@@ -622,16 +624,23 @@
         const position=this.annotationPosition(annotation);if(!position)continue;const [x,y]=this.project(position,camera);
         if(annotation.geometry){
           const origin=this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]);
-          const paths=(window.HandoffDrawingGeometry?.pathsNm(annotation)||[]).map(path=>path.map(point=>this.project(vec.sub(point,origin),camera)));
-          const selected=annotation.id===this.selectedAnnotationId,color=annotation.geometry.color||'#ffd166',width=annotation.geometry.stroke_width||2,dab=annotation.kind==='freehand'&&annotation.geometry.points_nm.length===1;
+          const G=window.HandoffDrawingGeometry,paths=(G?.pathsNm(annotation)||[]).map(path=>path.map(point=>this.project(vec.sub(point,origin),camera)));
+          const selected=annotation.id===this.selectedAnnotationId,color=annotation.geometry.color||'#ffd166',width=annotation.geometry.stroke_width||2,dab=annotation.kind==='freehand'&&annotation.geometry.points_nm.length===1,opacity=G?.opacityFor?.(annotation.geometry)??(Number.isFinite(annotation.geometry.opacity)?Math.max(0,Math.min(1,annotation.geometry.opacity)):1);
           ctx.save();ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
-          if(dab){ctx.arc(x,y,width/2,0,Math.PI*2);ctx.strokeStyle=selected?'#fff':'rgba(10,22,31,.8)';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle=color;ctx.fill();}
-          else{
-            for(const path of paths){if(path.length<2)continue;ctx.moveTo(...path[0]);for(const point of path.slice(1))ctx.lineTo(...point);}
-            ctx.strokeStyle=selected?'#fff':'rgba(10,22,31,.8)';ctx.lineWidth=width+3;ctx.stroke();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
-            if(x>=0&&y>=0&&x<=this.stage.clientWidth&&y<=this.stage.clientHeight){ctx.font='bold 13px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#13212c';ctx.fillStyle=color;ctx.strokeText('№'+annotation.number,x+8,y-8);ctx.fillText('№'+annotation.number,x+8,y-8);}
+          if(annotation.kind==='arrow'&&G){
+            const projected=annotation.geometry.points_nm.map(point=>{const [x,y]=this.project(vec.sub(point,origin),camera);return{x,y,onPlane:true};});
+            const geometry=G.drawMark(ctx,{...G.toMark(annotation),opacity},projected,{offset:0,outlineColor:selected?'#fff':'#10202d',outlineWidth:1});
+            const polygon=geometry.find(g=>g.tag==='polygon')?.points;if(polygon)paths.splice(0,paths.length,[...polygon,polygon[0]]);
           }
-          ctx.restore();if(paths.length)this.annotationHits.push({id:annotation.id,x,y,paths});continue;
+          else if(dab){ctx.globalAlpha*=opacity;ctx.arc(x,y,width/2,0,Math.PI*2);if(opacity===1){ctx.strokeStyle=selected?'#fff':'rgba(10,22,31,.8)';ctx.lineWidth=2;ctx.stroke();}ctx.fillStyle=color;ctx.fill();}
+          else{
+            ctx.globalAlpha*=opacity;
+            for(const path of paths){if(path.length<2)continue;ctx.moveTo(...path[0]);for(const point of path.slice(1))ctx.lineTo(...point);}
+            if(opacity===1){ctx.strokeStyle=selected?'#fff':'rgba(10,22,31,.8)';ctx.lineWidth=width+3;ctx.stroke();}ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
+          }
+          ctx.restore();
+          if($('drawingNumbers')?.checked&&x>=0&&y>=0&&x<=this.stage.clientWidth&&y<=this.stage.clientHeight){ctx.save();ctx.globalAlpha*=opacity;ctx.font='bold 13px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#13212c';ctx.fillStyle=color;ctx.strokeText('№'+annotation.number,x+8,y-8);ctx.fillText('№'+annotation.number,x+8,y-8);ctx.restore();}
+          if(paths.length)this.annotationHits.push({id:annotation.id,x,y,paths});continue;
         }
         if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;
         const selected=annotation.id===this.selectedAnnotationId;MarkerStyles.draw(ctx,x,y,10,annotation.kind,annotation.number??'?',selected);this.annotationHits.push({id:annotation.id,x,y});

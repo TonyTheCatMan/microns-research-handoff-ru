@@ -38,7 +38,7 @@
     return {v,res,min,max};
   }
   function validateGeometry(value,kind,{v,res,min,max}){
-    const keys=['points_nm','plane','slice_index','closed','color','stroke_width','opacity'];
+    const keys=['points_nm','plane','slice_index','closed','color','stroke_width','opacity','opacity_override'];
     if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!keys.includes(k)))fail('Неверная геометрия рисунка.');
     if(value.plane!=='xy'||!Number.isSafeInteger(value.slice_index)||value.slice_index<v.begin_vox_xyz[2]||value.slice_index>=v.begin_vox_xyz[2]+v.shape_xyz[2])fail('Рисунок должен быть привязан к срезу XY указанного объёма.');
     const points=value.points_nm,z=(value.slice_index+.5)*res[2];
@@ -53,7 +53,9 @@
     if(typeof color!=='string'||!/^#[0-9a-f]{6}$/i.test(color)||typeof stroke_width!=='number'||!Number.isFinite(stroke_width)||stroke_width<1||stroke_width>12)fail('Неверные цвет или толщина линии рисунка.');
     const opacity=value.opacity===undefined?1:value.opacity;
     if(typeof opacity!=='number'||!Number.isFinite(opacity)||opacity<0||opacity>1)fail('Неверная непрозрачность рисунка.');
-    return {points_nm:points.map(p=>[...p]),plane:'xy',slice_index:value.slice_index,closed,color,stroke_width,opacity};
+    const opacity_override=value.opacity_override===undefined?opacity<1:value.opacity_override;
+    if(typeof opacity_override!=='boolean')fail('Неверная непрозрачность рисунка.');
+    return {points_nm:points.map(p=>[...p]),plane:'xy',slice_index:value.slice_index,closed,color,stroke_width,opacity,opacity_override};
   }
   function validateRecord(value,ctx){
     if(!value||typeof value!=='object'||Array.isArray(value))fail('Неверная запись аннотации.');
@@ -147,7 +149,7 @@
     const allowed=['preferences','last_view','annotation_mode','drawing_style','display','surface_view'],result={};
     if(Object.keys(value).some(k=>!allowed.includes(k)))fail('Неизвестный раздел настроек.');
     if(value.preferences!==undefined){
-      const prefs=value.preferences,keys=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext','segmentation2D','segmentationBorders','surfaceSegmentation'],numbers={segmentationOpacity:70,surfaceContextOpacity:100,surfaceSegmentationOpacity:100};
+      const prefs=value.preferences,keys=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','drawingNumbers','surfaceContext','segmentation2D','segmentationBorders','surfaceSegmentation'],numbers={segmentationOpacity:70,surfaceContextOpacity:100,surfaceSegmentationOpacity:100};
       if(!prefs||typeof prefs!=='object'||Array.isArray(prefs)||Object.entries(prefs).some(([k,v])=>keys.includes(k)?typeof v!=='boolean':Object.hasOwn(numbers,k)?typeof v!=='number'||!Number.isFinite(v)||v<0||v>numbers[k]:k==='surfaceContextMode'?!['slice','full'].includes(v):k==='segmentationScope'?!['selected','nearby','all'].includes(v):k==='segmentationLimit'?!Number.isSafeInteger(v)||v<1||v>30:true))fail('Неверные настройки видимости.');result.preferences={...prefs};
     }
     if(value.last_view!==undefined){const v=value.last_view;if(!v||typeof v!=='object')fail('Неверный последний вид.');const {v:volume}=volumeInfo(ctx,v.case_id,v.volume_id);if(!Number.isSafeInteger(v.z)||v.z<0||v.z>=volume.shape_xyz[2])fail('Последний срез вне объёма.');result.last_view={case_id:v.case_id,volume_id:v.volume_id,z:v.z};}
@@ -330,7 +332,7 @@
         if(ids.size!==1||!this.context.cases.has([...ids][0]))fail('Выберите файл одного случая. Для общего архива используйте «Загрузить все результаты».');
         importCaseId=[...ids][0];data.reviewer={};data.reviewer_updated_at=null;
         const settings=data.settings;
-        data.settings={...(settings.drawing_style?{drawing_style:settings.drawing_style}:{}),...(settings.last_view?.case_id===importCaseId?Object.fromEntries(['last_view','display','surface_view'].filter(k=>settings[k]!==undefined&&(k!=='surface_view'||settings[k].case_id===importCaseId)).map(k=>[k,settings[k]])): {})};
+        data.settings={...(typeof settings.preferences?.drawingNumbers==='boolean'?{preferences:{drawingNumbers:settings.preferences.drawingNumbers}}:{}),...(settings.drawing_style?{drawing_style:settings.drawing_style}:{}),...(settings.last_view?.case_id===importCaseId?Object.fromEntries(['last_view','display','surface_view'].filter(k=>settings[k]!==undefined&&(k!=='surface_view'||settings[k].case_id===importCaseId)).map(k=>[k,settings[k]])): {})};
       }
       for(const row of data.evidence){const blobs=evidenceFiles.get(row.id);if(blobs){await validatePNG(blobs.annotated);if(row.source_view==='2d')await validatePNG(blobs.raw);}}
       return transaction(this.db,['annotations','cases','counters','deleted','reviews','evidence','meta'],'readwrite',async tx=>{
@@ -394,7 +396,7 @@
         if(Object.keys(data.settings).length){const s=tx.objectStore('meta'),old=await request(s.get('settings'));
           if(!old||!Object.keys(old.value||{}).length){await request(s.put({key:'settings',value:data.settings,updated_at:data.settings_updated_at||now()}));report.settings_updated++;}
           else if(!identical(old.value,data.settings)){
-            if(policy==='restore'||policy==='newer'&&data.settings_updated_at&&Date.parse(data.settings_updated_at)>Date.parse(old.updated_at)){await request(s.put({key:'settings',value:caseOnly?{...old.value,...data.settings}:data.settings,updated_at:data.settings_updated_at}));report.settings_updated++;report.conflicts.push({reason:'newer_settings_used'});}
+            if(policy==='restore'||policy==='newer'&&data.settings_updated_at&&Date.parse(data.settings_updated_at)>Date.parse(old.updated_at)){await request(s.put({key:'settings',value:caseOnly?{...old.value,...data.settings,...(data.settings.preferences?{preferences:{...old.value.preferences,...data.settings.preferences}}:{})}:data.settings,updated_at:data.settings_updated_at}));report.settings_updated++;report.conflicts.push({reason:'newer_settings_used'});}
             else report.conflicts.push({reason:'settings_kept'});
           }
         }

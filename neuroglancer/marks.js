@@ -26,7 +26,7 @@
         }
         const number=Number(annotation.properties?.[0]||annotation.description?.match(/^№(\d+)/)?.[1]);
         if(!Number.isSafeInteger(number)||number<1)continue;
-        result.push({id:annotation.id,number,kind,point:annotation.point,managed,...(drawing?{drawing:true,dab:managed.name.endsWith(' · Точки кисти'),segments:paths.get(annotation.id)||[],color:managed.name.match(/#[\da-f]{6}/i)?.[0]||'#ffd166'}:{})});
+        result.push({id:annotation.id,number,kind,point:annotation.point,managed,...(drawing?{drawing:true,dab:managed.name.endsWith(' · Точки кисти'),segments:paths.get(annotation.id)||[],color:managed.name.match(/#[\da-f]{6}/i)?.[0]||'#ffd166',opacity:Number.isFinite(annotation.properties?.[4])?Math.max(0,Math.min(1,annotation.properties[4])):1,showNumber:annotation.properties?.[5]===1}:{})});
       }
     }
     return result;
@@ -75,11 +75,11 @@
           const screen=p=>[(p[0]+1)*width/2,(1-p[1])*height/2],segments=[];
           for(const segment of record.segments){const projected=segment.map(p=>project(projection.viewProjectionMat,p));if(projected.every(p=>p&&p.every(Number.isFinite)&&Math.abs(p[2])<=1))segments.push(projected.map(screen));}
           if(!segments.length&&!record.dab)continue;
-          const labelVisible=ndc&&ndc.every(n=>Number.isFinite(n)&&Math.abs(n)<=1),[x,y]=labelVisible?screen(ndc):[-1e6,-1e6],alpha=labelVisible&&isSlice?Math.max(0,1-Math.abs(ndc[2])):1;
+          const labelVisible=ndc&&ndc.every(n=>Number.isFinite(n)&&Math.abs(n)<=1),[x,y]=labelVisible?screen(ndc):[-1e6,-1e6],alpha=(labelVisible&&isSlice?Math.max(0,1-Math.abs(ndc[2])):1)*record.opacity;
           if(record.dab&&!labelVisible)continue;
           const h={canvas,x,y,record,segments};
-          if(labelVisible&&alpha>=.02&&!record.dab){const label='№'+record.number;ctx.save();ctx.globalAlpha=alpha;ctx.font='bold 13px system-ui';ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.lineJoin='round';ctx.lineWidth=4;ctx.strokeStyle='#13212c';ctx.fillStyle=record.color;ctx.strokeText(label,x+8,y-8);ctx.fillText(label,x+8,y-8);h.labelBox={left:x+5,right:x+11+ctx.measureText(label).width,top:y-23,bottom:y-4};ctx.restore();obstacles.push(h.labelBox);}
-          hits.push(h);painted.push({id:record.id,number:record.number,kind:'drawing',dab:!!record.dab,panel:isSlice?'2d':'3d',x,y,alpha,segments});continue;
+          if(labelVisible&&alpha>=.02&&record.showNumber){const label='№'+record.number;ctx.save();ctx.globalAlpha=alpha;ctx.font='bold 13px system-ui';ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.lineJoin='round';ctx.lineWidth=4;ctx.strokeStyle='#13212c';ctx.fillStyle=record.color;ctx.strokeText(label,x+8,y-8);ctx.fillText(label,x+8,y-8);h.labelBox={left:x+5,right:x+11+ctx.measureText(label).width,top:y-23,bottom:y-4};ctx.restore();obstacles.push(h.labelBox);}
+          hits.push(h);painted.push({id:record.id,number:record.number,kind:'drawing',dab:!!record.dab,showNumber:record.showNumber,panel:isSlice?'2d':'3d',x,y,alpha,segments});continue;
         }
         if(!ndc||ndc.some(n=>!Number.isFinite(n)||Math.abs(n)>1))continue;
         const x=(ndc[0]+1)*width/2,y=(1-ndc[1])*height/2,alpha=isSlice?Math.max(0,1-Math.abs(ndc[2])):1;

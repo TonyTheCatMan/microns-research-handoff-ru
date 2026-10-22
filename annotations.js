@@ -23,7 +23,7 @@
   const activeCase = id => window.HandoffCaseSelection?.includes(id) ?? true;
   const visible = () => $('annotationsVisible').checked;
   const fmt = a => a.map(n=>Number(n.toFixed(2))).join(', ');
-  const booleanPreferences=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext','segmentation2D','segmentationBorders','surfaceSegmentation'];
+  const booleanPreferences=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','drawingNumbers','surfaceContext','segmentation2D','segmentationBorders','surfaceSegmentation'];
   const numberPreferences={segmentationOpacity:70,surfaceContextOpacity:100,surfaceSegmentationOpacity:100};
   function readPreferences(){
     const result=Object.fromEntries(booleanPreferences.filter(id=>$(id)).map(id=>[id,$(id).checked]));
@@ -35,6 +35,22 @@
   }
   function prefsSave() { try { localStorage.setItem(PREFS,JSON.stringify(readPreferences())); } catch {} }
   try { const preferences=JSON.parse(localStorage.getItem(PREFS)||'{}'); for(const [id,value] of Object.entries(preferences))if($(id)){if(booleanPreferences.includes(id)&&typeof value==='boolean')$(id).checked=value;else if(id in numberPreferences&&typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=numberPreferences[id])$(id).value=value;else if(id==='surfaceContextMode'&&['slice','full'].includes(value)||id==='segmentationScope'&&['selected','nearby','all'].includes(value)||id==='segmentationLimit'&&Number.isSafeInteger(value)&&value>=1&&value<=30)$(id).value=value;} } catch {}
+  function syncDrawingNumberControls(value){
+    if($('drawingNumbers'))$('drawingNumbers').checked=value;
+    if($('drawingNumbersNotes'))$('drawingNumbersNotes').checked=value;
+  }
+  syncDrawingNumberControls(!!$('drawingNumbers')?.checked);
+  if($('drawingNumbersNotesControl'))$('drawingNumbersNotesControl').hidden=!notesWindow;
+  function setDrawingNumbers(value,{persist=false}={}){
+    syncDrawingNumberControls(value);
+    // Only this preference crosses windows here; unrelated view controls stay untouched.
+    if(persist)try{const stored=JSON.parse(localStorage.getItem(PREFS)||'{}');localStorage.setItem(PREFS,JSON.stringify({...stored,drawingNumbers:value}));}catch{}
+    draw();window.dispatchEvent(new Event('drawings:visibility'));
+  }
+  window.addEventListener('storage',event=>{
+    if(event.key!==PREFS||!event.newValue)return;
+    try{const value=JSON.parse(event.newValue).drawingNumbers;if(typeof value==='boolean'&&value!==!!$('drawingNumbers')?.checked)setDrawingNumbers(value);}catch{}
+  });
   const recoveryKey = (type,id) => JOURNAL + type + ':' + id;
   function journal(type,record) {
     const value = JSON.stringify({type,record,stamp:crypto.randomUUID()});
@@ -131,7 +147,7 @@
     // Render labels at display resolution, independently of the enlarged EM pixels.
     ctx.save();ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
     for(const record of sectionRecords()){
-      if(record.geometry){if(!window.HandoffDrawings?.isPreviewed(record.id))HandoffDrawingGeometry.drawRecord(ctx,record,v.volume,v.z,{zoom:v.zoom,selected:record.id===selectedId,handles:mode()==='select'});continue;}
+      if(record.geometry){if(!window.HandoffDrawings?.isPreviewed(record.id))HandoffDrawingGeometry.drawRecord(ctx,record,v.volume,v.z,{zoom:v.zoom,selected:record.id===selectedId,handles:mode()==='select',showNumbers:!!$('drawingNumbers')?.checked});continue;}
       const [x,y]=locationInVolume(record),selected=record.id===selectedId;
       MarkerStyles.draw(ctx,x*v.zoom,y*v.zoom,10,record.kind,record.number,selected);
     }
@@ -305,6 +321,7 @@
   }
   $('annotationMode').addEventListener('change',setMode);
   $('annotationsVisible').addEventListener('change',()=>{prefsSave();draw();});
+  for(const id of ['drawingNumbers','drawingNumbersNotes'])$(id)?.addEventListener('change',()=>setDrawingNumbers($(id).checked,{persist:true}));
   for(const id of ['overlayToggle','tCenter','tPre','tPost'])$(id).addEventListener('change',prefsSave);
   for(const id of ['segmentation2D','segmentationBorders','segmentationOpacity','segmentationScope','segmentationLimit','surfaceContextMode','surfaceContextOpacity','surfaceSegmentation','surfaceSegmentationOpacity'])for(const event of ['change','input'])$(id)?.addEventListener(event,prefsSave);
   $('surfaceContext').addEventListener('change',()=>{prefsSave();viewer()?.surface?.setContextVisible($('surfaceContext').checked);});
@@ -430,7 +447,7 @@
       const x=left+(p[0]+.5)*scale,y=top+(p[1]+.5)*scale;MarkerStyles.draw(ctx,x,y,6*unit,key,'',false,unit);
       ctx.font='bold '+13*unit+'px system-ui';ctx.lineWidth=3*unit;ctx.strokeStyle='#172632';ctx.strokeText(contact.contact_id+tr(suffix),x+10*unit,y-10*unit);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(contact.contact_id+tr(suffix),x+10*unit,y-10*unit);
     }
-    if(withAnnotations&&visible())for(const record of sectionRecords()){if(record.geometry){HandoffDrawingGeometry.drawRecord(ctx,record,v.volume,v.z,{zoom:scale,x:left,y:top,unit});continue;}const [x,y]=locationInVolume(record);MarkerStyles.draw(ctx,left+x*scale,top+y*scale,10*unit,record.kind,record.number,record.id===selectedId,unit);}
+    if(withAnnotations&&visible())for(const record of sectionRecords()){if(record.geometry){HandoffDrawingGeometry.drawRecord(ctx,record,v.volume,v.z,{zoom:scale,x:left,y:top,unit,showNumbers:!!$('drawingNumbers')?.checked});continue;}const [x,y]=locationInVolume(record);MarkerStyles.draw(ctx,left+x*scale,top+y*scale,10*unit,record.kind,record.number,record.id===selectedId,unit);}
     const y=top+image.height*scale+38,bar=500/v.volume.resolution_nm[0]*scale;ctx.strokeStyle='#18344b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+bar,y);ctx.stroke();ctx.fillStyle='#18344b';ctx.font='26px system-ui';ctx.fillText(tr('500 нм'),left+bar+16,y+8);
     ctx.fillText(tr(`Исходное изображение: ${image.width} × ${image.height} пикселей · без потери исходных пикселей`),left,y+43);ctx.font='24px system-ui';ctx.fillText('MICrONS Consortium (2025) · CC BY 4.0 · doi:10.1038/s41586-025-08790-w',left,y+82);
     return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Не удалось создать PNG.')),'image/png'));

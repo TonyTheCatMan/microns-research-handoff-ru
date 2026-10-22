@@ -29,31 +29,33 @@
     $('drawingWidth').value=String(style.stroke_width);
     if(persist)try{localStorage.setItem(styleKey,JSON.stringify(style));}catch{}
     // Imports and storage events must update even a focused control in an inactive tab.
-    refreshOpacity(mode()==='freehand');return getStyle();
+    refreshOpacity(true);
+    const record=selected();if(record?.geometry){$('drawingEditOpacity').value=String(Math.round(G.opacityFor(record.geometry)*100));$('drawingEditOpacityReadout').textContent=$('drawingEditOpacity').value+'%';}
+    window.dispatchEvent(new CustomEvent('drawings:style',{detail:getStyle()}));
+    redraw();return getStyle();
   }
   function saveToolStyle(patch){
     applyStyle({...style,...patch});
-    window.dispatchEvent(new CustomEvent('drawings:style',{detail:getStyle()}));
   }
   function opacityContext(){
-    // A new brush setting never changes a previously selected drawing.
-    if(mode()==='freehand')return {key:'brush',record:null,opacity:style.opacity};
-    const record=selected();return record?.kind==='freehand'?{key:record.id,record,opacity:record.geometry.opacity??1}:null;
+    // Active drawing tools change the shared opacity; selected edits are explicit overrides.
+    const defaults={key:'style',record:null,opacity:style.opacity};
+    if(G.kinds.has(mode()))return defaults;
+    const record=selected();return record?.geometry?{key:record.id,record,opacity:G.opacityFor(record.geometry)}:defaults;
   }
   function refreshOpacity(force=false){
     const context=opacityContext(),control=$('drawingOpacity'),changed=(context?.key||'')!==opacityContextKey;
-    opacityContextKey=context?.key||'';$('drawingOpacityControl').hidden=!context;
+    opacityContextKey=context.key;$('drawingOpacityControl').hidden=false;
     control.disabled=!api()?.store||!v()?.ready||api()?.isExporting;
-    if(!context)return;
-    const label=context.record?'Непрозрачность выбранного рисунка':'Непрозрачность кисти';
+    const label=context.record?'Непрозрачность выбранного рисунка':'Непрозрачность всех рисунков';
     $('drawingOpacityLabel').textContent=label;control.setAttribute('aria-label',label);
     if(force||changed||document.activeElement!==control){control.value=String(Math.round(context.opacity*100));$('drawingOpacityReadout').textContent=control.value+'%';}
   }
   function updateDrawingOpacity(id,value){
     return queue(async()=>{
-      const record=api()?.records.find(item=>item.id===id);if(record?.kind!=='freehand'||api()?.isExporting)return;
-      if((record.geometry.opacity??1)===value)return;
-      await api().changeDrawing(id,{geometry:{...record.geometry,opacity:value}},{expected:record.updated_at});redraw();
+      const record=api()?.records.find(item=>item.id===id);if(!record?.geometry||api()?.isExporting)return;
+      if(record.geometry.opacity_override===true&&record.geometry.opacity===value)return;
+      await api().changeDrawing(id,{geometry:{...record.geometry,opacity:value,opacity_override:true}},{expected:record.updated_at});redraw();
     });
   }
   function message(text,error=false){$('drawingStatus').textContent=text;$('drawingStatus').classList.toggle('save-failed',error);}
@@ -95,6 +97,9 @@
       const record=saved.id?api().records.find(r=>r.id===saved.id):null;
       if(saved.id&&!record)return;
       if(record&&JSON.stringify(record.geometry.points_nm)!==JSON.stringify(saved.geometry.points_nm))return;
+      const opacity=saved.geometry.opacity===undefined?1:saved.geometry.opacity,override=saved.geometry.opacity_override===undefined?opacity<1:saved.geometry.opacity_override;
+      if(!Number.isFinite(opacity)||opacity<0||opacity>1||typeof override!=='boolean')return;
+      saved.geometry={...saved.geometry,opacity,opacity_override:override};
       draft=record?{...saved,geometry:clone(record.geometry)}:saved;
       $('annotationMode').value='trace';lastMode='trace';message('Незавершённая трасса восстановлена. Enter: закончить.');
     }catch{}
@@ -116,7 +121,7 @@
   function setTool(value){intent++;$('annotationMode').value=value;$('annotationMode').dispatchEvent(new Event('change'));viewport.focus({preventScroll:true});redraw();}
   for(const button of document.querySelectorAll('[data-drawing-tool]')){const shortcut=Object.entries(shortcuts).find(([,tool])=>tool===button.dataset.drawingTool)?.[0];button.title=button.textContent+(shortcut?' · '+shortcut.toUpperCase():'');button.addEventListener('click',()=>setTool(button.dataset.drawingTool));}
   function pointAt(event,rect=rectangle(),plan=G.plan(v().volume,v().z)){return G.pixelToNm(plan,(event.clientX-rect.x)/rect.w*plan.width,(event.clientY-rect.y)/rect.h*plan.height);}
-  function geometry(points,kind){return {points_nm:clone(points),plane:'xy',slice_index:v().volume.begin_vox_xyz[2]+v().z,closed:['ellipse','roi'].includes(kind),color:style.color,stroke_width:style.stroke_width,...(kind==='freehand'?{opacity:style.opacity}:{})};}
+  function geometry(points,kind){return {points_nm:clone(points),plane:'xy',slice_index:v().volume.begin_vox_xyz[2]+v().z,closed:['ellipse','roi'].includes(kind),color:style.color,stroke_width:style.stroke_width,opacity:style.opacity,opacity_override:false};}
   function newRecord(kind,points){return {kind,case_id:v().currentCase.case_id,volume_id:v().volume.volume_id,point_nm:[...points[0]],geometry:geometry(points,kind)};}
   function currentGesture(){return gesture&&gesture.scope===scope()&&v()?.ready;}
   function consume(event){event.preventDefault();event.stopImmediatePropagation();}
@@ -189,8 +194,8 @@
   $('drawingUndo').addEventListener('click',()=>restoreHistory('undo'));$('drawingRedo').addEventListener('click',()=>restoreHistory('redo'));
   function renderProperties(record){
     refreshOpacity();
-    $('drawingEditOpacityControl').hidden=record?.kind!=='freehand';
-    if(record?.kind==='freehand'&&document.activeElement!==$('drawingEditOpacity')){$('drawingEditOpacity').value=String(Math.round((record.geometry.opacity??1)*100));$('drawingEditOpacityReadout').textContent=$('drawingEditOpacity').value+'%';}
+    $('drawingEditOpacityControl').hidden=!record?.geometry;
+    if(record?.geometry&&document.activeElement!==$('drawingEditOpacity')){$('drawingEditOpacity').value=String(Math.round(G.opacityFor(record.geometry)*100));$('drawingEditOpacityReadout').textContent=$('drawingEditOpacity').value+'%';}
     $('drawingProperties').hidden=!record?.geometry;if(!record?.geometry)return;
     if(document.activeElement!==$('drawingEditColor'))$('drawingEditColor').value=record.geometry.color;
     if(document.activeElement!==$('drawingEditWidth'))$('drawingEditWidth').value=record.geometry.stroke_width;
@@ -202,7 +207,7 @@
   $('drawingWidth').addEventListener('change',()=>saveToolStyle({stroke_width:Number($('drawingWidth').value)}));
   $('drawingOpacity').addEventListener('input',()=>{
     $('drawingOpacityReadout').textContent=$('drawingOpacity').value+'%';
-    if(mode()==='freehand')saveToolStyle({opacity:Number($('drawingOpacity').value)/100});
+    if(!opacityContext().record)saveToolStyle({opacity:Number($('drawingOpacity').value)/100});
   });
   $('drawingOpacity').addEventListener('change',()=>{
     const context=opacityContext(),value=Number($('drawingOpacity').value)/100;
@@ -210,7 +215,7 @@
     else if(context)saveToolStyle({opacity:value});
   });
   $('drawingEditOpacity').addEventListener('input',()=>{$('drawingEditOpacityReadout').textContent=$('drawingEditOpacity').value+'%';});
-  $('drawingEditOpacity').addEventListener('change',()=>{const record=selected();if(record?.kind==='freehand')updateDrawingOpacity(record.id,Number($('drawingEditOpacity').value)/100);});
+  $('drawingEditOpacity').addEventListener('change',()=>{const record=selected();if(record?.geometry)updateDrawingOpacity(record.id,Number($('drawingEditOpacity').value)/100);});
   window.addEventListener('storage',event=>{if(event.key===styleKey&&event.newValue)try{applyStyle(JSON.parse(event.newValue),{persist:false});}catch{}});
   $('drawingToggleClosed').addEventListener('click',()=>{const record=clone(selected());if(record?.kind!=='trace')return;queue(async()=>{await api().changeDrawing(record.id,{geometry:{...record.geometry,closed:!record.geometry.closed}},{expected:record.updated_at});redraw();});});
   $('drawingContinue').addEventListener('click',()=>{
@@ -232,7 +237,7 @@
   },true);
   function renderOverlay(ctx){
     const record=preview||draft;if(!record||record.scope&&record.scope!==scope()||record.volume_id!==v()?.volume?.volume_id)return;
-    G.drawRecord(ctx,record,v().volume,v().z,{zoom:v().zoom,selected:true,handles:true});
+    G.drawRecord(ctx,record,v().volume,v().z,{zoom:v().zoom,selected:true,handles:true,showNumbers:!!$('drawingNumbers')?.checked});
   }
   window.HandoffDrawings={getStyle,applyStyle,whenSettled,refresh,toolChanged,toolHint:tool=>hints[tool],renderProperties,renderOverlay,isPreviewed:id=>preview?.id===id||draft?.id===id,endTrace,restoreHistory,recordMutation,historyState:history,resetHistory};
   window.addEventListener('annotations:ready',()=>{refresh();redraw();});window.addEventListener('annotations:changed',refresh);window.addEventListener('review:volume',refresh);window.addEventListener('review:position',refresh);

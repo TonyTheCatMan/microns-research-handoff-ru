@@ -201,9 +201,12 @@
     if(!currentApplication(generation))return false;
     if(!Array.isArray(specs))return true;
     const desired=new Set(specs.filter(s=>ownLayer(s.name)).map(s=>s.name));
+    const reboundSelections=[];
     // Add new layer types before removing obsolete layers, retaining a constructor template.
     for(const spec of specs){if(!ownLayer(spec.name))continue;let managed=viewer.layerManager.managedLayers.find(l=>l.name===spec.name);
-      if(managed&&managed.toJSON().type!==spec.type){viewer.layerManager.removeManagedLayer(managed);managed=null;}
+      const before=managed?.toJSON(),drawingSchemaChanged=spec.type==='annotation'&&spec.name.startsWith('Мои метки · Рисунки · ')&&!same(before?.annotationProperties||[],spec.annotationProperties||[]);
+      if(managed&&drawingSchemaChanged){const selected=viewer.selectionDetailsState?.value?.layers?.find(row=>row.layer===managed.layer)?.state?.annotationId;if(selected)reboundSelections.push({name:spec.name,id:selected});}
+      if(managed&&(before.type!==spec.type||drawingSchemaChanged)){viewer.layerManager.removeManagedLayer(managed);managed=null;}
       if(!managed)managed=createLayer(spec);else applyLayer(managed,spec);
     }
     for(const managed of [...viewer.layerManager.managedLayers])if(ownLayer(managed.name)&&!desired.has(managed.name))viewer.layerManager.removeManagedLayer(managed);
@@ -212,6 +215,7 @@
       if(performance.now()-start>10000)throw new Error('Слой меток ещё загружается.');await pause(20);
     }
     if(!currentApplication(generation))return false;
+    for(const {name,id}of reboundSelections){const layer=viewer.layerManager.managedLayers.find(l=>l.name===name)?.layer,state=layer?.annotationStates.states.find(s=>s.source.get(id));if(state)layer.selectAnnotation(state,id,true);}
     viewer.layerManager.layersChanged.dispatch();window.MicronsMarkers?.redraw();
     return true;
   }

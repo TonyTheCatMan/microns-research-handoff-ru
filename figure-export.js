@@ -20,8 +20,8 @@
     const marks=window.HandoffAnnotations;
     const records=marks?.visible?marks.records.filter(r=>r.case_id===case_id&&(!r.geometry||r.volume_id===volume.volume_id)&&r.point_nm.every((n,i)=>n>=volume.begin_vox_xyz[i]*volume.resolution_nm[i]&&n<volume.end_vox_xyz_exclusive[i]*volume.resolution_nm[i])&&Math.floor(r.point_nm[2]/volume.resolution_nm[2])-volume.begin_vox_xyz[2]===z):[];
     return {image:copy(image),segmentation,volume,z,case_id,crop:{x,y,width:right-x,height:bottom-y},zoom:zx,
-      records:structuredClone(records),selectedId:marks?.selectedId,contacts:structuredClone(v.currentCase.contacts),
-      showT:!!$('overlayToggle')?.checked,tFlags:Object.fromEntries(['tCenter','tPre','tPost'].map(id=>[id,!!$(id)?.checked])),display:[...v.displayWindow]};
+      records:structuredClone(records).map(record=>record.geometry?{...record,geometry:{...record.geometry,opacity:HandoffDrawingGeometry.opacityFor(record.geometry),opacity_override:true}}:record),selectedId:marks?.selectedId,contacts:structuredClone(v.currentCase.contacts),
+      showT:!!$('overlayToggle')?.checked,showDrawingNumbers:!!$('drawingNumbers')?.checked,tFlags:Object.fromEntries(['tCenter','tPre','tPost'].map(id=>[id,!!$(id)?.checked])),display:[...v.displayWindow]};
   }
   function render(snapshot,colored){
     const s=snapshot,crop=s.crop,scale=3072/Math.max(crop.width,crop.height),unit=scale/s.zoom,pad=32,top=92;
@@ -41,7 +41,7 @@
       MarkerStyles.draw(ctx,x,y,6*unit,key,'',false,unit);ctx.font='bold '+13*unit+'px system-ui';ctx.lineWidth=3*unit;ctx.strokeStyle='#172632';ctx.strokeText(contact.contact_id+tr(suffix),x+10*unit,y-10*unit);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(contact.contact_id+tr(suffix),x+10*unit,y-10*unit);
     }
     if(colored)for(const record of s.records){
-      if(record.geometry){HandoffDrawingGeometry.drawRecord(ctx,record,s.volume,s.z,{zoom:scale,x:ox,y:oy,unit});continue;}
+      if(record.geometry){HandoffDrawingGeometry.drawRecord(ctx,record,s.volume,s.z,{zoom:scale,x:ox,y:oy,unit,showNumbers:s.showDrawingNumbers});continue;}
       const p=record.point_nm.map((n,i)=>n/s.volume.resolution_nm[i]-s.volume.begin_vox_xyz[i]);
       MarkerStyles.draw(ctx,ox+p[0]*scale,oy+p[1]*scale,10*unit,record.kind,record.number,record.id===s.selectedId,unit);
     }
@@ -57,7 +57,7 @@
     // Freeze image, crop, IDs, colors, marks and toggles together before PNG encoding.
     const snapshot=freeze(),coloredCanvas=render(snapshot,true),plainCanvas=render(snapshot,false);
     const [colored,plain]=await Promise.all([png(coloredCanvas),png(plainCanvas)]);
-    return {colored,plain,metadata:{case_id:snapshot.case_id,volume_id:snapshot.volume.volume_id,local_z:snapshot.z,crop:snapshot.crop,zoom:snapshot.zoom,width:coloredCanvas.width,height:coloredCanvas.height,segmentation:structuredClone(snapshot.segmentation.settings),annotation_ids:snapshot.records.map(r=>r.id),t_points_visible:snapshot.showT,t_flags:snapshot.tFlags},coloredCanvas,plainCanvas};
+    return {colored,plain,metadata:{case_id:snapshot.case_id,volume_id:snapshot.volume.volume_id,local_z:snapshot.z,crop:snapshot.crop,zoom:snapshot.zoom,width:coloredCanvas.width,height:coloredCanvas.height,segmentation:structuredClone(snapshot.segmentation.settings),annotation_ids:snapshot.records.map(r=>r.id),drawing_numbers_visible:snapshot.showDrawingNumbers,t_points_visible:snapshot.showT,t_flags:snapshot.tFlags},coloredCanvas,plainCanvas};
   }
   async function downloadPair(){
     if(busy)return;busy=true;update();const status=$('figurePairStatus');status.textContent=tr('Готовим PNG с разметкой и чистый PNG…');

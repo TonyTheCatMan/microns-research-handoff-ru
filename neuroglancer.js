@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/?v=20261013-freeplane2',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=20261022-arrows1',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
   const activeCase=id=>window.HandoffCaseSelection?.includes(id)===true;
@@ -60,7 +60,7 @@
       const color=record.geometry.color||'#ffd166',width=record.geometry.stroke_width||2,key=color+' · '+width+(dab?' · Точки кисти':'');
       let layer=drawingLayers.get(key);
       if(!layer){layer={type:'annotation',name:'Мои метки · Рисунки · '+key,visible:enabled('annotationsVisible'),source:{url:'local://annotations',transform:{outputDimensions:dimensions}},annotationColor:color,
-        annotationProperties:[{id:'number',type:'uint32',description:'Номер метки',default:0},...['x','y','z'].map(axis=>({id:'anchor_'+axis,type:'float32',description:'Координата '+axis,default:0}))],
+        annotationProperties:[{id:'number',type:'uint32',description:'Номер метки',default:0},...['x','y','z'].map(axis=>({id:'anchor_'+axis,type:'float32',description:'Координата '+axis,default:0})),{id:'drawing_opacity',type:'float32',description:'Непрозрачность рисунка',default:1},{id:'show_number',type:'uint32',description:'Показать номер рисунка',default:0}],
         // Respect the acquired XY section instead of Neuroglancer's usual
         // two-section fade. The 3D projection still shows all anchored planes.
         shader:`void main(){
@@ -72,10 +72,10 @@
             vec4 dz=uModelViewProjection*vec4(uSubspaceMatrix[2],0.0);
             if(abs(dx.z)>abs(dz.z)*0.001||abs(dy.z)>abs(dz.z)*0.001||abs(center.z)>abs(dz.z)*0.5+0.00001)discard;
           }
-          setColor(defaultColor());setLineWidth(${Number(width).toFixed(1)});setEndpointMarkerSize(0.0);setPointMarkerSize(${Number(dab?width:0).toFixed(1)});setPointMarkerBorderWidth(0.0);
+          setColor(vec4(defaultColor(),prop_drawing_opacity()));setLineWidth(${Number(width).toFixed(1)});setEndpointMarkerSize(0.0);setPointMarkerSize(${Number(dab?width:0).toFixed(1)});setPointMarkerBorderWidth(0.0);
         }`,annotations:[]};drawingLayers.set(key,layer);}
       const description=[`№${record.number} · ${drawingNames[record.kind]||record.kind} · ${record.case_id} · ${record.volume_id}`,`Плоскость XY · Z ${record.geometry.slice_index} · редактирование в основном 2D-виде`,record.notes,record.properties].filter(Boolean).join('\n');
-      const anchor=record.point_nm.map((n,i)=>n/resolution[i]),props=[record.number,...anchor];
+      const anchor=record.point_nm.map((n,i)=>n/resolution[i]),opacity=window.HandoffDrawingGeometry?.opacityFor?.(record.geometry)??(Number.isFinite(record.geometry.opacity)?Math.max(0,Math.min(1,record.geometry.opacity)):1),props=[record.number,...anchor,opacity,enabled('drawingNumbers',false)?1:0];
       layer.annotations.push({type:'point',id:record.id,point:anchor,props,description});
       paths.forEach((path,p)=>path.slice(1).forEach((point,i)=>layer.annotations.push({type:'line',id:`${record.id}::draw:${p}:${i}`,pointA:path[i].map((n,axis)=>n/resolution[axis]),pointB:point.map((n,axis)=>n/resolution[axis]),props,description})));
     }
@@ -121,7 +121,7 @@
   window.addEventListener('handoff:sync-mode',updateSyncControls);updateSyncControls();
   if(bus?.role==='notes'){window.NeuroglancerLink.captureFrame=()=>null;return;}
   const frame=$('neuroglancerFrame'),external=$('neuroglancerExternal'),reset=$('neuroglancerReset'),markerSelect=$('neuroglancerMarker');
-  const controlIds=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','surfaceContext','surfaceContextMode','contextLimit','surfaceOpacity','surfaceContextOpacity','surfacePlane','surfaceBox','surfaceSegmentation','surfaceSegmentationOpacity','segmentation2D','segmentationBorders','segmentationOpacity','segmentationScope','segmentationLimit','blackInput','whiteInput'];
+  const controlIds=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','drawingNumbers','surfaceContext','surfaceContextMode','contextLimit','surfaceOpacity','surfaceContextOpacity','surfacePlane','surfaceBox','surfaceSegmentation','surfaceSegmentationOpacity','segmentation2D','segmentationBorders','segmentationOpacity','segmentationScope','segmentationLimit','blackInput','whiteInput'];
   let segmentIndex,indexPromise,currentState,currentUrl='',loadedCaseId='',latest=null,pending=null,applying=false,timer=null,started=false,booting=false;
   let navigationPending=false,navigationSource='all',focusPending=null,reasonPending='settings',lastFingerprint='',lastNavigation=null;
   let navigationRevision=crypto.randomUUID(),appliedNavigationRevision=null,navigationFocus=null;
@@ -364,7 +364,7 @@
     localClear=false;
     if(applying&&event.detail.intent==='focus')localFocus=event.detail;else schedule(event.detail.intent,event.detail.intent==='focus',event.detail.intent==='focus'?event.detail:null);
   });
-  for(const event of ['annotations:changed','surface:visibility','segmentation:slice'])window.addEventListener(event,()=>schedule('settings'));
+  for(const event of ['annotations:changed','drawings:visibility','drawings:style','surface:visibility','segmentation:slice'])window.addEventListener(event,()=>schedule('settings'));
   for(const id of controlIds)for(const event of ['input','change'])$(id).addEventListener(event,e=>{if(applying&&e.isTrusted)localControls[id]=controls()[id];else schedule('settings');});
   async function openCurrent(force=false){await window.HandoffAnnotations?.whenSettled();await begin();if(!currentUrl)publish(true);ensureFrame();if(force){navigationPending=true;navigationSource='all';navigationRevision=crypto.randomUUID();navigationFocus=null;focusPending=null;reasonPending='sync-now';publish(true);}else if(latest)bus.send('state-reply',{message:latest});}
   window.addEventListener('hashchange',()=>{if(active())openCurrent();});
