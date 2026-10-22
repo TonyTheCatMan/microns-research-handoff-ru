@@ -2,17 +2,60 @@
 (() => {
   'use strict';
   const $=id=>document.getElementById(id),api=()=>window.HandoffAnnotations,v=()=>window.ReviewViewer,G=window.HandoffDrawingGeometry;
-  const clone=value=>structuredClone(value),viewport=$('viewport'),draftKey='microns-drawing-draft-v1',histories=new Map();
+  const clone=value=>structuredClone(value),viewport=$('viewport'),draftKey='microns-drawing-draft-v1',styleKey='microns-drawing-tool-style-v1',histories=new Map();
   const hints={select:'Нажмите на рисунок. Перетащите его целиком или за белые узлы. E: заметка; Delete: удалить.',trace:'Щёлкайте вдоль структуры. Enter: завершить. Первая точка или «Замкнуть трассу»: замкнуть. Точки сохраняются по мере добавления.',freehand:'Нажмите или коснитесь, чтобы поставить точку кистью. Для линии перетаскивайте. Цвет и размер задаются ниже.',arrow:'Протяните стрелку к интересующему участку. Отпустите, чтобы сохранить.',ellipse:'Протяните от одного угла области к противоположному. Shift после начала рисования: круг.',roi:'Протяните рамку вокруг интересующей области.',distance:'Протяните между двумя точками. Длина показана в микрометрах.'};
   const shortcuts={h:'navigate',v:'select',a:'arrow',p:'point2d',t:'trace',f:'freehand',b:'roi',o:'ellipse',d:'distance'};
   let gesture=null,draft=null,preview=null,work=Promise.resolve(),lastScope='',lastMode='navigate',replaying=false,restoredScope='',intent=0;
   const touchPointers=new Set();
+  let style={color:'#ffd166',stroke_width:2,opacity:1},opacityContextKey='';
   const mode=()=>$('annotationMode').value,scope=()=>v()?.volume?[v().currentCase.case_id,v().volume.volume_id,v().z].join(':'):'';
   const isDrawing=record=>!!record?.geometry;
   const selected=()=>api()?.records.find(r=>r.id===api().selectedId);
   const ownMarks=()=>api()?.visible?api().records.filter(r=>r.geometry&&r.case_id===v()?.currentCase?.case_id&&r.volume_id===v()?.volume?.volume_id&&r.geometry.slice_index===v().volume.begin_vox_xyz[2]+v().z):[];
   const rectangle=()=>{const r=$('imageCanvas').getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height};};
   function mainDrawing(){try{return api()?.isNotesWindow&&window.opener&&!window.opener.closed&&window.HandoffCaseSelection?.includes(window.opener.HandoffAnnotations?.currentCase)?window.opener.HandoffDrawings:null;}catch{return null;}}
+  function normalizeStyle(value){
+    if(!value||typeof value!=='object'||Array.isArray(value)||!/^#[0-9a-f]{6}$/i.test(value.color)||!Number.isInteger(value.stroke_width)||value.stroke_width<1||value.stroke_width>12||!Number.isFinite(value.opacity)||value.opacity<0||value.opacity>1)throw new Error('Неверные настройки кисти.');
+    return {color:value.color.toLowerCase(),stroke_width:value.stroke_width,opacity:value.opacity};
+  }
+  function getStyle(){return clone(style);}
+  function applyStyle(value,{persist=true}={}){
+    style=normalizeStyle(value);
+    $('drawingColor').value=style.color;
+    // Imported valid integer sizes remain usable even if not one of the presets.
+    if(!Array.from($('drawingWidth').options).some(option=>Number(option.value)===style.stroke_width)){
+      const option=document.createElement('option');option.value=String(style.stroke_width);option.textContent=String(style.stroke_width);$('drawingWidth').append(option);
+    }
+    $('drawingWidth').value=String(style.stroke_width);
+    if(persist)try{localStorage.setItem(styleKey,JSON.stringify(style));}catch{}
+    // Imports and storage events must update even a focused control in an inactive tab.
+    refreshOpacity(mode()==='freehand');return getStyle();
+  }
+  function saveToolStyle(patch){
+    applyStyle({...style,...patch});
+    window.dispatchEvent(new CustomEvent('drawings:style',{detail:getStyle()}));
+  }
+  function opacityContext(){
+    // A new brush setting never changes a previously selected drawing.
+    if(mode()==='freehand')return {key:'brush',record:null,opacity:style.opacity};
+    const record=selected();return record?.kind==='freehand'?{key:record.id,record,opacity:record.geometry.opacity??1}:null;
+  }
+  function refreshOpacity(force=false){
+    const context=opacityContext(),control=$('drawingOpacity'),changed=(context?.key||'')!==opacityContextKey;
+    opacityContextKey=context?.key||'';$('drawingOpacityControl').hidden=!context;
+    control.disabled=!api()?.store||!v()?.ready||api()?.isExporting;
+    if(!context)return;
+    const label=context.record?'Непрозрачность выбранного рисунка':'Непрозрачность кисти';
+    $('drawingOpacityLabel').textContent=label;control.setAttribute('aria-label',label);
+    if(force||changed||document.activeElement!==control){control.value=String(Math.round(context.opacity*100));$('drawingOpacityReadout').textContent=control.value+'%';}
+  }
+  function updateDrawingOpacity(id,value){
+    return queue(async()=>{
+      const record=api()?.records.find(item=>item.id===id);if(record?.kind!=='freehand'||api()?.isExporting)return;
+      if((record.geometry.opacity??1)===value)return;
+      await api().changeDrawing(id,{geometry:{...record.geometry,opacity:value}},{expected:record.updated_at});redraw();
+    });
+  }
   function message(text,error=false){$('drawingStatus').textContent=text;$('drawingStatus').classList.toggle('save-failed',error);}
   function redraw(){api()?.draw();}
   function queue(job){work=work.then(job).catch(error=>message(error.message,true));return work;}
@@ -67,12 +110,13 @@
     $('drawingFinish').disabled=count<2||disabled;$('drawingClose').disabled=!draft||!canClose(draft.geometry.points_nm)||disabled;$('drawingCancel').disabled=!draft||disabled;
     const h=mainDrawing()?.historyState()||history(),unfinished=Boolean(gesture||draft&&!draft.id&&draft.geometry.points_nm.length===1);$('drawingUndo').disabled=(!h.undo.length&&!unfinished)||disabled;$('drawingRedo').disabled=!h.redo.length||disabled;
     viewport.classList.toggle('drawing-active',G.kinds.has(mode())||mode()==='select');
+    refreshOpacity();
   }
   function toolChanged(){if(mode()!==lastMode){intent++;endTrace();gesture=null;preview=null;lastMode=mode();}refresh();}
   function setTool(value){intent++;$('annotationMode').value=value;$('annotationMode').dispatchEvent(new Event('change'));viewport.focus({preventScroll:true});redraw();}
   for(const button of document.querySelectorAll('[data-drawing-tool]')){const shortcut=Object.entries(shortcuts).find(([,tool])=>tool===button.dataset.drawingTool)?.[0];button.title=button.textContent+(shortcut?' · '+shortcut.toUpperCase():'');button.addEventListener('click',()=>setTool(button.dataset.drawingTool));}
   function pointAt(event,rect=rectangle(),plan=G.plan(v().volume,v().z)){return G.pixelToNm(plan,(event.clientX-rect.x)/rect.w*plan.width,(event.clientY-rect.y)/rect.h*plan.height);}
-  function geometry(points,kind){return {points_nm:clone(points),plane:'xy',slice_index:v().volume.begin_vox_xyz[2]+v().z,closed:['ellipse','roi'].includes(kind),color:$('drawingColor').value,stroke_width:Number($('drawingWidth').value)};}
+  function geometry(points,kind){return {points_nm:clone(points),plane:'xy',slice_index:v().volume.begin_vox_xyz[2]+v().z,closed:['ellipse','roi'].includes(kind),color:style.color,stroke_width:style.stroke_width,...(kind==='freehand'?{opacity:style.opacity}:{})};}
   function newRecord(kind,points){return {kind,case_id:v().currentCase.case_id,volume_id:v().volume.volume_id,point_nm:[...points[0]],geometry:geometry(points,kind)};}
   function currentGesture(){return gesture&&gesture.scope===scope()&&v()?.ready;}
   function consume(event){event.preventDefault();event.stopImmediatePropagation();}
@@ -144,6 +188,9 @@
   $('drawingFinish').addEventListener('click',()=>finishTrace(false));$('drawingClose').addEventListener('click',()=>finishTrace(true));$('drawingCancel').addEventListener('click',()=>{const saved=draft?.geometry.points_nm.length>=2;endTrace();message(saved?'Добавленные точки сохранены.':'Трасса с одной точкой отменена.');redraw();});
   $('drawingUndo').addEventListener('click',()=>restoreHistory('undo'));$('drawingRedo').addEventListener('click',()=>restoreHistory('redo'));
   function renderProperties(record){
+    refreshOpacity();
+    $('drawingEditOpacityControl').hidden=record?.kind!=='freehand';
+    if(record?.kind==='freehand'&&document.activeElement!==$('drawingEditOpacity')){$('drawingEditOpacity').value=String(Math.round((record.geometry.opacity??1)*100));$('drawingEditOpacityReadout').textContent=$('drawingEditOpacity').value+'%';}
     $('drawingProperties').hidden=!record?.geometry;if(!record?.geometry)return;
     if(document.activeElement!==$('drawingEditColor'))$('drawingEditColor').value=record.geometry.color;
     if(document.activeElement!==$('drawingEditWidth'))$('drawingEditWidth').value=record.geometry.stroke_width;
@@ -151,6 +198,20 @@
     $('drawingToggleClosed').textContent=record.geometry.closed?'Разомкнуть трассу':'Замкнуть трассу';$('drawingToggleClosed').disabled=!record.geometry.closed&&!canClose(record.geometry.points_nm);
   }
   for(const [id,key] of [['drawingEditColor','color'],['drawingEditWidth','stroke_width']])$(id).addEventListener('change',()=>{const record=clone(selected());if(!record?.geometry)return;const value=key==='stroke_width'?Math.max(1,Math.min(12,Math.round(Number($(id).value)||2))):$(id).value;queue(async()=>{await api().changeDrawing(record.id,{geometry:{...record.geometry,[key]:value}},{expected:record.updated_at});redraw();});});
+  $('drawingColor').addEventListener('input',()=>saveToolStyle({color:$('drawingColor').value}));
+  $('drawingWidth').addEventListener('change',()=>saveToolStyle({stroke_width:Number($('drawingWidth').value)}));
+  $('drawingOpacity').addEventListener('input',()=>{
+    $('drawingOpacityReadout').textContent=$('drawingOpacity').value+'%';
+    if(mode()==='freehand')saveToolStyle({opacity:Number($('drawingOpacity').value)/100});
+  });
+  $('drawingOpacity').addEventListener('change',()=>{
+    const context=opacityContext(),value=Number($('drawingOpacity').value)/100;
+    if(context?.record)updateDrawingOpacity(context.record.id,value);
+    else if(context)saveToolStyle({opacity:value});
+  });
+  $('drawingEditOpacity').addEventListener('input',()=>{$('drawingEditOpacityReadout').textContent=$('drawingEditOpacity').value+'%';});
+  $('drawingEditOpacity').addEventListener('change',()=>{const record=selected();if(record?.kind==='freehand')updateDrawingOpacity(record.id,Number($('drawingEditOpacity').value)/100);});
+  window.addEventListener('storage',event=>{if(event.key===styleKey&&event.newValue)try{applyStyle(JSON.parse(event.newValue),{persist:false});}catch{}});
   $('drawingToggleClosed').addEventListener('click',()=>{const record=clone(selected());if(record?.kind!=='trace')return;queue(async()=>{await api().changeDrawing(record.id,{geometry:{...record.geometry,closed:!record.geometry.closed}},{expected:record.updated_at});redraw();});});
   $('drawingContinue').addEventListener('click',()=>{
     if(mainDrawing()){window.opener.document.getElementById('drawingContinue').click();return;}
@@ -173,7 +234,8 @@
     const record=preview||draft;if(!record||record.scope&&record.scope!==scope()||record.volume_id!==v()?.volume?.volume_id)return;
     G.drawRecord(ctx,record,v().volume,v().z,{zoom:v().zoom,selected:true,handles:true});
   }
-  window.HandoffDrawings={whenSettled,refresh,toolChanged,toolHint:tool=>hints[tool],renderProperties,renderOverlay,isPreviewed:id=>preview?.id===id||draft?.id===id,endTrace,restoreHistory,recordMutation,historyState:history,resetHistory};
+  window.HandoffDrawings={getStyle,applyStyle,whenSettled,refresh,toolChanged,toolHint:tool=>hints[tool],renderProperties,renderOverlay,isPreviewed:id=>preview?.id===id||draft?.id===id,endTrace,restoreHistory,recordMutation,historyState:history,resetHistory};
   window.addEventListener('annotations:ready',()=>{refresh();redraw();});window.addEventListener('annotations:changed',refresh);window.addEventListener('review:volume',refresh);window.addEventListener('review:position',refresh);
+  try{const saved=JSON.parse(localStorage.getItem(styleKey)||'null');if(saved)applyStyle(saved,{persist:false});}catch{}
   refresh();
 })();

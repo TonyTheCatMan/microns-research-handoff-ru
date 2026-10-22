@@ -7,7 +7,7 @@
   function plan(volume,z){return {plane:'xy',axes:PLANES.xy,begin:volume.begin_vox_xyz,width:volume.shape_xyz[0],height:volume.shape_xyz[1],resolutionNm:volume.resolution_nm,depthNm:(volume.begin_vox_xyz[2]+z+.5)*volume.resolution_nm[2]};}
   function projectPoint(plan,point){return {x:point[0]/plan.resolutionNm[0]-plan.begin[0]-.5,y:point[1]/plan.resolutionNm[1]-plan.begin[1]-.5,onPlane:Math.abs(point[2]-plan.depthNm)<1e-5};}
   function pixelToNm(plan,x,y){return [(plan.begin[0]+Math.max(0,Math.min(plan.width-1,Math.floor(x)))+.5)*plan.resolutionNm[0],(plan.begin[1]+Math.max(0,Math.min(plan.height-1,Math.floor(y)))+.5)*plan.resolutionNm[1],plan.depthNm];}
-  function toMark(record){return {...record,pointsNm:record.geometry?.points_nm||[record.point_nm],plane:record.geometry?.plane||'xy',closed:record.geometry?.closed||false,color:record.geometry?.color||'#ffd166',strokeWidth:record.geometry?.stroke_width||2};}
+  function toMark(record){return {...record,pointsNm:record.geometry?.points_nm||[record.point_nm],plane:record.geometry?.plane||'xy',closed:record.geometry?.closed||false,color:record.geometry?.color||'#ffd166',strokeWidth:record.geometry?.stroke_width||2,opacity:record.geometry?.opacity??1};}
 
 // Adapted from donor mark-drawing.js
 const escapeSvg = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]));
@@ -16,6 +16,7 @@ const markPlane = mark => {const value=typeof mark.plane === 'string' ? mark.pla
 // Stored widths are validated separately (1-12); rendered export widths may
 // exceed 12 after multiplying by the output resolution.
 const markStyle = mark => ({color:/^#[0-9a-f]{6}$/i.test(mark.color || '') ? mark.color : '#ffd166', strokeWidth:Number.isFinite(mark.strokeWidth) && mark.strokeWidth > 0 ? mark.strokeWidth : 2});
+const markOpacity = mark => (mark.kind||mark.type)==='freehand'&&Number.isFinite(mark.opacity)&&mark.opacity>=0&&mark.opacity<=1?mark.opacity:1;
 function visibleMarks(marks, plan) {
   return marks.filter(mark => mark.visible !== false && (!mark.plane || markPlane(mark) === plan.plane.toLowerCase()))
     .map(mark => ({...mark, projected:markPoints(mark).map(point => projectPoint(plan, point))}));
@@ -54,12 +55,12 @@ function markGeometry(mark, projectedPoints, {x=0, y=0, sx=1, sy=1, offset=.5, p
   return geometry;
 }
 function markSvg(mark, projectedPoints, options={}) {
-  return markGeometry(mark, projectedPoints, options).map(({tag,attrs})=>`<${tag} ${Object.entries(attrs).map(([key,value])=>`${key}="${escapeSvg(value)}"`).join(' ')}/>`).join('');
+  return markGeometry(mark, projectedPoints, options).map(({tag,attrs})=>`<${tag} ${Object.entries({...attrs,...(markOpacity(mark)<1?{opacity:markOpacity(mark)}:{})}).map(([key,value])=>`${key}="${escapeSvg(value)}"`).join(' ')}/>`).join('');
 }
 /** Canvas and SVG use identical geometry, with no smoothing of freehand vertices. */
 function drawMark(ctx, mark, projectedPoints, options={}) {
   const geometry=markGeometry(mark,projectedPoints,options),style=markStyle(mark);
-  ctx.save();ctx.strokeStyle=style.color;ctx.lineWidth=style.strokeWidth;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();
+  ctx.save();ctx.globalAlpha*=markOpacity(mark);ctx.strokeStyle=style.color;ctx.lineWidth=style.strokeWidth;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();
   for(const {tag,attrs:a,points} of geometry){
     if(tag==='circle'){ctx.moveTo(a.cx+a.r,a.cy);ctx.arc(a.cx,a.cy,a.r,0,Math.PI*2);}
     else if(tag==='ellipse'){ctx.moveTo(a.cx+a.rx,a.cy);ctx.ellipse(a.cx,a.cy,a.rx,a.ry,0,0,Math.PI*2);}
@@ -134,13 +135,15 @@ function validDraw(kind,points,plan){
   function drawRecord(ctx,record,volume,z,{zoom=1,selected=false,x=0,y=0,unit=1,handles=false}={}){
     if(!record.geometry||record.volume_id!==volume.volume_id||record.geometry.slice_index!==volume.begin_vox_xyz[2]+z)return;
     const mark=toMark(record),p=plan(volume,z),projected=mark.pointsNm.map(point=>projectPoint(p,point)),opts={x,y,sx:zoom,sy:zoom,headLength:12*unit,headWidth:10*unit};
-    drawMark(ctx,{...mark,color:'#10202d',strokeWidth:(mark.strokeWidth+2)*unit},projected,opts);
+    // A translucent brush is painted once: stacked outline/color passes would
+    // compound its opacity and darken the EM beneath the selected color.
+    if(markOpacity(mark)===1)drawMark(ctx,{...mark,color:'#10202d',strokeWidth:(mark.strokeWidth+2)*unit},projected,opts);
     drawMark(ctx,{...mark,strokeWidth:mark.strokeWidth*unit},projected,opts);
     const first=projected[0],cx=x+(first.x+.5)*zoom,cy=y+(first.y+.5)*zoom;
     ctx.save();ctx.font=`bold ${13*unit}px system-ui`;ctx.lineWidth=3*unit;ctx.strokeStyle='#10202d';ctx.fillStyle=mark.color;
-    let label=record.number&&!(mark.kind==='freehand'&&mark.pointsNm.length===1)?'№'+record.number:'';
+    let label=record.number&&mark.kind!=='arrow'&&!(mark.kind==='freehand'&&mark.pointsNm.length===1)?'№'+record.number:'';
     if(mark.kind==='distance')label+=' · '+(Math.hypot(...mark.pointsNm[0].map((n,i)=>n-mark.pointsNm.at(-1)[i]))/1000).toFixed(3)+' мкм';
-    ctx.strokeText(label,cx+9*unit,cy-9*unit);ctx.fillText(label,cx+9*unit,cy-9*unit);
+    if(label){ctx.save();ctx.globalAlpha*=markOpacity(mark);ctx.strokeText(label,cx+9*unit,cy-9*unit);ctx.fillText(label,cx+9*unit,cy-9*unit);ctx.restore();}
     if(selected&&handles){for(const index of handleIndices(mark)){const point=projected[index],hx=x+(point.x+.5)*zoom,hy=y+(point.y+.5)*zoom;ctx.fillStyle='#fff';ctx.strokeStyle='#126395';ctx.lineWidth=1.5*unit;ctx.beginPath();ctx.rect(hx-4*unit,hy-4*unit,8*unit,8*unit);ctx.fill();ctx.stroke();}}
     ctx.restore();
   }

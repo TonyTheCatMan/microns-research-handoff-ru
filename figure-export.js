@@ -1,4 +1,4 @@
-/* Matched stills from one frozen XY viewport, with identical manual overlays. */
+/* Annotated and clean stills from one frozen XY viewport. */
 (() => {
   'use strict';
   const $=id=>document.getElementById(id),tr=text=>window.HandoffI18n?.translate(text)??text;
@@ -13,6 +13,8 @@
     const right=Math.min(image.width,(view.left+viewport.clientLeft+viewport.clientWidth-bounds.left)/zx),bottom=Math.min(image.height,(view.top+viewport.clientTop+viewport.clientHeight-bounds.top)/zy);
     if(right<=x||bottom<=y)throw new Error(tr('Изображение не видно в окне 2D.'));
     const volume=structuredClone(v.volume),z=v.z,case_id=v.currentCase.case_id;
+    // The color variant explicitly paints the visible selected structures, without
+    // changing the viewer's fill toggle, selected IDs, colors or opacity.
     const segmentation=window.SliceSegmentation?.captureFor(volume.volume_id,z,{fill:true});
     if(!segmentation)throw new Error(tr('Дождитесь загрузки сегментации текущего среза.'));
     const marks=window.HandoffAnnotations;
@@ -31,14 +33,14 @@
     ctx.drawImage(s.image,crop.x,crop.y,crop.width,crop.height,pad,top,width,height);
     if(colored)ctx.drawImage(s.segmentation.canvas,crop.x,crop.y,crop.width,crop.height,pad,top,width,height);
     const ox=pad-crop.x*scale,oy=top-crop.y*scale;
-    if(s.showT)for(const contact of s.contacts)for(const [key,flag,suffix] of [['ctr_nm','tCenter',''],['pre_nm','tPre',' пре'],['post_nm','tPost',' пост']]){
+    if(colored&&s.showT)for(const contact of s.contacts)for(const [key,flag,suffix] of [['ctr_nm','tCenter',''],['pre_nm','tPre',' пре'],['post_nm','tPost',' пост']]){
       if(!contact[key]||!s.tFlags[flag])continue;
       const p=contact[key].map((n,i)=>Math.floor(n/s.volume.resolution_nm[i])-s.volume.begin_vox_xyz[i]);
       if(p[2]!==s.z||p.some((n,i)=>n<0||n>=s.volume.shape_xyz[i]))continue;
       const x=ox+(p[0]+.5)*scale,y=oy+(p[1]+.5)*scale;
       MarkerStyles.draw(ctx,x,y,6*unit,key,'',false,unit);ctx.font='bold '+13*unit+'px system-ui';ctx.lineWidth=3*unit;ctx.strokeStyle='#172632';ctx.strokeText(contact.contact_id+tr(suffix),x+10*unit,y-10*unit);ctx.fillStyle=MarkerStyles.styles[key].color;ctx.fillText(contact.contact_id+tr(suffix),x+10*unit,y-10*unit);
     }
-    for(const record of s.records){
+    if(colored)for(const record of s.records){
       if(record.geometry){HandoffDrawingGeometry.drawRecord(ctx,record,s.volume,s.z,{zoom:scale,x:ox,y:oy,unit});continue;}
       const p=record.point_nm.map((n,i)=>n/s.volume.resolution_nm[i]-s.volume.begin_vox_xyz[i]);
       MarkerStyles.draw(ctx,ox+p[0]*scale,oy+p[1]*scale,10*unit,record.kind,record.number,record.id===s.selectedId,unit);
@@ -58,18 +60,18 @@
     return {colored,plain,metadata:{case_id:snapshot.case_id,volume_id:snapshot.volume.volume_id,local_z:snapshot.z,crop:snapshot.crop,zoom:snapshot.zoom,width:coloredCanvas.width,height:coloredCanvas.height,segmentation:structuredClone(snapshot.segmentation.settings),annotation_ids:snapshot.records.map(r=>r.id),t_points_visible:snapshot.showT,t_flags:snapshot.tFlags},coloredCanvas,plainCanvas};
   }
   async function downloadPair(){
-    if(busy)return;busy=true;update();const status=$('figurePairStatus');status.textContent=tr('Готовим два одинаковых вида…');
+    if(busy)return;busy=true;update();const status=$('figurePairStatus');status.textContent=tr('Готовим PNG с разметкой и чистый PNG…');
     try{
       const pair=await capturePair(),base=`MICrONS-${pair.metadata.case_id}-${pair.metadata.volume_id}-Z${pair.metadata.local_z}`;
       const files=[{name:base+'-colored.png',bytes:new Uint8Array(await pair.colored.arrayBuffer())},{name:base+'-plain.png',bytes:new Uint8Array(await pair.plain.arrayBuffer())}];
       const url=URL.createObjectURL(AnnotationsCore.zip(files)),link=document.createElement('a');link.href=url;link.download=base+'-paired-PNG.zip';link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
-      status.textContent=tr('Два PNG сохранены: тот же срез, кадр и отметки.')+(!pair.metadata.segmentation.segment_ids.length||pair.metadata.segmentation.opacity===0?' '+tr('Нет видимой цветной заливки: проверьте выбор структур и прозрачность.'):'');
+      status.textContent=tr('Сохранены PNG с разметкой и чистый PNG: одинаковый срез и кадр.')+(!pair.metadata.segmentation.segment_ids.length||pair.metadata.segmentation.opacity===0?' '+tr('Нет видимой цветной заливки: проверьте выбор структур и прозрачность.'):'');
     }catch(error){status.textContent=tr('Не удалось сохранить: ')+error.message;}finally{busy=false;update();}
   }
   function update(){const button=$('figurePairExport');if(button)button.disabled=busy||!window.ReviewViewer?.ready;}
   function start(){
     const original=$('exportButton');if(!original)return;
-    const button=document.createElement('button');button.id='figurePairExport';button.type='button';button.textContent='Два PNG: с цветом / без цвета';button.title='Текущий срез и видимая область. Отметки одинаковы в обоих PNG. Цвета выбранных структур берутся из настроек сегментации.';button.addEventListener('click',downloadPair);original.after(button);
+    const button=document.createElement('button');button.id='figurePairExport';button.type='button';button.textContent='Два PNG: с разметкой / чистый';button.title='Текущий срез и видимая область: с цветами и отметками, затем чистая ЭМ без наложений.';button.addEventListener('click',downloadPair);original.after(button);
     const status=document.createElement('span');status.id='figurePairStatus';status.className='hint';status.setAttribute('role','status');button.after(status);window.HandoffI18n?.refresh(button.parentElement);update();
   }
   window.FigureExport={capturePair,downloadPair};window.addEventListener('review:position',update);window.addEventListener('review:volume',update);

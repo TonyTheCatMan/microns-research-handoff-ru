@@ -100,3 +100,11 @@
   .segmentation-settings input[type=range]{min-height:40px;touch-action:pan-y}
   .segmentation-settings select{min-height:40px}
 }
+
+/* A single contextual opacity control beside the compact drawing settings. */
+.raw-controls .drawing-opacity-control{gap:5px;flex-wrap:wrap}
+.drawing-opacity-control input[type=range]{width:96px;min-width:70px;min-height:28px;touch-action:pan-y}
+.drawing-opacity-control output{min-width:4ch;text-align:right;font-variant-numeric:tabular-nums}
+.drawing-opacity-notes{display:none!important}
+.notes-window .drawing-opacity-notes:not([hidden]){display:flex!important}
+@media(max-width:1180px),(pointer:coarse){.raw-controls .drawing-opacity-control input[type=range],.drawing-opacity-notes input[type=range]{min-height:40px;width:110px}}

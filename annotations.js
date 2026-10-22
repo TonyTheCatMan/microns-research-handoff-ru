@@ -447,6 +447,7 @@
       const v=viewer(),frozenCase=currentCase,isCase=scope!=='all',filter=isCase?{case_id:frozenCase}:{};
       if(isCase&&!frozenCase)throw new Error('Сначала выберите случай.');
       const settings={preferences:readPreferences(),annotation_mode:mode()};
+      if(window.HandoffDrawings?.getStyle)settings.drawing_style=window.HandoffDrawings.getStyle();
       if(v?.ready){settings.last_view={case_id:frozenCase,volume_id:v.volume.volume_id,z:v.z};settings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)try{settings.surface_view=v.surface.getViewState();}catch{}}
       $('restoreResult').classList.remove('save-failed');$('restoreResult').textContent='Сохраняем точки и заметки…';
       try{await store.putSettings(settings);}catch{}
@@ -467,6 +468,7 @@
     const input=event.target;let file=input.files[0];if(!file||!store)return;
     const target=$('restoreResult');input.disabled=true;target.classList.remove('save-failed');target.textContent='Загружаем все метки и заметки…';
     const previousSettings={preferences:readPreferences(),annotation_mode:mode()};
+    if(window.HandoffDrawings?.getStyle)previousSettings.drawing_style=window.HandoffDrawings.getStyle();
     if(viewer()?.ready){const v=viewer();previousSettings.last_view={case_id:currentCase,volume_id:v.volume.volume_id,z:v.z};previousSettings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)try{previousSettings.surface_view=v.surface.getViewState();}catch{}}
     try{
       await window.HandoffDrawings?.whenSettled();await settleForAction();await settleNotes();
@@ -499,6 +501,7 @@
     if(settings.preferences){for(const [id,value]of Object.entries(settings.preferences))if($(id)&&!structurePreferenceIds.has(id)){if(typeof value==='boolean')$(id).checked=value;else $(id).value=String(value);$(id).dispatchEvent(new Event('change'));}prefsSave();}
     if(settings.last_view&&allowedView){localStorage.setItem('microns-last-view-v1',JSON.stringify(settings.last_view));await viewer().select(settings.last_view.case_id,settings.last_view.volume_id,settings.last_view.z);}
     if(settings.annotation_mode){$('annotationMode').value=settings.annotation_mode;setMode();}
+    if(settings.drawing_style)window.HandoffDrawings?.applyStyle(settings.drawing_style);
     if(settings.display&&allowedView&&!notesWindow){const zoom=String(settings.display.zoom);if(![...$('zoomSelect').options].some(o=>o.value===zoom))$('zoomSelect').add(new Option('Сохранённый масштаб · '+Math.round(settings.display.zoom*100)+'%',zoom));$('zoomSelect').value=zoom;$('zoomSelect').dispatchEvent(new Event('change'));$('blackInput').value=settings.display.black;$('whiteInput').value=settings.display.white;$('blackInput').dispatchEvent(new Event('change'));}
     if(settings.surface_view&&allowedView&&activeCase(settings.surface_view.case_id)&&!notesWindow&&viewer()?.ready&&settings.surface_view.case_id===viewer().currentCase.case_id&&settings.surface_view.volume_id===viewer().volume.volume_id&&settings.surface_view.local_z===viewer().z)await viewer().surface.restoreEvidence(settings.surface_view);
     const selectedCase=viewer()?.currentCase?.case_id||currentCase,selection=caseNotes.find(row=>row.case_id===selectedCase)?.segmentation_selection;
