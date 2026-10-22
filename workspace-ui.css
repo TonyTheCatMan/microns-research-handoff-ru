@@ -73,7 +73,9 @@
 .raw-controls .slice-bar label{font-size:12px}
 .raw-controls .slice-bar input[type=number]{min-height:36px;width:65px;padding:4px}
 .raw-controls .slice-bar .mono{font-size:11px;flex-basis:100%;line-height:1.4}
-.raw-controls .view-reset-actions{padding:6px 10px}
+.raw-controls .view-reset-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:6px 10px}
+.raw-controls #figurePairStatus{flex-basis:100%}
+.raw-controls #figurePairStatus:empty{display:none}
 .raw-controls .slice-bar + *{margin-top:0}
 #viewport{overflow-anchor:none}
 @media(max-width:1180px),(pointer:coarse){

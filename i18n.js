@@ -69,7 +69,7 @@
     ['Масштаб', 'Zoom'],
     ['Чёрный', 'Black'],
     ['Белый', 'White'],
-    ['Скачать срез PNG', 'Download section PNG'],
+    ['Скачать 2D PNG', 'Download 2D PNG'],
     ['Два PNG: с цветом / без цвета', 'Two PNGs: with / without color'],
     ['Текущий срез и видимая область. Отметки одинаковы в обоих PNG. Цвета выбранных структур берутся из настроек сегментации.', 'Current slice and visible crop. Annotations are identical in both PNGs. Selected-structure colors come from the segmentation settings.'],
     ['Готовим два одинаковых вида…', 'Preparing two matching views…'],
