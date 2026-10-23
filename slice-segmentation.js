@@ -150,7 +150,7 @@
     if(!['selected','nearby','all'].includes(scope)||!Number.isInteger(limit)||limit<1||limit>30||s.focus_local_nm!==undefined&&(!Array.isArray(s.focus_local_nm)||s.focus_local_nm.length!==3||!s.focus_local_nm.every(Number.isFinite)))throw new Error('Неверные настройки сохранённой сегментации.');
     if(scope==='selected'){
       if(!window.StructureSelection||!Array.isArray(s.selected_structures))throw new Error('Неверные настройки сохранённой сегментации.');
-      window.StructureSelection.applyPreferences({schema_version:1,source_version:'seg_m1300',case_id:data.case_id,structures:s.selected_structures,scope,fill:!!s.fill,borders:!!s.borders,opacity:s.opacity},{emit:false});
+      window.StructureSelection.applyPreferences({...window.StructureSelection.getPreferences(data.case_id),schema_version:1,source_version:'seg_m1300',case_id:data.case_id,structures:s.selected_structures,scope,fill:!!s.fill,borders:!!s.borders,opacity:s.opacity},{emit:false});
     }
     if($('segmentationScope'))$('segmentationScope').value=scope;if($('segmentationLimit'))$('segmentationLimit').value=String(limit);
     for(const [id,value]of [['segmentation2D',s.fill],['segmentationBorders',s.borders]])if($(id))$(id).checked=!!value;

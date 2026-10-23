@@ -905,6 +905,12 @@
     ['Объём превышает размер текстуры, поддерживаемый браузером.', 'The volume exceeds the texture size supported by the browser.']
   );
 
+  pairs.push(
+    ['Переименовать структуру', 'Rename structure'],
+    ['Название структуры', 'Structure name'],
+    ['Сохранить название', 'Save name'],
+    ['Неверные названия структур.', 'Invalid structure names.']
+  );
   // Runtime phrases are presentation labels only, never record transformations.
 
   const dictionary = new Map(pairs);

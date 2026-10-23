@@ -21,7 +21,15 @@
         overrides[id]=color.toLowerCase();
       }
     }
-    return{schema_version:1,source_version:source,case_id:s.case_id,structures,scope:s.scope,fill:s.fill,borders:s.borders,opacity:s.opacity,...(overrides?{color_overrides:overrides}:{})};
+    let names;
+    if(s.name_overrides!==undefined){
+      if(!s.name_overrides||typeof s.name_overrides!=='object'||Array.isArray(s.name_overrides)||Object.keys(s.name_overrides).length>256)throw new Error('Неверные названия структур.');
+      names={};for(const [id,name]of Object.entries(s.name_overrides)){
+        if(!/^[1-9]\d{0,19}$/.test(id)||BigInt(id)>18446744073709551615n||typeof name!=='string'||!name.trim()||name.length>120||/[\u0000-\u001f\u007f]/.test(name))throw new Error('Неверные названия структур.');
+        names[id]=name.trim();
+      }
+    }
+    return{schema_version:1,source_version:source,case_id:s.case_id,structures,scope:s.scope,fill:s.fill,borders:s.borders,opacity:s.opacity,...(overrides?{color_overrides:overrides}:{}),...(names?{name_overrides:names}:{})};
   }
   function readControls(s){
     if($('segmentationScope')&&['selected','nearby','all'].includes($('segmentationScope').value))s.scope=$('segmentationScope').value;
@@ -91,10 +99,31 @@
     s.scope='selected';s.fill=true;commit(s);return true;
   }
   function element(tag,className,text){const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;}
+  function renameSegment(segmentId,name,caseId=currentCase()){
+    const s=getPreferences(caseId),id=String(segmentId);if(!s||typeof name!=='string')return false;
+    if(!/^[1-9]\d{0,19}$/.test(id)||BigInt(id)>18446744073709551615n||name.length>120||/[\u0000-\u001f\u007f]/.test(name))throw new Error('Неверные названия структур.');
+    s.name_overrides??={};if(name.trim())s.name_overrides[id]=name.trim();else delete s.name_overrides[id];
+    // Reuse the case preferences path so names share save/load and cross-window synchronization.
+    if(caseId===currentCase())commit(s);else applyPreferences(s,{emit:true});return true;
+  }
+  function nameControl(object,caseId,info){
+    const line=element('div','structure-name-line'),name=element('span','structure-name',(!info&&getPreferences(caseId)?.name_overrides?.[object.segment_id])||window.HandoffRoles?.shortLabel(info)||'Неизвестная структура');
+    name.dataset.noI18n='';line.append(name);
+    if(info)return line;
+    const edit=element('button','structure-rename','✎');edit.type='button';edit.title='Переименовать структуру';edit.setAttribute('aria-label','Переименовать структуру');line.append(edit);
+    edit.addEventListener('click',()=>{
+      const form=element('form','structure-name-editor'),input=element('input');input.type='text';input.maxLength=120;input.value=getPreferences(caseId)?.name_overrides?.[object.segment_id]||'';input.placeholder='Название структуры';input.setAttribute('aria-label','Название структуры');
+      const save=element('button','','✓'),cancel=element('button','','×');save.type='submit';save.title='Сохранить название';save.setAttribute('aria-label','Сохранить название');cancel.type='button';cancel.title='Отмена';cancel.setAttribute('aria-label','Отмена');
+      const close=()=>{line.replaceChildren(name,edit);edit.focus({preventScroll:true});};
+      form.addEventListener('submit',event=>{event.preventDefault();try{renameSegment(object.segment_id,input.value,caseId);if(line.isConnected){name.textContent=getPreferences(caseId)?.name_overrides?.[object.segment_id]||window.HandoffRoles?.shortLabel(info)||'Неизвестная структура';close();}else $('structureSelectionList')?.querySelector(`[data-segment-id="${object.segment_id}"] .structure-rename`)?.focus({preventScroll:true});}catch(error){message(error.message,true);}});
+      cancel.addEventListener('click',close);input.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close();}});
+      form.append(input,save,cancel);line.replaceChildren(form);window.HandoffI18n?.refresh(line);input.focus({preventScroll:true});input.select();
+    });return line;
+  }
   function render(){
     const host=$('structureSelectionControls');if(!host)return;
     const s=getPreferences(),ready=!!window.SliceSegmentation?.current.ready&&!!window.HandoffAnnotations?.store;
-    const signature=JSON.stringify([s?.case_id,s?.scope,ready,window.HandoffI18n?.language,window.SliceSegmentation?.seedObjects,s?.structures.map(o=>[o.segment_id,o.visible,window.SliceSegmentation?.availability(o.segment_id),window.HandoffRoles?.label(window.HandoffRoles?.identifyInCase(s.case_id,o.segment_id))])]);
+    const signature=JSON.stringify([s?.case_id,s?.scope,s?.name_overrides,ready,window.HandoffI18n?.language,window.SliceSegmentation?.seedObjects,s?.structures.map(o=>[o.segment_id,o.visible,window.SliceSegmentation?.availability(o.segment_id),window.HandoffRoles?.label(window.HandoffRoles?.identifyInCase(s.case_id,o.segment_id))])]);
     if(signature===renderSignature&&$('structureSelectionList')){for(const row of $('structureSelectionList').children){const object=s.structures.find(o=>o.segment_id===row.dataset.segmentId);if(object&&row.querySelector('input[type=color]').value!==object.color)row.querySelector('input[type=color]').value=object.color;}return;}
     renderSignature=signature;
     if(!$('structurePick')){
@@ -116,7 +145,7 @@
       const visibility=element('label','structure-visibility'),checkbox=element('input');checkbox.type='checkbox';checkbox.checked=object.visible;checkbox.setAttribute('aria-label','Показать структуру');checkbox.addEventListener('change',()=>{const next=getPreferences();next.structures.find(o=>o.segment_id===object.segment_id).visible=checkbox.checked;commit(next,{rerender:false});});visibility.append(checkbox);
       const color=element('input','structure-color');color.type='color';color.value=object.color;color.setAttribute('aria-label','Цвет структуры');color.addEventListener('input',()=>{const next=getPreferences(),selected=next.structures.find(o=>o.segment_id===object.segment_id);selected.color=color.value;selected.color_mode='individual';rememberColor(next,selected);commit(next,{rerender:false});});
       const identity=element('div','structure-identity'),seed=originals.find(o=>o.segment_id===object.segment_id),info=window.HandoffRoles?.identifyInCase(s.case_id,object.segment_id);
-      identity.append(element('span','structure-name',window.HandoffRoles?.shortLabel(info)||'Неизвестная структура'));
+      identity.append(nameControl(object,s.case_id,info));
       if(info&&!info.identity_verified)identity.append(element('span','structure-unresolved','Объект не подтверждён'));
       const technical=element('details','structure-provenance');technical.append(element('summary','',seed?seed.id+' · источник':'ID / источник'));technical.append(element('code','',`${source}: ${object.segment_id}`),element('span','',window.HandoffRoles?.details(info)||''));identity.append(technical);
       const availability=window.SliceSegmentation?.availability(object.segment_id),state=!availability?.ready?'Срез загружается':!availability.present_in_volume?'Нет в этом объёме seg_m1300':availability.present_in_slice?'Есть на этом срезе':'Нет на этом срезе';identity.append(element('span','hint structure-availability',state));
@@ -152,7 +181,7 @@
     previousCase=currentCase();if(previousCase)setControls(cases.get(previousCase)||defaults(previousCase));render();
   }
   function setVisibility(segmentId,visible){const s=getPreferences(),object=s?.structures.find(o=>o.segment_id===segmentId);if(object){object.visible=!!visible;commit(s);return true;}return false;}
-  window.StructureSelection={getPreferences,getAllPreferences:()=>[...cases.keys()].map(getPreferences),applyPreferences,normalizePreferences,replaceAllPreferences,clearAllPreferences:options=>replaceAllPreferences([],options),addSegment,removeSegment,setPicking,setVisibility,get picking(){return picking;}};
+  window.StructureSelection={getPreferences,getAllPreferences:()=>[...cases.keys()].map(getPreferences),applyPreferences,normalizePreferences,replaceAllPreferences,clearAllPreferences:options=>replaceAllPreferences([],options),addSegment,removeSegment,renameSegment,setPicking,setVisibility,get picking(){return picking;}};
   window.addEventListener('review:volume',()=>{setPicking(false);previousCase=currentCase();if(previousCase)setControls(cases.get(previousCase)||defaults(previousCase));render();});
   window.addEventListener('segmentation:slice',()=>{if(!applying&&!pointer)render();});
   window.addEventListener('annotations:ready',render);

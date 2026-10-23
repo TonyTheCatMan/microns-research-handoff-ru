@@ -15,13 +15,13 @@
         if(mesh.selectionVisible!==item?.visible){mesh.selectionVisible=item?.visible;changed=true;}
         if(mesh.cssColor!==next){mesh.cssColor=next;mesh.color=rgb(next);colorChanged=changed=true;}
         mesh.identity=info?{role:info.role,status:info.status,identity_verified:info.identity_verified,nucleus_id:info.nucleus_id,source_version:'seg_m1300',limitation:info.limitation}:undefined;
-        const name=info?(window.HandoffRoles.shortLabel?.(info)||window.HandoffRoles.label(info)):(window.HandoffI18n?.translate('Неизвестная структура')||'Неизвестная структура');
-        mesh.sourceLabel=info?window.HandoffRoles.label(info):name;
+        const sourceName=info?(window.HandoffRoles.shortLabel?.(info)||window.HandoffRoles.label(info)):(window.HandoffI18n?.translate('Неизвестная структура')||'Неизвестная структура'),customName=!info&&preferences.name_overrides?.[mesh.segment_id],name=customName||sourceName;
+        mesh.sourceLabel=info?window.HandoffRoles.label(info):sourceName;
         if(mesh.label!==name){mesh.label=name;changed=true;}
         const control=mesh.control;if(control){
           const swatch=control.querySelector('.object-swatch');if(swatch)swatch.style.backgroundColor=next;
           const input=control.querySelector('input');if(input){input.checked=item?item.visible:mesh.visible&&(mesh.context||!!mesh.geometry);input.disabled=!mesh.geometry&&!mesh.context;}
-          const text=control.querySelector('[data-object-label]');if(text&&text.textContent!==name)text.textContent=name;
+          const text=control.querySelector('[data-object-label]');if(text){text.toggleAttribute('data-no-i18n',!!customName);if(text.textContent!==name)text.textContent=name;}
           const technical=control.querySelector('[data-object-technical]');if(technical)technical.textContent=mesh.id;
           const status=control.querySelector('[data-object-status]');if(status){status.hidden=!info||info.identity_verified;status.textContent=window.HandoffI18n?.translate('Объект не подтверждён')||'Объект не подтверждён';}
           control.title=[mesh.sourceLabel,window.HandoffRoles?.details(info),mesh.id+' · seg_m1300: '+(mesh.segment_id||''),mesh.clipped.length?'Касается граней фрагмента: '+mesh.clipped.join(', '):''].filter(Boolean).join('\n');
@@ -58,7 +58,7 @@
   }
   function refresh(){if(queued)return;queued=true;queueMicrotask(()=>{queued=false;const view=surface();apply(view);ensure(view).catch(error=>{if(!error.cancelled&&view?.modelReady){const node=document.getElementById('structureSelectionStatus');if(node){node.textContent=error.message;node.classList.add('save-failed');}}});});}
   window.StructureSurface={apply,ensure};
-  for(const event of ['structures:changed','roles:changed','roles:ready','annotations:surface-ready','annotations:ready'])window.addEventListener(event,refresh);
+  for(const event of ['structures:changed','roles:changed','roles:ready','annotations:surface-ready','annotations:ready','annotations:changed'])window.addEventListener(event,refresh);
   window.addEventListener('surface:visibility',()=>apply());
   window.addEventListener('annotations:contextstatus',event=>{if(event.detail.status!=='loading')refresh();});
   window.addEventListener('handoff:languagechange',()=>apply());

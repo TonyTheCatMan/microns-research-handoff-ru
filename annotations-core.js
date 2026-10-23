@@ -88,7 +88,7 @@
     return result;
   }
   function validateStructureSelection(value,caseId){
-    const s=value,keys=['schema_version','source_version','case_id','structures','scope','fill','borders','opacity','color_overrides'];
+    const s=value,keys=['schema_version','source_version','case_id','structures','scope','fill','borders','opacity','color_overrides','name_overrides'];
     if(!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(k=>!keys.includes(k))||s.schema_version!==1||s.source_version!=='seg_m1300'||s.case_id!==caseId||!Array.isArray(s.structures)||s.structures.length>256||!['selected','nearby','all'].includes(s.scope)||typeof s.fill!=='boolean'||typeof s.borders!=='boolean'||typeof s.opacity!=='number'||!Number.isFinite(s.opacity)||s.opacity<0||s.opacity>.7)fail('Неверные настройки выбранных структур seg_m1300.');
     const seen=new Set(),structures=s.structures.map(o=>{
       if(!o||typeof o!=='object'||Array.isArray(o)||Object.keys(o).some(k=>!['segment_id','color','visible','color_mode'].includes(k))||typeof o.segment_id!=='string'||!/^[1-9]\d{0,19}$/.test(o.segment_id)||BigInt(o.segment_id)>18446744073709551615n||seen.has(o.segment_id)||typeof o.visible!=='boolean'||o.color_mode!==undefined&&!['role','individual'].includes(o.color_mode)||typeof o.color!=='string'||!/^#[\da-f]{6}$/i.test(o.color))fail('Неверные настройки выбранных структур seg_m1300.');
@@ -99,6 +99,11 @@
       const overrides=s.color_overrides;
       if(!overrides||typeof overrides!=='object'||Array.isArray(overrides)||Object.keys(overrides).length>256||Object.entries(overrides).some(([id,color])=>!/^[1-9]\d{0,19}$/.test(id)||BigInt(id)>18446744073709551615n||typeof color!=='string'||!/^#[\da-f]{6}$/i.test(color)))fail('Неверные индивидуальные цвета структур seg_m1300.');
       result.color_overrides=Object.fromEntries(Object.entries(overrides).map(([id,color])=>[id,color.toLowerCase()]));
+    }
+    if(s.name_overrides!==undefined){
+      const names=s.name_overrides;
+      if(!names||typeof names!=='object'||Array.isArray(names)||Object.keys(names).length>256||Object.entries(names).some(([id,name])=>!/^[1-9]\d{0,19}$/.test(id)||BigInt(id)>18446744073709551615n||typeof name!=='string'||!name.trim()||name.length>120||/[\u0000-\u001f\u007f]/.test(name)))fail('Неверные названия структур.');
+      result.name_overrides=Object.fromEntries(Object.entries(names).map(([id,name])=>[id,name.trim()]));
     }
     return result;
   }
