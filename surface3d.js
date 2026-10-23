@@ -72,7 +72,7 @@
       this.contextLimit=5;this.contextFocus=null;this.contextFocusLabel='центр среза';this.contextShown=new Set();this.visibilityPending=false;
       this.modelReady=false;this.targetHits=[];this.navigationSignature='';this.cameraBasis=null;
       this.slicePlane=null;this.tiff=null;this.sliceSource=null;this.volumeTexture=null;this.volumeTextureReady=false;
-      this.controls=['surfaceReset','surfaceXY','surfacePlane','surfaceBox','surfaceOpacity','surfaceExport','surfaceRotateSlice'];
+      this.controls=['surfaceReset','surfaceXY','surfacePlane','surfaceBox','surfaceOpacity','surfaceExport','surfaceExportModel','surfaceExportClean','surfaceRotateSlice'];
       this.yaw=-.65;this.pitch=.4;this.zoom=1;this.alpha=.8;
       this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();this.gl=null;this.setStatus('Контекст 3D-графики потерян. Перезагрузите страницу, чтобы восстановить 3D. Просмотр TIFF в 2D остаётся доступен.','error');this.enable(false);});
       try {this.initGL();} catch(error) {this.gl=null;this.setStatus('3D недоступно в этом браузере: '+error.message+'. Просмотр TIFF в 2D остаётся доступен.','error');}
@@ -159,9 +159,9 @@
     objectControl(mesh) {
       const label=document.createElement('label');label.className='surface-object';
       const input=document.createElement('input');input.type='checkbox';input.checked=mesh.visible&&(mesh.context||!!mesh.geometry);input.disabled=!mesh.context&&!mesh.geometry;input.dataset.objectId=mesh.id;
-      input.addEventListener('change',()=>{mesh.visible=input.checked;if(mesh.context)this.updateNearby();else this.updateSliceTextures();this.visibilityChanged();this.schedule();});
+      input.addEventListener('change',()=>{if(!window.StructureSelection?.setVisibility(mesh.segment_id,input.checked))mesh.visible=input.checked;if(mesh.context)this.updateNearby();else this.updateSliceTextures();this.visibilityChanged();this.schedule();});
       const swatch=document.createElement('span');swatch.className='object-swatch';swatch.style.backgroundColor=/^#[0-9a-f]{6}$/i.test(mesh.cssColor)?mesh.cssColor:'#80b8c4';
-      const text=document.createElement('span');text.textContent=mesh.id+' · '+mesh.label+(mesh.context?'':mesh.geometry?(mesh.clipped.length?' · ограничен границами фрагмента':''):' · отсутствует в этом объёме');
+      const text=document.createElement('span');text.dataset.objectLabel='';text.textContent=mesh.id+' · '+mesh.label+(mesh.context?'':mesh.geometry?(mesh.clipped.length?' · ограничен границами фрагмента':''):' · отсутствует в этом объёме');
       label.append(input,swatch,text);label.title=mesh.clipped.length?'Касается граней фрагмента: '+mesh.clipped.join(', '):'Нейтральное обозначение объекта; цвет не указывает на класс клетки.';label.dataset.objectId=mesh.id;
       if(mesh.context){label.dataset.context='true';label.hidden=!this.contextVisible||!this.contextShown.has(mesh.id);label.title+=' Сегмент окружения; класс клетки не установлен.';}
       mesh.control=label;this.objectsUI.append(label);
@@ -173,7 +173,7 @@
     visibilityChanged(){if(this.visibilityPending)return;this.visibilityPending=true;queueMicrotask(()=>{this.visibilityPending=false;window.dispatchEvent(new CustomEvent('surface:visibility',{detail:{case_id:this.caseId,volume_id:this.volume?.volume_id}}));});}
     visibleSegments(fallback=[]){
       if(!this.modelReady)return null;
-      return this.meshes.filter(m=>m.context?m.visible&&this.contextVisible&&this.contextShown.has(m.id):this.visibleMesh(m)).map(m=>({id:m.id,segment:m.segment_id||fallback.find(o=>o.id===m.id)?.segment,color:m.cssColor,context:!!m.context}));
+      return this.meshes.filter(m=>m.selectionVisible!==undefined?m.selectionVisible&&!!m.geometry:m.context?m.visible&&this.contextVisible&&this.contextShown.has(m.id):this.visibleMesh(m)).map(m=>({id:m.id,segment:m.segment_id||fallback.find(o=>o.id===m.id)?.segment,color:m.cssColor,context:!!m.context&&m.selectionVisible!==true}));
     }
     cancelContext() {
       ++this.contextToken;if(this.contextWorker)this.contextWorker.terminate();this.contextWorker=null;this.contextLoading=false;
@@ -221,7 +221,7 @@
         const worker=new Worker('context-worker.js');this.contextWorker=worker;
         const fail=message=>{
           if(volumeToken!==this.token||workerToken!==this.contextToken)return;
-          this.cancelContext();this.contextLoaded=false;for(const mesh of this.meshes.filter(m=>m.context)){this.deleteGeometry(mesh.geometry);mesh.geometry=null;mesh.vertices=null;mesh.triangles=null;}this.contextStatus('error',message);this.schedule();
+          this.cancelContext();this.contextLoaded=false;for(const mesh of this.meshes.filter(m=>m.context&&m.selectionVisible===undefined)){this.deleteGeometry(mesh.geometry);mesh.geometry=null;mesh.vertices=null;mesh.triangles=null;}this.contextStatus('error',message);this.schedule();
         };
         worker.onerror=event=>fail('Не удалось построить окружающие поверхности: '+event.message);
         worker.onmessage=event=>{
@@ -295,14 +295,15 @@
       const origin=this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]),point=vec.sub(annotation.point_nm,origin);
       return point.every((n,i)=>n>=0&&n<=this.bounds[i])?point:null;
     }
-    visibleMesh(mesh) {return mesh.visible&&mesh.geometry&&(!mesh.context||this.contextVisible&&this.contextMode==='full'&&this.contextShown.has(mesh.id));}
+    visibleMesh(mesh) {return mesh.geometry&&(mesh.selectionVisible!==undefined?mesh.selectionVisible:mesh.visible&&(!mesh.context||this.contextVisible&&this.contextMode==='full'&&this.contextShown.has(mesh.id)));}
+    meshAlpha(mesh) {return mesh.selectionVisible===true?this.alpha:mesh.context?this.contextAlpha:this.alpha;}
     pickAt(clientX,clientY) {
       if(!this.volume||!this.gl)return null;const rect=this.stage.getBoundingClientRect(),x=(clientX-rect.left)/rect.width,y=(clientY-rect.top)/rect.height;
       if(x<0||x>1||y<0||y>1)return null;
       const camera=this.camera(),width=camera.height*this.stage.clientWidth/Math.max(1,this.stage.clientHeight),direction=vec.norm(vec.sub(this.center,camera.eye)),origin=vec.add(camera.eye,vec.add(vec.mul(camera.right,(x-.5)*width),vec.mul(camera.up,(.5-y)*camera.height)));
       let closest=null,distance=Infinity;
       for(const mesh of this.meshes){
-        if(!this.visibleMesh(mesh)||(mesh.context?this.contextAlpha:this.alpha)<=0||!mesh.vertices||!rayBox(origin,direction,mesh.bounds,distance))continue;
+        if(!this.visibleMesh(mesh)||this.meshAlpha(mesh)<=0||!mesh.vertices||!rayBox(origin,direction,mesh.bounds,distance))continue;
         const triangles=mesh.triangles;
         for(let i=0;i<triangles.length;i+=3){const t=rayTriangle(origin,direction,mesh.vertices,triangles[i]*3,triangles[i+1]*3,triangles[i+2]*3);if(t!==null&&t<distance){distance=t;closest=mesh;}}
       }
@@ -311,8 +312,8 @@
         const hit=HandoffSlicePlane.intersect(origin,direction,this.planeSection.center,this.planeSection.normal,this.bounds);
         if(hit&&hit.t>.01&&hit.t<=distance+.001){
           const {t,point:p}=hit,id=!this.slicePlane?.enabled&&this.validSliceSegmentation()?window.SliceSegmentation.lookup(Math.floor(p[0]/this.volume.resolution_nm[0]),Math.floor(p[1]/this.volume.resolution_nm[1])):null,object=id&&this.meshes.find(m=>m.segment_id===id);
-          const allVisible=this.segmentationVisible&&this.segmentationReady&&this.segmentationAlpha>0,nearVisible=this.contextVisible&&this.contextMode==='slice'&&this.contextSliceReady&&this.contextAlpha>0&&object?.context&&object.visible&&this.contextShown.has(object.id);
-          if(object&&(allVisible||nearVisible)){closest=object;distance=t;}
+          const allVisible=this.segmentationVisible&&this.segmentationReady&&this.segmentationAlpha>0,nearVisible=this.contextVisible&&this.contextMode==='slice'&&this.contextSliceReady&&this.contextAlpha>0&&object?.context&&(object.selectionVisible??object.visible)&&this.contextShown.has(object.id);
+          if(object&&object.selectionVisible!==false&&(allVisible||nearVisible)){closest=object;distance=t;}
           else if($('surfacePlane').checked)return null;
         }
       }
@@ -477,9 +478,9 @@
       if(!this.gl||!this.validSliceSegmentation()||!window.SliceSegmentation?.render)return;
       const colors=Object.fromEntries(this.meshes.filter(m=>m.segment_id).map(m=>[m.segment_id,m.cssColor])),gl=this.gl;
       const upload=(texture,canvas)=>{if(!canvas)return false;gl.bindTexture(gl.TEXTURE_2D,texture);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);return true;};
-      if(this.segmentationVisible)this.segmentationReady=upload(this.segmentationTexture,window.SliceSegmentation.render({segment_ids:null,fill:true,borders:false,opacity:1,colors}));
+      if(this.segmentationVisible)this.segmentationReady=upload(this.segmentationTexture,window.SliceSegmentation.render({segment_ids:this.sliceSegmentation.objects.filter(o=>this.meshes.find(m=>m.segment_id===o.segment_id)?.selectionVisible!==false).map(o=>o.segment_id),fill:true,borders:false,opacity:1,colors}));
       if(this.contextVisible&&this.contextMode==='slice'){
-        const ids=this.meshes.filter(m=>m.context&&m.visible&&this.contextShown.has(m.id)).map(m=>m.segment_id);
+        const ids=this.meshes.filter(m=>m.context&&(m.selectionVisible??m.visible)&&this.contextShown.has(m.id)).map(m=>m.segment_id);
         if(ids.length)this.contextSliceReady=upload(this.contextSliceTexture,window.SliceSegmentation.render({segment_ids:ids,fill:true,borders:false,opacity:1,colors}));
       }
       this.canvas.dataset.segmentationLocalZ=this.segmentationReady||this.contextSliceReady?String(this.slice.z):'';
@@ -552,6 +553,7 @@
       window.addEventListener('annotations:surface-ready',()=>{this.contextMode=$('surfaceContextMode')?.value==='full'?'full':'slice';this.contextAlpha=Number($('surfaceContextOpacity')?.value??25)/100;this.segmentationAlpha=Number($('surfaceSegmentationOpacity')?.value??25)/100;this.setSegmentationVisible(!!$('surfaceSegmentation')?.checked);});
       window.addEventListener('segmentation:slice',e=>this.setSliceSegmentation(e.detail));
       $('surfaceExport').addEventListener('click',()=>this.exportPNG());
+      $('surfaceExportModel')?.addEventListener('click',()=>this.exportModel());
       $('surfaceRotateSlice')?.addEventListener('change',event=>{
         try{const plane=this.getSlicePlane();if(!plane)return;plane.enabled=event.target.checked;if(plane.enabled){const position=window.ReviewViewer?.getNavigationState?.()?.position_nm;if(finite3(position))plane.center_global_nm=[...position];}this.setSlicePlane(plane);}
         catch(error){this.updateSliceControls();this.setStatus('Не удалось подготовить наклонные срезы: '+error.message,'error');}
@@ -601,9 +603,9 @@
       for(const [ready,texture,alpha]of [[this.segmentationVisible&&this.segmentationReady,this.segmentationTexture,this.segmentationAlpha],[this.contextVisible&&this.contextMode==='slice'&&this.contextSliceReady,this.contextSliceTexture,this.contextAlpha]])if(!oblique&&ready&&alpha>0){gl.bindTexture(gl.TEXTURE_2D,texture);this.drawGeometry(this.planeGeometry,[1,1,1,alpha],2);}
       // Opaque meshes first, then independently translucent target and neighboring meshes.
       const visible=this.meshes.filter(m=>this.visibleMesh(m));
-      for(const opaque of [true,false])for(const mesh of visible){const alpha=mesh.context?this.contextAlpha:this.alpha;if(alpha<=0||(alpha===1)!==opaque)continue;gl.depthMask(opaque);this.drawGeometry(mesh.geometry,[...(mesh.id===this.selectedObjectId?[1,.5,.24]:mesh.color),alpha]);}
+      for(const opaque of [true,false])for(const mesh of visible){const alpha=this.meshAlpha(mesh);if(alpha<=0||(alpha===1)!==opaque)continue;gl.depthMask(opaque);this.drawGeometry(mesh.geometry,[...(!this.exportHideMarkers&&mesh.id===this.selectedObjectId?[1,.5,.24]:mesh.color),alpha]);}
       gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.DEPTH_TEST);
-      if($('surfaceBox').checked){this.drawGeometry(this.boxGeometry,[.39,.56,.62,1],1,gl.LINES);this.drawGeometry(this.axisGeometry,[.86,.91,.94,1],1,gl.LINES);}
+      if($('surfaceBox').checked&&!this.exportHideMarkers){this.drawGeometry(this.boxGeometry,[.39,.56,.62,1],1,gl.LINES);this.drawGeometry(this.axisGeometry,[.86,.91,.94,1],1,gl.LINES);}
       const targets=this.targetsVisible?[...this.targets]:[];if(this.target&&this.showMarker)targets.push(this.target);
       // T markers use the same distinct canvas symbols as the 2D view.
       this.drawLabels(ctx,camera);
@@ -616,8 +618,8 @@
     drawLabels(ctx,camera) {
       ctx.save();ctx.scale(this.ratio,this.ratio);ctx.font='12px system-ui';ctx.lineJoin='round';ctx.lineWidth=4;ctx.strokeStyle='#13212c';ctx.fillStyle='#e4edf0';
       const text=(s,x,y)=>{ctx.strokeText(s,x,y);ctx.fillText(s,x,y);};
-      if($('surfaceBox').checked)for(const [label,p] of [['X',[this.axisLength,0,0]],['Y',[0,this.axisLength,0]],['Z',[0,0,this.axisLength]]]){const [x,y]=this.project(p,camera);text(label,x+5,y-5);}
-      const targets=this.targetsVisible?[...this.targets]:[];if(this.target&&this.showMarker)targets.push(this.target);
+      if($('surfaceBox').checked&&!this.exportHideMarkers)for(const [label,p] of [['X',[this.axisLength,0,0]],['Y',[0,this.axisLength,0]],['Z',[0,0,this.axisLength]]]){const [x,y]=this.project(p,camera);text(label,x+5,y-5);}
+      const targets=!this.exportHideMarkers&&this.targetsVisible?[...this.targets]:[];if(!this.exportHideMarkers&&this.target&&this.showMarker)targets.push(this.target);
       this.targetHits=[];for(const target of targets){const [x,y]=this.project(target.position,camera);if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;MarkerStyles.draw(ctx,x,y,6,target.key);if(finite3(target.nm))this.targetHits.push({id:target.id,key:target.key,nm:[...target.nm],x,y});ctx.fillStyle=MarkerStyles.styles[target.key]?.color||'#edc229';ctx.strokeStyle='#13212c';ctx.lineWidth=4;ctx.font='12px system-ui';text(target.label||target.id,x+11,y-10);}
       this.annotationHits=[];
       if(this.annotationsVisible)for(const annotation of this.annotations){
@@ -625,7 +627,7 @@
         if(annotation.geometry){
           const origin=this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]);
           const G=window.HandoffDrawingGeometry,paths=(G?.pathsNm(annotation)||[]).map(path=>path.map(point=>this.project(vec.sub(point,origin),camera)));
-          const selected=annotation.id===this.selectedAnnotationId,color=annotation.geometry.color||'#ffd166',width=annotation.geometry.stroke_width||2,dab=annotation.kind==='freehand'&&annotation.geometry.points_nm.length===1,opacity=G?.opacityFor?.(annotation.geometry)??(Number.isFinite(annotation.geometry.opacity)?Math.max(0,Math.min(1,annotation.geometry.opacity)):1);
+          const selected=!this.exportHideMarkers&&annotation.id===this.selectedAnnotationId,color=G?.colorFor?.(annotation)||annotation.geometry.color||'#ffd166',width=annotation.geometry.stroke_width||2,dab=['freehand','vesicle'].includes(annotation.kind)&&annotation.geometry.points_nm.length===1,opacity=G?.opacityFor?.(annotation.geometry)??(Number.isFinite(annotation.geometry.opacity)?Math.max(0,Math.min(1,annotation.geometry.opacity)):1);
           ctx.save();ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
           if(annotation.kind==='arrow'&&G){
             const projected=annotation.geometry.points_nm.map(point=>{const [x,y]=this.project(vec.sub(point,origin),camera);return{x,y,onPlane:true};});
@@ -642,7 +644,7 @@
           if($('drawingNumbers')?.checked&&x>=0&&y>=0&&x<=this.stage.clientWidth&&y<=this.stage.clientHeight){ctx.save();ctx.globalAlpha*=opacity;ctx.font='bold 13px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#13212c';ctx.fillStyle=color;ctx.strokeText('№'+annotation.number,x+8,y-8);ctx.fillText('№'+annotation.number,x+8,y-8);ctx.restore();}
           if(paths.length)this.annotationHits.push({id:annotation.id,x,y,paths});continue;
         }
-        if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;
+        if(this.exportHideMarkers||x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;
         const selected=annotation.id===this.selectedAnnotationId;MarkerStyles.draw(ctx,x,y,10,annotation.kind,annotation.number??'?',selected);this.annotationHits.push({id:annotation.id,x,y});
       }
       const scale=this.scaleBar(camera),bar=scale.pixels,y=this.stage.clientHeight-34,x=19;
@@ -661,7 +663,7 @@
         slice_plane:this.getSlicePlane(),
         context_mode:this.contextMode,context_opacity:this.contextAlpha,segmentation_visible:this.segmentationVisible,segmentation_opacity:this.segmentationAlpha,scale_bar:this.scaleBar(),
         context_limit:this.contextLimit,context_focus:this.contextFocus?[...this.contextFocus]:null,context_focus_label:this.contextFocusLabel,context_shown:[...this.contextShown],
-        objects:this.meshes.map(m=>({object_id:m.id,segment_id:m.segment_id||null,visible:!!m.visible})),annotations_visible:this.annotationsVisible,selected_annotation_id:this.selectedAnnotationId,
+        objects:this.meshes.map(m=>({object_id:m.id,segment_id:m.segment_id||null,visible:!!(m.selectionVisible??m.visible)})),annotations_visible:this.annotationsVisible,selected_annotation_id:this.selectedAnnotationId,
         seed_points_visible:this.targetsVisible,seed_filters:{center:!!$('tCenter')?.checked,pre:!!$('tPre')?.checked,post:!!$('tPost')?.checked},
         viewport_css_px:[this.stage.clientWidth,this.stage.clientHeight],annotation_ids:this.annotationsVisible?this.annotations.filter(a=>this.annotationPosition(a)).map(a=>a.id):[],
         display_window:this.slice?[this.slice.black,this.slice.white]:null};
@@ -696,6 +698,29 @@
       this.setSlicePlane(savedPlane||this.defaultSlicePlane(),{emit:false});
       this.annotationsVisible=!!view.annotations_visible;this.targetsVisible=!!view.seed_points_visible;this.selectedAnnotationId=view.selected_annotation_id||null;this.refreshSelectedObject();this.updateSliceTextures();this.draw();this.navigationChanged('restore');this.visibilityChanged();return this.getViewState();
     }
+    capturePNG({hideMarkers=true,longEdge=3072}={}) {
+      const view=this.getViewState(),cssWidth=this.stage.clientWidth,cssHeight=this.stage.clientHeight;
+      if(!cssWidth||!cssHeight)throw new Error('Откройте просмотр 2D / 3D перед сохранением изображения.');
+      const gl=this.gl,limits=gl.getParameter(gl.MAX_VIEWPORT_DIMS),maximum=gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),ratio=longEdge/Math.max(cssWidth,cssHeight),width=Math.round(cssWidth*ratio),height=Math.round(cssHeight*ratio);
+      if(!Number.isFinite(longEdge)||longEdge<3072||width>Math.min(maximum,limits[0])||height>Math.min(maximum,limits[1]))throw new Error('Браузер не поддерживает PNG 3D требуемого разрешения.');
+      const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');
+      if(!ctx)throw new Error('Не удалось создать PNG 3D-вида.');
+      const old={width:this.canvas.width,height:this.canvas.height,labelWidth:this.labels.width,labelHeight:this.labels.height,ratio:this.ratio,hideMarkers:this.exportHideMarkers};
+      try{
+        // Re-render at figure resolution with the existing camera; no UI, saved state or visibility changes.
+        this.canvas.width=this.labels.width=width;this.canvas.height=this.labels.height=height;this.ratio=ratio;this.exportHideMarkers=!!hideMarkers;
+        if(gl.isContextLost()||gl.drawingBufferWidth!==width||gl.drawingBufferHeight!==height)throw new Error('Не удалось создать изображение высокого разрешения.');
+        this.draw();ctx.drawImage(this.canvas,0,0);ctx.drawImage(this.labels,0,0);
+      }finally{
+        this.canvas.width=old.width;this.canvas.height=old.height;this.labels.width=old.labelWidth;this.labels.height=old.labelHeight;this.ratio=old.ratio;this.exportHideMarkers=old.hideMarkers;this.draw();
+      }
+      return {view,canvas,width,height,hideMarkers:!!hideMarkers,blob:new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Не удалось создать PNG 3D-вида.')),'image/png'))};
+    }
+    captureModel() {
+      const view=this.getViewState(),meshes=this.meshes.filter(mesh=>this.visibleMesh(mesh)&&this.meshAlpha(mesh)>0).map(mesh=>({...mesh,opacity:this.meshAlpha(mesh)}));
+      const result=window.HandoffSurfaceExport.buildGLB(meshes,{case_id:this.caseId,volume_id:this.volume.volume_id,source:'seg_m1300',origin_global_nm:this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]),bounds_local_nm:[[0,0,0],[...this.bounds]],camera:view.camera});
+      return {...result,view,blob:new Blob([result.buffer],{type:'model/gltf-binary'})};
+    }
     snapshotEvidence() {
       const view=this.getViewState(),cssWidth=this.stage.clientWidth,cssHeight=this.stage.clientHeight;
       if(!cssWidth||!cssHeight)throw new Error('Откройте просмотр 2D / 3D перед сохранением изображения.');
@@ -720,8 +745,16 @@
       return {view,blob:new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Не удалось создать PNG 3D-вида.')),'image/png'))};
     }
     async exportPNG() {
-      try {const capture=this.snapshotEvidence(),blob=await capture.blob,filename=(capture.view.volume_id+'_3d_local-z'+(capture.view.local_z??'none')+'_seg1300_navigation.png').replace(/[^a-zA-Z0-9_.-]/g,'_'),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+      if(this.exportBusy)return;this.exportBusy=true;const token=this.token,volume=this.volume;for(const id of ['surfaceExport','surfaceExportModel'])if($(id))$(id).disabled=true;
+      try {await window.StructureSurface?.ensure?.(this);if(token!==this.token||volume!==this.volume)throw new Error('Объём изменился во время экспорта. Повторите сохранение текущего вида.');const capture=this.capturePNG({hideMarkers:$('surfaceExportClean')?.checked??true}),blob=await capture.blob;window.HandoffSurfaceExport.download(blob,capture.view.volume_id+'_3d_local-z'+(capture.view.local_z??'none')+(capture.hideMarkers?'_figure':'_annotated')+'.png');}
       catch(error){this.setStatus(error.message,'error');}
+      finally{this.exportBusy=false;for(const id of ['surfaceExport','surfaceExportModel'])if($(id))$(id).disabled=!this.volume||!this.gl||!this.modelReady;}
+    }
+    async exportModel() {
+      if(this.exportBusy)return;this.exportBusy=true;const token=this.token,volume=this.volume;for(const id of ['surfaceExport','surfaceExportModel'])if($(id))$(id).disabled=true;
+      try {await window.StructureSurface?.ensure?.(this);if(token!==this.token||volume!==this.volume)throw new Error('Объём изменился во время экспорта. Повторите сохранение текущего вида.');const capture=this.captureModel();window.HandoffSurfaceExport.download(capture.blob,capture.view.volume_id+'_seg1300_selected_structures.glb');}
+      catch(error){this.setStatus(error.message,'error');}
+      finally{this.exportBusy=false;for(const id of ['surfaceExport','surfaceExportModel'])if($(id))$(id).disabled=!this.volume||!this.gl||!this.modelReady;}
     }
   }
   window.LocalSurfaceView=LocalSurfaceView;

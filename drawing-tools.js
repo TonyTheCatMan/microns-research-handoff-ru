@@ -3,11 +3,11 @@
   'use strict';
   const $=id=>document.getElementById(id),api=()=>window.HandoffAnnotations,v=()=>window.ReviewViewer,G=window.HandoffDrawingGeometry;
   const clone=value=>structuredClone(value),viewport=$('viewport'),draftKey='microns-drawing-draft-v1',styleKey='microns-drawing-tool-style-v1',histories=new Map();
-  const hints={select:'Нажмите на рисунок. Перетащите его целиком или за белые узлы. E: заметка; Delete: удалить.',trace:'Щёлкайте вдоль структуры. Enter: завершить. Первая точка или «Замкнуть трассу»: замкнуть. Точки сохраняются по мере добавления.',freehand:'Нажмите или коснитесь, чтобы поставить точку кистью. Для линии перетаскивайте. Цвет и размер задаются ниже.',arrow:'Протяните стрелку к интересующему участку. Отпустите, чтобы сохранить.',ellipse:'Протяните от одного угла области к противоположному. Shift после начала рисования: круг.',roi:'Протяните рамку вокруг интересующей области.',distance:'Протяните между двумя точками. Длина показана в микрометрах.'};
+  const hints={select:'Нажмите на рисунок. Перетащите его целиком или за белые узлы. E: заметка; Delete: удалить.',trace:'Щёлкайте вдоль структуры. Enter: завершить. Первая точка или «Замкнуть трассу»: замкнуть. Точки сохраняются по мере добавления.',freehand:'Нажмите или коснитесь, чтобы поставить точку кистью. Для линии перетаскивайте. Цвет и размер задаются ниже.',vesicle:'Нажмите или коснитесь, чтобы отметить везикулу. Цвет общий для всех везикул.',arrow:'Протяните стрелку к интересующему участку. Отпустите, чтобы сохранить.',ellipse:'Протяните от одного угла области к противоположному. Shift после начала рисования: круг.',roi:'Протяните рамку вокруг интересующей области.',distance:'Протяните между двумя точками. Длина показана в микрометрах.'};
   const shortcuts={h:'navigate',v:'select',a:'arrow',p:'point2d',t:'trace',f:'freehand',b:'roi',o:'ellipse',d:'distance'};
   let gesture=null,draft=null,preview=null,work=Promise.resolve(),lastScope='',lastMode='navigate',replaying=false,restoredScope='',intent=0;
   const touchPointers=new Set();
-  let style={color:'#ffd166',stroke_width:2,opacity:1},opacityContextKey='';
+  let style={color:'#ffd166',stroke_width:2,opacity:1,vesicle_color:'#ffd166'},opacityContextKey='';
   const mode=()=>$('annotationMode').value,scope=()=>v()?.volume?[v().currentCase.case_id,v().volume.volume_id,v().z].join(':'):'';
   const isDrawing=record=>!!record?.geometry;
   const selected=()=>api()?.records.find(r=>r.id===api().selectedId);
@@ -16,12 +16,19 @@
   function mainDrawing(){try{return api()?.isNotesWindow&&window.opener&&!window.opener.closed&&window.HandoffCaseSelection?.includes(window.opener.HandoffAnnotations?.currentCase)?window.opener.HandoffDrawings:null;}catch{return null;}}
   function normalizeStyle(value){
     if(!value||typeof value!=='object'||Array.isArray(value)||!/^#[0-9a-f]{6}$/i.test(value.color)||!Number.isInteger(value.stroke_width)||value.stroke_width<1||value.stroke_width>12||!Number.isFinite(value.opacity)||value.opacity<0||value.opacity>1)throw new Error('Неверные настройки кисти.');
-    return {color:value.color.toLowerCase(),stroke_width:value.stroke_width,opacity:value.opacity};
+    const vesicle_color=value.vesicle_color===undefined?style.vesicle_color??'#ffd166':value.vesicle_color;if(typeof vesicle_color!=='string'||!/^#[0-9a-f]{6}$/i.test(vesicle_color))throw new Error('Неверный цвет везикул.');
+    return {color:value.color.toLowerCase(),stroke_width:value.stroke_width,opacity:value.opacity,vesicle_color:vesicle_color.toLowerCase()};
   }
   function getStyle(){return clone(style);}
+  function getVesicleColor(){return style.vesicle_color;}
+  function setVesicleColor(color,options){return applyStyle({...style,vesicle_color:color},options);}
+  function refreshColor(){
+    $('drawingColor').value=mode()==='vesicle'?style.vesicle_color:style.color;
+    const label=mode()==='vesicle'?'Цвет везикул':'Цвет';$('drawingColor').setAttribute('aria-label',label);$('drawingColor').title=label;
+  }
   function applyStyle(value,{persist=true}={}){
     style=normalizeStyle(value);
-    $('drawingColor').value=style.color;
+    refreshColor();
     // Imported valid integer sizes remain usable even if not one of the presets.
     if(!Array.from($('drawingWidth').options).some(option=>Number(option.value)===style.stroke_width)){
       const option=document.createElement('option');option.value=String(style.stroke_width);option.textContent=String(style.stroke_width);$('drawingWidth').append(option);
@@ -30,7 +37,7 @@
     if(persist)try{localStorage.setItem(styleKey,JSON.stringify(style));}catch{}
     // Imports and storage events must update even a focused control in an inactive tab.
     refreshOpacity(true);
-    const record=selected();if(record?.geometry){$('drawingEditOpacity').value=String(Math.round(G.opacityFor(record.geometry)*100));$('drawingEditOpacityReadout').textContent=$('drawingEditOpacity').value+'%';}
+    const record=selected();if(record?.geometry){if(record.kind==='vesicle')$('drawingEditColor').value=style.vesicle_color;$('drawingEditOpacity').value=String(Math.round(G.opacityFor(record.geometry)*100));$('drawingEditOpacityReadout').textContent=$('drawingEditOpacity').value+'%';}
     window.dispatchEvent(new CustomEvent('drawings:style',{detail:getStyle()}));
     redraw();return getStyle();
   }
@@ -117,11 +124,11 @@
     viewport.classList.toggle('drawing-active',G.kinds.has(mode())||mode()==='select');
     refreshOpacity();
   }
-  function toolChanged(){if(mode()!==lastMode){intent++;endTrace();gesture=null;preview=null;lastMode=mode();}refresh();}
+  function toolChanged(){if(mode()!==lastMode){intent++;endTrace();gesture=null;preview=null;lastMode=mode();}refreshColor();refresh();}
   function setTool(value){intent++;$('annotationMode').value=value;$('annotationMode').dispatchEvent(new Event('change'));viewport.focus({preventScroll:true});redraw();}
   for(const button of document.querySelectorAll('[data-drawing-tool]')){const shortcut=Object.entries(shortcuts).find(([,tool])=>tool===button.dataset.drawingTool)?.[0];button.title=button.textContent+(shortcut?' · '+shortcut.toUpperCase():'');button.addEventListener('click',()=>setTool(button.dataset.drawingTool));}
   function pointAt(event,rect=rectangle(),plan=G.plan(v().volume,v().z)){return G.pixelToNm(plan,(event.clientX-rect.x)/rect.w*plan.width,(event.clientY-rect.y)/rect.h*plan.height);}
-  function geometry(points,kind){return {points_nm:clone(points),plane:'xy',slice_index:v().volume.begin_vox_xyz[2]+v().z,closed:['ellipse','roi'].includes(kind),color:style.color,stroke_width:style.stroke_width,opacity:style.opacity,opacity_override:false};}
+  function geometry(points,kind){return {points_nm:clone(points),plane:'xy',slice_index:v().volume.begin_vox_xyz[2]+v().z,closed:['ellipse','roi'].includes(kind),color:kind==='vesicle'?style.vesicle_color:style.color,stroke_width:style.stroke_width,opacity:style.opacity,opacity_override:false};}
   function newRecord(kind,points){return {kind,case_id:v().currentCase.case_id,volume_id:v().volume.volume_id,point_nm:[...points[0]],geometry:geometry(points,kind)};}
   function currentGesture(){return gesture&&gesture.scope===scope()&&v()?.ready;}
   function consume(event){event.preventDefault();event.stopImmediatePropagation();}
@@ -145,7 +152,7 @@
     if(hit){const record=api().records.find(r=>r.id===hit.mark.id);api().select(record.id,false,true,'drawing');gesture={...common,type:mode()==='select'?'edit':'pick',record:clone(record),index:hit.index,left:viewport.scrollLeft,top:viewport.scrollTop};startCapture(event);return;}
     if(!G.kinds.has(mode()))return;
     gesture={...common,type:mode()==='trace'?'trace':'draw',kind:mode(),record:newRecord(mode(),[point,point])};
-    if(mode()==='freehand')gesture.record.geometry.points_nm=[point];preview=gesture.type==='draw'?gesture.record:null;
+    if(['freehand','vesicle'].includes(mode()))gesture.record.geometry.points_nm=[point];preview=gesture.type==='draw'?gesture.record:null;
     startCapture(event);redraw();
   },true);
   function boundedMove(record,start,end,index,plan){
@@ -160,7 +167,8 @@
     if(!g.moved)return;const end=pointAt(event,g.rect,g.plan);
     if(g.type==='edit'){preview=clone(g.record);preview.geometry.points_nm=boundedMove(g.record,g.point,end,g.index,g.plan);preview.point_nm=[...preview.geometry.points_nm[0]];}
     if(g.type==='draw'){
-      if(g.kind==='freehand'){const p=g.record.geometry.points_nm;if(p.length<4096&&p.at(-1).some((n,i)=>n!==end[i]))p.push(end);}
+      if(g.kind==='vesicle')g.record.geometry.points_nm=[end];
+      else if(g.kind==='freehand'){const p=g.record.geometry.points_nm;if(p.length<4096&&p.at(-1).some((n,i)=>n!==end[i]))p.push(end);}
       else {if(event.shiftKey&&['ellipse','roi'].includes(g.kind)){const side=Math.min(Math.abs(end[0]-g.point[0]),Math.abs(end[1]-g.point[1]));end[0]=g.point[0]+Math.sign(end[0]-g.point[0])*side;end[1]=g.point[1]+Math.sign(end[1]-g.point[1])*side;}g.record.geometry.points_nm=[g.point,end];}preview=g.record;
     }redraw();
   },true);
@@ -181,7 +189,7 @@
     if(!validScope){redraw();return;}
     if(['pick','edit'].includes(g.type)&&!g.moved)api().select(g.record.id,false,true,'2d');
     if(g.type==='trace'&&!g.moved)tracePoint(g.point,event);
-    if(g.type==='draw'&&(g.moved||g.kind==='freehand')&&valid(g.record,g.plan)){const record=clone(g.record);queue(async()=>{await api().createDrawing(record);message('Рисунок сохранён. Заметка: E или панель «Мои отметки».');redraw();});}
+    if(g.type==='draw'&&(g.moved||['freehand','vesicle'].includes(g.kind))&&valid(g.record,g.plan)){const record=clone(g.record);queue(async()=>{await api().createDrawing(record);message('Рисунок сохранён. Заметка: E или панель «Мои отметки».');redraw();});}
     if(g.type==='edit'&&g.moved&&savedPreview&&valid(savedPreview,g.plan)){const record=clone(savedPreview);queue(async()=>{await api().changeDrawing(record.id,{geometry:record.geometry},{expected:g.record.updated_at});message('Геометрия сохранена.');redraw();});}
     redraw();
   },true);
@@ -197,13 +205,14 @@
     $('drawingEditOpacityControl').hidden=!record?.geometry;
     if(record?.geometry&&document.activeElement!==$('drawingEditOpacity')){$('drawingEditOpacity').value=String(Math.round(G.opacityFor(record.geometry)*100));$('drawingEditOpacityReadout').textContent=$('drawingEditOpacity').value+'%';}
     $('drawingProperties').hidden=!record?.geometry;if(!record?.geometry)return;
-    if(document.activeElement!==$('drawingEditColor'))$('drawingEditColor').value=record.geometry.color;
+    if(document.activeElement!==$('drawingEditColor'))$('drawingEditColor').value=G.colorFor(record);
+    const colorLabel=record.kind==='vesicle'?'Цвет всех везикул':'Цвет рисунка';$('drawingEditColor').setAttribute('aria-label',colorLabel);$('drawingEditColor').title=colorLabel;
     if(document.activeElement!==$('drawingEditWidth'))$('drawingEditWidth').value=record.geometry.stroke_width;
     $('drawingContinue').hidden=$('drawingToggleClosed').hidden=record.kind!=='trace';
     $('drawingToggleClosed').textContent=record.geometry.closed?'Разомкнуть трассу':'Замкнуть трассу';$('drawingToggleClosed').disabled=!record.geometry.closed&&!canClose(record.geometry.points_nm);
   }
-  for(const [id,key] of [['drawingEditColor','color'],['drawingEditWidth','stroke_width']])$(id).addEventListener('change',()=>{const record=clone(selected());if(!record?.geometry)return;const value=key==='stroke_width'?Math.max(1,Math.min(12,Math.round(Number($(id).value)||2))):$(id).value;queue(async()=>{await api().changeDrawing(record.id,{geometry:{...record.geometry,[key]:value}},{expected:record.updated_at});redraw();});});
-  $('drawingColor').addEventListener('input',()=>saveToolStyle({color:$('drawingColor').value}));
+  for(const [id,key] of [['drawingEditColor','color'],['drawingEditWidth','stroke_width']])$(id).addEventListener('change',()=>{const record=clone(selected());if(!record?.geometry)return;const value=key==='stroke_width'?Math.max(1,Math.min(12,Math.round(Number($(id).value)||2))):$(id).value;if(key==='color'&&record.kind==='vesicle'){setVesicleColor(value);return;}queue(async()=>{await api().changeDrawing(record.id,{geometry:{...record.geometry,[key]:value}},{expected:record.updated_at});redraw();});});
+  $('drawingColor').addEventListener('input',()=>saveToolStyle({[mode()==='vesicle'?'vesicle_color':'color']:$('drawingColor').value}));
   $('drawingWidth').addEventListener('change',()=>saveToolStyle({stroke_width:Number($('drawingWidth').value)}));
   $('drawingOpacity').addEventListener('input',()=>{
     $('drawingOpacityReadout').textContent=$('drawingOpacity').value+'%';
@@ -239,7 +248,7 @@
     const record=preview||draft;if(!record||record.scope&&record.scope!==scope()||record.volume_id!==v()?.volume?.volume_id)return;
     G.drawRecord(ctx,record,v().volume,v().z,{zoom:v().zoom,selected:true,handles:true,showNumbers:!!$('drawingNumbers')?.checked});
   }
-  window.HandoffDrawings={getStyle,applyStyle,whenSettled,refresh,toolChanged,toolHint:tool=>hints[tool],renderProperties,renderOverlay,isPreviewed:id=>preview?.id===id||draft?.id===id,endTrace,restoreHistory,recordMutation,historyState:history,resetHistory};
+  window.HandoffDrawings={getStyle,applyStyle,getVesicleColor,setVesicleColor,whenSettled,refresh,toolChanged,toolHint:tool=>hints[tool],renderProperties,renderOverlay,isPreviewed:id=>preview?.id===id||draft?.id===id,endTrace,restoreHistory,recordMutation,historyState:history,resetHistory};
   window.addEventListener('annotations:ready',()=>{refresh();redraw();});window.addEventListener('annotations:changed',refresh);window.addEventListener('review:volume',refresh);window.addEventListener('review:position',refresh);
   try{const saved=JSON.parse(localStorage.getItem(styleKey)||'null');if(saved)applyStyle(saved,{persist:false});}catch{}
   refresh();

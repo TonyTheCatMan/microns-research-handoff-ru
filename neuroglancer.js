@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/?v=20261022-arrows1',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=20261023-roles1',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
   const activeCase=id=>window.HandoffCaseSelection?.includes(id)===true;
@@ -53,11 +53,11 @@
     // The donor's polyline/ellipse/arrow geometry is shared with the main canvas.
     // An anchor keeps a drawing's number, selection and Delete tied to its
     // saved record. Only brush dabs display that anchor as a filled point.
-    const drawingNames={trace:'Трассировка',freehand:'Свободная линия',arrow:'Стрелка',ellipse:'Эллипс',roi:'Прямоугольник',distance:'Расстояние'},drawingLayers=new Map();
+    const drawingNames={trace:'Трассировка',freehand:'Свободная линия',vesicle:'Везикулы',arrow:'Стрелка',ellipse:'Эллипс',roi:'Прямоугольник',distance:'Расстояние'},drawingLayers=new Map();
     for(const record of records.filter(r=>r.geometry)){
       const paths=window.HandoffDrawingGeometry?.pathsNm(record)||[];if(!paths.length)continue;
-      const dab=record.kind==='freehand'&&record.geometry.points_nm.length===1;
-      const color=record.geometry.color||'#ffd166',width=record.geometry.stroke_width||2,key=color+' · '+width+(dab?' · Точки кисти':'');
+      const dab=['freehand','vesicle'].includes(record.kind)&&record.geometry.points_nm.length===1;
+      const color=window.HandoffDrawingGeometry?.colorFor?.(record)||record.geometry.color||'#ffd166',width=record.geometry.stroke_width||2,key=color+' · '+width+(dab?' · Точки кисти':'');
       let layer=drawingLayers.get(key);
       if(!layer){layer={type:'annotation',name:'Мои метки · Рисунки · '+key,visible:enabled('annotationsVisible'),source:{url:'local://annotations',transform:{outputDimensions:dimensions}},annotationColor:color,
         annotationProperties:[{id:'number',type:'uint32',description:'Номер метки',default:0},...['x','y','z'].map(axis=>({id:'anchor_'+axis,type:'float32',description:'Координата '+axis,default:0})),{id:'drawing_opacity',type:'float32',description:'Непрозрачность рисунка',default:1},{id:'show_number',type:'uint32',description:'Показать номер рисунка',default:0}],
@@ -138,10 +138,10 @@
     const data=window.SliceSegmentation?.current,selection=window.SliceSegmentation?.selection;
     if(!data?.ready||data.volume_id!==ReviewViewer.volume?.volume_id||data.local_z!==ReviewViewer.z)return[];
     const make=(name,ids,alpha,visible,customColors={})=>({type:'segmentation',name,source:SEG,segments:ids,segmentColors:Object.fromEntries(ids.map(id=>[id,customColors[id]||color(id)])),selectedAlpha:alpha/100,notSelectedAlpha:0,objectAlpha:0,visible});
-    const surface=ReviewViewer.surface,nearby=surface.meshes.filter(m=>m.context&&m.visible&&surface.contextShown.has(m.id)).map(m=>m.segment_id);
+    const surface=ReviewViewer.surface,nearby=surface.meshes.filter(m=>m.context&&(m.selectionVisible??m.visible)&&surface.contextShown.has(m.id)).map(m=>m.segment_id);
     return[
       make('Сегментация 2D · v1300',selection?.segment_ids||[],settings.segmentationOpacity,settings.segmentation2D,selection?.colors),
-      make('Сегментация среза 3D · v1300',data.objects.map(o=>o.segment_id),settings.surfaceSegmentationOpacity,settings.surfaceSegmentation),
+      make('Сегментация среза 3D · v1300',data.objects.filter(o=>surface.meshes.find(m=>m.segment_id===o.segment_id)?.selectionVisible!==false).map(o=>o.segment_id),settings.surfaceSegmentationOpacity,settings.surfaceSegmentation),
       make('Соседние на срезе 3D · v1300',nearby,settings.surfaceContextOpacity,settings.surfaceContext&&settings.surfaceContextMode==='slice')
     ];
   }
@@ -166,7 +166,7 @@
     state.crossSectionScale=1/v.zoom;
     if(navigationFocus?.point_nm)state.position=navigationFocus.point_nm.map((n,i)=>n/volume.resolution_nm[i]);
     const slicePlane=surface.getSlicePlane();state.micronsSlicePlane=slicePlane;
-    return{caseId:c.case_id,volumeId:volume.volume_id,state,slicePlane,main:{navigation,controls:settings,selectedId:selection,deleteSelectionId:selection||null,objects:surface.meshes.map(m=>({id:m.id,segment_id:m.segment_id,visible:m.visible})),contextFocus:surface.contextFocus,contextFocusLabel:surface.contextFocusLabel,target:v.target,boundaryOverlay:boundaryOverlay(settings)},navigate:navigationPending,navigationSource,navigationRevision,focus:navigationFocus,reason:reasonPending};
+    return{caseId:c.case_id,volumeId:volume.volume_id,state,slicePlane,main:{navigation,controls:settings,selectedId:selection,deleteSelectionId:selection||null,objects:surface.meshes.map(m=>({id:m.id,segment_id:m.segment_id,visible:m.selectionVisible??m.visible})),contextFocus:surface.contextFocus,contextFocusLabel:surface.contextFocusLabel,target:v.target,boundaryOverlay:boundaryOverlay(settings)},navigate:navigationPending,navigationSource,navigationRevision,focus:navigationFocus,reason:reasonPending};
   }
   function showLink(payload){
     currentState=payload.state;currentUrl=urlFor(currentState);external.href=currentUrl;external.removeAttribute('aria-disabled');reset.disabled=false;
@@ -219,7 +219,9 @@
   }
   function applyObjects(rows){
     if(!Array.isArray(rows))return;const surface=ReviewViewer.surface;
-    for(const mesh of surface.meshes){const value=rows.find(r=>r.id===mesh.id||r.segment_id&&r.segment_id===mesh.segment_id);if(!value||typeof value.visible!=='boolean')continue;mesh.visible=value.visible;const input=mesh.control?.querySelector('input');if(input)input.checked=mesh.visible;}
+    const selection=window.StructureSelection?.getPreferences(surface.caseId);let selectionChanged=false;
+    for(const mesh of surface.meshes){const value=rows.find(r=>r.id===mesh.id||r.segment_id&&r.segment_id===mesh.segment_id);if(!value||typeof value.visible!=='boolean')continue;mesh.visible=value.visible;const item=selection?.structures.find(o=>o.segment_id===mesh.segment_id);if(item&&item.visible!==value.visible){item.visible=value.visible;mesh.selectionVisible=value.visible;selectionChanged=true;}const input=mesh.control?.querySelector('input');if(input)input.checked=mesh.visible;}
+    if(selectionChanged)window.StructureSelection.applyPreferences(selection,{emit:true});
     surface.updateNearby();surface.schedule();surface.visibilityChanged();
   }
   async function applyHost(payload){
@@ -293,7 +295,7 @@
         // A nearby layer contains only the current neighborhood. Its absent meshes
         // have not been hidden by the researcher and must remain available after deselection.
         const represented=context?new Set([...(currentState?.layers?.find(l=>l.name===name)?.segments||[]).map(String),...ids]):null;
-        applyObjects(ReviewViewer.surface.meshes.filter(m=>!!m.context===context&&(!represented||represented.has(m.segment_id))).map(m=>({id:m.id,visible:layer.visible!==false&&ids.has(m.segment_id)})));
+        applyObjects(ReviewViewer.surface.meshes.filter(m=>(!!m.context&&m.selectionVisible!==true)===context&&(!represented||represented.has(m.segment_id))).map(m=>({id:m.id,visible:layer.visible!==false&&ids.has(m.segment_id)})));
       }
     }
     const nextState={...(currentState||snapshot()?.state||{}),...state};

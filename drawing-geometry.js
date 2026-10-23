@@ -3,7 +3,7 @@
 (() => {
   'use strict';
   const PLANES={xy:[0,1,2]};
-  const kinds=new Set(['trace','freehand','arrow','roi','ellipse','distance']);
+  const kinds=new Set(['trace','freehand','vesicle','arrow','roi','ellipse','distance']);
   function plan(volume,z){return {plane:'xy',axes:PLANES.xy,begin:volume.begin_vox_xyz,width:volume.shape_xyz[0],height:volume.shape_xyz[1],resolutionNm:volume.resolution_nm,depthNm:(volume.begin_vox_xyz[2]+z+.5)*volume.resolution_nm[2]};}
   function projectPoint(plan,point){return {x:point[0]/plan.resolutionNm[0]-plan.begin[0]-.5,y:point[1]/plan.resolutionNm[1]-plan.begin[1]-.5,onPlane:Math.abs(point[2]-plan.depthNm)<1e-5};}
   function pixelToNm(plan,x,y){return [(plan.begin[0]+Math.max(0,Math.min(plan.width-1,Math.floor(x)))+.5)*plan.resolutionNm[0],(plan.begin[1]+Math.max(0,Math.min(plan.height-1,Math.floor(y)))+.5)*plan.resolutionNm[1],plan.depthNm];}
@@ -11,7 +11,8 @@
     const value=geometry?.opacity_override===false?(window.HandoffDrawings?.getStyle().opacity??geometry.opacity):geometry?.opacity;
     return Number.isFinite(value)&&value>=0&&value<=1?value:1;
   }
-  function toMark(record){return {...record,pointsNm:record.geometry?.points_nm||[record.point_nm],plane:record.geometry?.plane||'xy',closed:record.geometry?.closed||false,color:record.geometry?.color||'#ffd166',strokeWidth:record.geometry?.stroke_width||2,opacity:opacityFor(record.geometry)};}
+  function colorFor(record){return (record?.kind==='vesicle'?window.HandoffDrawings?.getVesicleColor?.():null)||record?.geometry?.color||'#ffd166';}
+  function toMark(record){return {...record,pointsNm:record.geometry?.points_nm||[record.point_nm],plane:record.geometry?.plane||'xy',closed:record.geometry?.closed||false,color:colorFor(record),strokeWidth:record.geometry?.stroke_width||2,opacity:opacityFor(record.geometry)};}
 
 // Adapted from donor mark-drawing.js
 const escapeSvg = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]));
@@ -44,9 +45,9 @@ function markGeometry(mark, projectedPoints, {x=0, y=0, sx=1, sy=1, offset=.5, p
   const polyline = vertices => ({tag:'polyline', attrs:{points:vertices.map(point => point.join(',')).join(' ')}, points:vertices});
   if (points.length === 1 && finiteOnPlane(points[0])) {
     const [cx,cy] = position(points[0]);
-    // A one-vertex freehand mark is a brush dab, with the same diameter as
-    // the selected line width. Other single vertices remain draft handles.
-    return [{tag:'circle',attrs:{cx,cy,r:kind==='freehand'?markStyle(mark).strokeWidth/2:pointRadius,...(kind==='freehand'?{fill:markStyle(mark).color,stroke:'none'}:{})}}];
+    // Vesicles and one-vertex freehand marks share the tested filled brush dab.
+    const dot=['freehand','vesicle'].includes(kind);
+    return [{tag:'circle',attrs:{cx,cy,r:dot?markStyle(mark).strokeWidth/2:pointRadius,...(dot?{fill:markStyle(mark).color,stroke:'none'}:{})}}];
   }
   if (['roi','ellipse','arrow'].includes(kind)) {
     if (points.length < 2 || !finiteOnPlane(points[0]) || !finiteOnPlane(points.at(-1))) return [];
@@ -85,7 +86,7 @@ function drawMark(ctx, mark, projectedPoints, options={}) {
     else if(tag==='line'){ctx.moveTo(a.x1,a.y1);ctx.lineTo(a.x2,a.y2);}
     else if(tag==='polyline'){ctx.moveTo(...points[0]);for(const point of points.slice(1))ctx.lineTo(...point);}
   }
-  if(mark.kind==='freehand'&&projectedPoints.length===1){ctx.fillStyle=style.color;ctx.fill();}else ctx.stroke();ctx.restore();return geometry;
+  if(['freehand','vesicle'].includes(mark.kind)&&projectedPoints.length===1){ctx.fillStyle=style.color;ctx.fill();}else ctx.stroke();ctx.restore();return geometry;
 }
 /** Sample only the requested ellipse overlay for 3D annotation transports. */
 function ellipsePointsNm(mark, steps=64) {
@@ -139,7 +140,8 @@ function moveAnnotation(mark,plan,startNm,endNm,index=null){
   return points.map(p=>p.map((n,i)=>n+delta[i]));
 }
 function validDraw(kind,points,plan){
-  if(kind==='freehand'&&points.length===1)return points[0].length===3&&points[0].every(Number.isFinite)&&projectPoint(plan,points[0]).onPlane;
+  if(kind==='vesicle'&&points.length!==1)return false;
+  if(['freehand','vesicle'].includes(kind)&&points.length===1)return points[0].length===3&&points[0].every(Number.isFinite)&&projectPoint(plan,points[0]).onPlane;
   if(points.length<2)return false;const [u,v]=plan.axes,a=points[0],b=points.at(-1);
   if(kind==='roi'||kind==='ellipse')return a[u]!==b[u]&&a[v]!==b[v];
   return points.some(p=>p[u]!==a[u]||p[v]!==a[v]);
@@ -175,5 +177,5 @@ function validDraw(kind,points,plan){
     if(selected&&handles){for(const index of handleIndices(mark)){const point=projected[index],hx=x+(point.x+.5)*zoom,hy=y+(point.y+.5)*zoom;ctx.fillStyle='#fff';ctx.strokeStyle='#126395';ctx.lineWidth=1.5*unit;ctx.beginPath();ctx.rect(hx-4*unit,hy-4*unit,8*unit,8*unit);ctx.fill();ctx.stroke();}}
     ctx.restore();
   }
-  window.HandoffDrawingGeometry={kinds,plan,projectPoint,pixelToNm,toMark,opacityFor,pathsNm,drawRecord,drawMark,markGeometry,markSvg,hitAnnotation,moveAnnotation,validDraw,handleIndices,markScreenPoints,editableOnPlane};
+  window.HandoffDrawingGeometry={kinds,plan,projectPoint,pixelToNm,toMark,opacityFor,colorFor,pathsNm,drawRecord,drawMark,markGeometry,markSvg,hitAnnotation,moveAnnotation,validDraw,handleIndices,markScreenPoints,editableOnPlane};
 })();

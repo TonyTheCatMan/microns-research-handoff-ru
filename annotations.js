@@ -5,7 +5,7 @@
   const params = new URLSearchParams(location.search), notesWindow = params.get('panel') === 'annotations';
   if (notesWindow) { document.body.classList.add('notes-window'); document.querySelector('#page-viewer h1').textContent = 'Отметки и свойства'; }
   const PREFS = 'microns-annotation-preferences-v1', JOURNAL = 'microns-annotation-pending-v1:';
-  const labels = {contact:'Контакт', point:'Особенность', object:'Объект', trace:'Трасса',freehand:'От руки',arrow:'Стрелка',ellipse:'Эллипс',roi:'Рамка',distance:'Расстояние', uncertain:'Неопределённо', supported:'Признаки синапса поддержаны', rejected:'Признаки против синапса', note:'Не оценено'};
+  const labels = {contact:'Контакт', point:'Особенность', object:'Объект', trace:'Трасса',freehand:'От руки',vesicle:'Везикулы',arrow:'Стрелка',ellipse:'Эллипс',roi:'Рамка',distance:'Расстояние', uncertain:'Неопределённо', supported:'Признаки синапса поддержаны', rejected:'Признаки против синапса', note:'Не оценено'};
   const categories={unclassified:'Не классифицировано',suspected_synapse:'Предполагаемый синапс',possible_adhesion:'Возможная адгезия',unresolved_other:'Другое / не разрешено'};
   const exportButtonIds=['annotationsExportAll','annotationsExportCase'];
   let store, metadata, records = [], caseNotes = [], selectedId = params.get('annotation'), currentCase = '', pending = 0;
@@ -171,7 +171,7 @@
     const nodes=items.map(record=>{
       const button=document.createElement('button');button.className='annotation-row';button.setAttribute('aria-pressed',String(record.id===selectedId));
       const title=document.createElement('strong'),chip=document.createElement('i');chip.className='marker-chip '+record.kind;title.append(chip,document.createTextNode(` ${record.number} · ${labels[record.kind]}`));
-      const classification=document.createElement('small');classification.textContent=record.geometry?`${record.volume_id} · XY · Z ${record.geometry.slice_index-viewer().metadata.cases.find(c=>c.case_id===record.case_id).volumes.find(v=>v.volume_id===record.volume_id).begin_vox_xyz[2]}`:categories[record.observation_category||'unclassified']+' · '+labels[record.status];if(record.geometry)chip.style.background=record.geometry.color;
+      const classification=document.createElement('small');classification.textContent=record.geometry?`${record.volume_id} · XY · Z ${record.geometry.slice_index-viewer().metadata.cases.find(c=>c.case_id===record.case_id).volumes.find(v=>v.volume_id===record.volume_id).begin_vox_xyz[2]}`:categories[record.observation_category||'unclassified']+' · '+labels[record.status];if(record.geometry)chip.style.background=HandoffDrawingGeometry.colorFor(record);
       const hint=document.createElement('small');hint.textContent=record.notes||record.properties||'Без заметки';if(record.notes||record.properties)hint.setAttribute('translate','no');
       button.append(title,classification,hint);button.addEventListener('click',()=>select(record.id,false,true,'list'));return button;
     });
@@ -465,6 +465,7 @@
       if(isCase&&!frozenCase)throw new Error('Сначала выберите случай.');
       const settings={preferences:readPreferences(),annotation_mode:mode()};
       if(window.HandoffDrawings?.getStyle)settings.drawing_style=window.HandoffDrawings.getStyle();
+      if(window.HandoffRoles?.getPalette)settings.role_palette=window.HandoffRoles.getPalette();
       if(v?.ready){settings.last_view={case_id:frozenCase,volume_id:v.volume.volume_id,z:v.z};settings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)try{settings.surface_view=v.surface.getViewState();}catch{}}
       $('restoreResult').classList.remove('save-failed');$('restoreResult').textContent='Сохраняем точки и заметки…';
       try{await store.putSettings(settings);}catch{}
@@ -486,6 +487,7 @@
     const target=$('restoreResult');input.disabled=true;target.classList.remove('save-failed');target.textContent='Загружаем все метки и заметки…';
     const previousSettings={preferences:readPreferences(),annotation_mode:mode()};
     if(window.HandoffDrawings?.getStyle)previousSettings.drawing_style=window.HandoffDrawings.getStyle();
+    if(window.HandoffRoles?.getPalette)previousSettings.role_palette=window.HandoffRoles.getPalette();
     if(viewer()?.ready){const v=viewer();previousSettings.last_view={case_id:currentCase,volume_id:v.volume.volume_id,z:v.z};previousSettings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)try{previousSettings.surface_view=v.surface.getViewState();}catch{}}
     try{
       await window.HandoffDrawings?.whenSettled();await settleForAction();await settleNotes();
@@ -519,6 +521,7 @@
     if(settings.last_view&&allowedView){localStorage.setItem('microns-last-view-v1',JSON.stringify(settings.last_view));await viewer().select(settings.last_view.case_id,settings.last_view.volume_id,settings.last_view.z);}
     if(settings.annotation_mode){$('annotationMode').value=settings.annotation_mode;setMode();}
     if(settings.drawing_style)window.HandoffDrawings?.applyStyle(settings.drawing_style);
+    if(settings.role_palette)window.HandoffRoles?.applyPalette(settings.role_palette,{persist:true});
     if(settings.display&&allowedView&&!notesWindow){const zoom=String(settings.display.zoom);if(![...$('zoomSelect').options].some(o=>o.value===zoom))$('zoomSelect').add(new Option('Сохранённый масштаб · '+Math.round(settings.display.zoom*100)+'%',zoom));$('zoomSelect').value=zoom;$('zoomSelect').dispatchEvent(new Event('change'));$('blackInput').value=settings.display.black;$('whiteInput').value=settings.display.white;$('blackInput').dispatchEvent(new Event('change'));}
     if(settings.surface_view&&allowedView&&activeCase(settings.surface_view.case_id)&&!notesWindow&&viewer()?.ready&&settings.surface_view.case_id===viewer().currentCase.case_id&&settings.surface_view.volume_id===viewer().volume.volume_id&&settings.surface_view.local_z===viewer().z)await viewer().surface.restoreEvidence(settings.surface_view);
     const selectedCase=viewer()?.currentCase?.case_id||currentCase,selection=caseNotes.find(row=>row.case_id===selectedCase)?.segmentation_selection;

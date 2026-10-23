@@ -3,14 +3,15 @@
   'use strict';
   const $=id=>document.getElementById(id),source='seg_m1300',cases=new Map(),palette=['#e85d75','#4da3ff','#73c66a','#b28cf5','#f4a340','#35bcb5'];
   const clone=value=>structuredClone(value),currentCase=()=>window.ReviewViewer?.currentCase?.case_id||null;
-  let picking=false,pointer=null,previousCase=null,applying=false;
+  let picking=false,pointer=null,previousCase=null,applying=false,renderSignature='';
   const defaults=case_id=>({schema_version:1,source_version:source,case_id,structures:[],scope:'selected',fill:false,borders:false,opacity:.25});
   function normalizePreferences(value){
     const s=value;
     if(!s||s.schema_version!==1||s.source_version!==source||!/^R\d{3}$/.test(s.case_id)||!Array.isArray(s.structures)||s.structures.length>256||!['selected','nearby','all'].includes(s.scope)||typeof s.fill!=='boolean'||typeof s.borders!=='boolean'||!Number.isFinite(s.opacity)||s.opacity<0||s.opacity>.7)throw new Error('Неверные настройки выбранных структур seg_m1300.');
     const seen=new Set(),structures=s.structures.map(o=>{
       if(!o||typeof o.segment_id!=='string'||!/^[1-9]\d{0,19}$/.test(o.segment_id)||BigInt(o.segment_id)>18446744073709551615n||seen.has(o.segment_id)||typeof o.visible!=='boolean'||typeof o.color!=='string'||!/^#[\da-f]{6}$/i.test(o.color))throw new Error('Неверные настройки выбранных структур seg_m1300.');
-      seen.add(o.segment_id);return{segment_id:o.segment_id,color:o.color.toLowerCase(),visible:o.visible};
+      if(o.color_mode!==undefined&&!['role','individual'].includes(o.color_mode))throw new Error('Неверные настройки выбранных структур seg_m1300.');
+      seen.add(o.segment_id);return{segment_id:o.segment_id,color:o.color.toLowerCase(),visible:o.visible,color_mode:o.color_mode??'individual'};
     });
     return{schema_version:1,source_version:source,case_id:s.case_id,structures,scope:s.scope,fill:s.fill,borders:s.borders,opacity:s.opacity};
   }
@@ -25,7 +26,7 @@
     if(!caseId)return null;
     const s=cases.get(caseId)||defaults(caseId);
     if(caseId===previousCase&&caseId===currentCase())readControls(s);
-    return clone(s);
+    const result=clone(s);for(const object of result.structures)object.color=window.HandoffRoles?.colorFor(caseId,null,object.segment_id,object.color,object)||object.color;return result;
   }
   function setControls(s){
     if($('segmentationScope'))$('segmentationScope').value=s.scope;
@@ -66,7 +67,8 @@
     const existing=s.structures.find(o=>o.segment_id===id);
     if(existing){existing.visible=true;message('Структура уже выбрана.');}
     else{
-      const used=new Set(s.structures.map(o=>o.color));s.structures.push({segment_id:id,color:palette.find(color=>!used.has(color))||palette[s.structures.length%palette.length],visible:true});message('Структура выбрана.');
+      const used=new Set(s.structures.map(o=>o.color)),role=window.HandoffRoles?.identifyInCase(s.case_id,id),common=window.HandoffRoles?.getPalette().enabled&&role?.palette_role;
+      s.structures.push({segment_id:id,color:common?window.HandoffRoles.colorFor(s.case_id,null,id):palette.find(color=>!used.has(color))||palette[s.structures.length%palette.length],visible:true,color_mode:common?'role':'individual'});message('Структура выбрана.');
     }
     s.scope='selected';s.fill=true;commit(s);return true;
   }
@@ -74,6 +76,9 @@
   function render(){
     const host=$('structureSelectionControls');if(!host)return;
     const s=getPreferences(),ready=!!window.SliceSegmentation?.current.ready&&!!window.HandoffAnnotations?.store;
+    const signature=JSON.stringify([s?.case_id,s?.scope,ready,window.HandoffI18n?.language,window.SliceSegmentation?.seedObjects,s?.structures.map(o=>[o.segment_id,o.visible,window.SliceSegmentation?.availability(o.segment_id),window.HandoffRoles?.label(window.HandoffRoles?.identifyInCase(s.case_id,o.segment_id))])]);
+    if(signature===renderSignature&&$('structureSelectionList')){for(const row of $('structureSelectionList').children){const object=s.structures.find(o=>o.segment_id===row.dataset.segmentId);if(object&&row.querySelector('input[type=color]').value!==object.color)row.querySelector('input[type=color]').value=object.color;}return;}
+    renderSignature=signature;
     if(!$('structurePick')){
       const actions=element('div','structure-selection-actions'),pick=element('button','','Выбрать любую структуру');pick.type='button';pick.id='structurePick';pick.setAttribute('aria-pressed','false');pick.addEventListener('click',()=>setPicking(!picking));actions.append(pick);
       const seeds=element('div','structure-seed-controls');seeds.id='structureSeeds';actions.append(seeds);
@@ -85,14 +90,17 @@
     const seeds=$('structureSeeds');seeds.replaceChildren();
     const originals=window.SliceSegmentation?.seedObjects||[];
     if(originals.length){for(const object of originals){
-      const button=element('button','structure-seed',object.id);button.type='button';button.dataset.segmentId=object.segment_id;button.title=`${source}: ${object.segment_id}`;button.disabled=!ready;button.addEventListener('click',()=>addSegment(object.segment_id));seeds.append(button);
+      const info=window.HandoffRoles?.identifyInCase(s?.case_id,object.segment_id),button=element('button','structure-seed',object.id);button.type='button';button.dataset.segmentId=object.segment_id;button.title=[window.HandoffRoles?.label(info),window.HandoffRoles?.details(info),`${source}: ${object.segment_id}`].filter(Boolean).join('\n');button.disabled=!ready;button.addEventListener('click',()=>addSegment(object.segment_id));seeds.append(button);
     }}
     const rows=$('structureSelectionList');rows.replaceChildren();
     for(const object of s?.structures||[]){
       const row=element('div','structure-selection-row');row.dataset.segmentId=object.segment_id;
       const visibility=element('label','structure-visibility'),checkbox=element('input');checkbox.type='checkbox';checkbox.checked=object.visible;checkbox.setAttribute('aria-label','Показать структуру');checkbox.addEventListener('change',()=>{const next=getPreferences();next.structures.find(o=>o.segment_id===object.segment_id).visible=checkbox.checked;commit(next,{rerender:false});});visibility.append(checkbox);
-      const color=element('input','structure-color');color.type='color';color.value=object.color;color.setAttribute('aria-label','Цвет структуры');color.addEventListener('input',()=>{const next=getPreferences();next.structures.find(o=>o.segment_id===object.segment_id).color=color.value;commit(next,{rerender:false});});
-      const identity=element('div','structure-identity'),seed=originals.find(o=>o.segment_id===object.segment_id);identity.append(element('code','',`${seed?seed.id+' · ':''}${object.segment_id}`));
+      const color=element('input','structure-color');color.type='color';color.value=object.color;color.setAttribute('aria-label','Цвет структуры');color.addEventListener('input',()=>{const next=getPreferences(),selected=next.structures.find(o=>o.segment_id===object.segment_id);selected.color=color.value;selected.color_mode='individual';commit(next,{rerender:false});});
+      const identity=element('div','structure-identity'),seed=originals.find(o=>o.segment_id===object.segment_id),info=window.HandoffRoles?.identifyInCase(s.case_id,object.segment_id);
+      identity.append(element('span','structure-name',window.HandoffRoles?.label(info)||'Неизвестная структура'));
+      if(info&&!info.identity_verified)identity.append(element('span','structure-unresolved','Объект не подтверждён'));
+      const technical=element('details','structure-provenance');technical.append(element('summary','',seed?seed.id+' · источник':'ID / источник'));technical.append(element('code','',`${source}: ${object.segment_id}`),element('span','',window.HandoffRoles?.details(info)||''));identity.append(technical);
       const availability=window.SliceSegmentation?.availability(object.segment_id),state=!availability?.ready?'Срез загружается':!availability.present_in_volume?'Нет в этом объёме seg_m1300':availability.present_in_slice?'Есть на этом срезе':'Нет на этом срезе';identity.append(element('span','hint structure-availability',state));
       const remove=element('button','structure-remove','Убрать');remove.type='button';remove.setAttribute('aria-label','Убрать структуру из выбранных');remove.addEventListener('click',()=>{const next=getPreferences();next.structures=next.structures.filter(o=>o.segment_id!==object.segment_id);commit(next);});
       row.append(visibility,color,identity,remove);rows.append(row);
@@ -125,10 +133,12 @@
     for(const id of ['segmentation2D','segmentationBorders','segmentationOpacity','segmentationScope'])for(const name of ['input','change'])$(id)?.addEventListener(name,changedControls);
     previousCase=currentCase();if(previousCase)setControls(cases.get(previousCase)||defaults(previousCase));render();
   }
-  window.StructureSelection={getPreferences,getAllPreferences:()=>[...cases.keys()].map(getPreferences),applyPreferences,normalizePreferences,replaceAllPreferences,clearAllPreferences:options=>replaceAllPreferences([],options),addSegment,setPicking,get picking(){return picking;}};
+  function setVisibility(segmentId,visible){const s=getPreferences(),object=s?.structures.find(o=>o.segment_id===segmentId);if(object){object.visible=!!visible;commit(s);return true;}return false;}
+  window.StructureSelection={getPreferences,getAllPreferences:()=>[...cases.keys()].map(getPreferences),applyPreferences,normalizePreferences,replaceAllPreferences,clearAllPreferences:options=>replaceAllPreferences([],options),addSegment,setPicking,setVisibility,get picking(){return picking;}};
   window.addEventListener('review:volume',()=>{setPicking(false);previousCase=currentCase();if(previousCase)setControls(cases.get(previousCase)||defaults(previousCase));render();});
   window.addEventListener('segmentation:slice',()=>{if(!applying&&!pointer)render();});
   window.addEventListener('annotations:ready',render);
   window.addEventListener('handoff:languagechange',render);
+  for(const event of ['roles:ready','roles:changed'])window.addEventListener(event,()=>{if(event==='roles:ready')renderSignature='';render();window.SliceSegmentation?.refresh();});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();

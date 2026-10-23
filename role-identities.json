@@ -1,0 +1,2694 @@
+{
+  "schema_version": 1,
+  "prepared_date": "2026-10-23",
+  "scope": "Source-annotated contact roles for the nine existing illustration cases; not new anatomical confirmation.",
+  "selected_case_ids": [
+    "R002",
+    "R004",
+    "R009",
+    "R017",
+    "R021",
+    "R024",
+    "R032",
+    "R036",
+    "R037"
+  ],
+  "displayed_segmentation": "seg_m1300",
+  "pinned_point_ownership": {
+    "materialization": 1822,
+    "timestamp": "2026-06-27T14:05:22.813147Z",
+    "scope": "Sampled synaptic points only; not certification of entire historical mesh objects."
+  },
+  "role_semantics": "role and palette_role denote the associated contact annotation, not a certified whole-object biological identity.",
+  "palette_policy": "Explicit opt-in source-annotation colors only. Preserve individual colors until the reviewer explicitly applies a palette. Unknown objects receive no inferred role.",
+  "unknown_structure_policy": "No entry means unknown; never infer from object number, T order, color, proximity, or vesicle shape.",
+  "labels": {
+    "excitatory": {
+      "ru": "Возбуждающий аксон (по контакту)",
+      "en": "Excitatory axon (contact annotation)"
+    },
+    "inhibitory": {
+      "ru": "Тормозный аксон (по контакту)",
+      "en": "Inhibitory axon (contact annotation)"
+    },
+    "recipient": {
+      "ru": "Шипик / дендрит (по постконтакту)",
+      "en": "Spine / dendrite (postsynaptic annotation)"
+    }
+  },
+  "status_label": {
+    "ru": "Объект не подтверждён",
+    "en": "Object identity unverified"
+  },
+  "limitation": {
+    "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+    "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+  },
+  "sources": {
+    "linkage": {
+      "archive_path": "human_review_integration_2026-10-06/linkage/case_key_join.json",
+      "sha256": "44fd0d7f6c07ca2780ba30460950fd0ca0dc4f65dcde53102ffc904ac28cc5ab"
+    },
+    "queue": {
+      "archive_path": "reproducibility/investigation/focused-validation/anatomy/case-queue-complete.json",
+      "sha256": "19effa3a8defab9477bb2e1a8673eaf9a04859bad5e28a41a0cb37ce4e5f2304"
+    },
+    "contact_audit": {
+      "archive_path": "observational_validation_2026-10-18_01a14f40/audit/anatomy/contact_identity_audit.csv",
+      "sha256": "b0c645b8886e2f04e6abdccf39f4e5f676fbbd4d97d15ad894bb9ec17ce7130b"
+    },
+    "pinned_ownership": {
+      "archive_path": "evidence/anatomy/phase/identity/POINT-OWNERSHIP-VERIFIED.json",
+      "sha256": "2c61454cf8cec155e7e5c1435862596f787c4eb127ed8dd2f4420e1addab84cd"
+    },
+    "post_uniqueness": {
+      "archive_path": "evidence/anatomy/phase/identity/POST-NUCLEUS-UNIQUENESS.json",
+      "sha256": "47c9e29bb37caea89830ca37e29878f801f01ec23459fced8ce307b3fd66ea4d"
+    },
+    "class_scope": {
+      "archive_path": "evidence/anatomy/phase/identity/class-registration-audit.md",
+      "sha256": "39c08503adce859473a2cc2b174433ccdefd2e614d5187b3fde0375663ac4205"
+    },
+    "precision_controls": {
+      "archive_path": "evidence/anatomy/phase/identity/PRECISION-CONTROLS.json",
+      "sha256": "3d90027ace116ab198c3b33c806e6735d11dec366231b90487ccb990ff99a799"
+    },
+    "model_index": {
+      "archive_path": "RUSSIAN WEBSITE FILES RESEARCH HANDOFF/model_index.json",
+      "sha256": "d12dc2a6a2bb9b58f0eb662909d15bb644dc9c1dda5bc81e9780692a73191a37"
+    },
+    "context_index": {
+      "archive_path": "RUSSIAN WEBSITE FILES RESEARCH HANDOFF/context_index.json",
+      "sha256": "96bec7f3552f99b3c6f9dc7b18cf94441ceb296ab1636db6e64df2354510f251"
+    },
+    "segments": {
+      "archive_path": "RUSSIAN WEBSITE FILES RESEARCH HANDOFF/neuroglancer-segments.json",
+      "sha256": "6b04eaa0a3604c1c16934e2a601cd2077c7346d15b73016a046a15a7841bba5b"
+    },
+    "case_index": {
+      "archive_path": "RUSSIAN WEBSITE FILES RESEARCH HANDOFF/case_index.json",
+      "sha256": "8c53b6b6621a9fbb254d373b09f5d993757e3fe66c4f10634f6be5b6fd2414fc"
+    }
+  },
+  "cases": {
+    "R002": {
+      "case_id": "R002",
+      "case_role": "EI",
+      "original_case": "FV04EI",
+      "recipient_nucleus_id": "262800",
+      "contacts": {
+        "T1": {
+          "contact_id": "T1",
+          "synapse_id": "154351692",
+          "role": "inhibitory",
+          "source_nucleus_id": "300520",
+          "recipient_nucleus_id": "262800",
+          "source_class": "I",
+          "current_source_class": "inhibitory_neuron",
+          "source_type_provenance": "companion-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              701696,
+              668720,
+              849320
+            ],
+            "post_nm": [
+              701504,
+              668512,
+              849320
+            ],
+            "pre_nm": [
+              701416,
+              668896,
+              849640
+            ]
+          },
+          "pinned_pre_root_id": "864691135474490930",
+          "pinned_post_root_id": "864691136197127756",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/1/contacts/0"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:3"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/13"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        },
+        "T2": {
+          "contact_id": "T2",
+          "synapse_id": "154351686",
+          "role": "excitatory",
+          "source_nucleus_id": "260697",
+          "recipient_nucleus_id": "262800",
+          "source_class": "E",
+          "current_source_class": "excitatory_neuron",
+          "source_type_provenance": "current-functional-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              701664,
+              668632,
+              849000
+            ],
+            "post_nm": [
+              701560,
+              668384,
+              849240
+            ],
+            "pre_nm": [
+              701736,
+              668776,
+              849040
+            ]
+          },
+          "pinned_pre_root_id": "864691135886130288",
+          "pinned_post_root_id": "864691136197127756",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/1/contacts/1"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:4"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/12"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        }
+      }
+    },
+    "R004": {
+      "case_id": "R004",
+      "case_role": "EI",
+      "original_case": "FV06EI",
+      "recipient_nucleus_id": "300817",
+      "contacts": {
+        "T1": {
+          "contact_id": "T1",
+          "synapse_id": "178325732",
+          "role": "inhibitory",
+          "source_nucleus_id": "265129",
+          "recipient_nucleus_id": "300817",
+          "source_class": "I",
+          "current_source_class": "inhibitory_neuron",
+          "source_type_provenance": "companion-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              756464,
+              732464,
+              774800
+            ],
+            "post_nm": [
+              756536,
+              732232,
+              774880
+            ],
+            "pre_nm": [
+              756384,
+              732448,
+              774560
+            ]
+          },
+          "pinned_pre_root_id": "864691135618332265",
+          "pinned_post_root_id": "864691136268898292",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/3/contacts/0"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:6"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/22"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        },
+        "T2": {
+          "contact_id": "T2",
+          "synapse_id": "178325731",
+          "role": "excitatory",
+          "source_nucleus_id": "260555",
+          "recipient_nucleus_id": "300817",
+          "source_class": "E",
+          "current_source_class": "excitatory_neuron",
+          "source_type_provenance": "current-functional-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              756384,
+              732152,
+              774720
+            ],
+            "post_nm": [
+              756424,
+              732384,
+              774760
+            ],
+            "pre_nm": [
+              756328,
+              732144,
+              774760
+            ]
+          },
+          "pinned_pre_root_id": "864691136238801935",
+          "pinned_post_root_id": "864691136268898292",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/3/contacts/1"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:7"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/21"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        }
+      }
+    },
+    "R009": {
+      "case_id": "R009",
+      "case_role": "EI",
+      "original_case": "FV03EI",
+      "recipient_nucleus_id": "258590",
+      "contacts": {
+        "T1": {
+          "contact_id": "T1",
+          "synapse_id": "158756444",
+          "role": "excitatory",
+          "source_nucleus_id": "262893",
+          "recipient_nucleus_id": "258590",
+          "source_class": "E",
+          "current_source_class": "excitatory_neuron",
+          "source_type_provenance": "current-functional-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              702480,
+              576696,
+              977320
+            ],
+            "post_nm": [
+              702480,
+              576856,
+              977520
+            ],
+            "pre_nm": [
+              702520,
+              576656,
+              977240
+            ]
+          },
+          "pinned_pre_root_id": "864691135563017953",
+          "pinned_post_root_id": "864691136034084795",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/8/contacts/0"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:12"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/9"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        },
+        "T2": {
+          "contact_id": "T2",
+          "synapse_id": "158756501",
+          "role": "inhibitory",
+          "source_nucleus_id": "260896",
+          "recipient_nucleus_id": "258590",
+          "source_class": "I",
+          "current_source_class": "inhibitory_neuron",
+          "source_type_provenance": "companion-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              702712,
+              575944,
+              977200
+            ],
+            "post_nm": [
+              702856,
+              576128,
+              977120
+            ],
+            "pre_nm": [
+              702656,
+              575920,
+              976960
+            ]
+          },
+          "pinned_pre_root_id": "864691136139158397",
+          "pinned_post_root_id": "864691136034084795",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/8/contacts/1"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:13"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/10"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        }
+      }
+    },
+    "R017": {
+      "case_id": "R017",
+      "case_role": "EI",
+      "original_case": "FV08EI",
+      "recipient_nucleus_id": "294667",
+      "contacts": {
+        "T1": {
+          "contact_id": "T1",
+          "synapse_id": "174313428",
+          "role": "excitatory",
+          "source_nucleus_id": "258377",
+          "recipient_nucleus_id": "294667",
+          "source_class": "E",
+          "current_source_class": "excitatory_neuron",
+          "source_type_provenance": "../expansion-validation/current-functional-types.json;member-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              740192,
+              515736,
+              933560
+            ],
+            "post_nm": [
+              740344,
+              515928,
+              933560
+            ],
+            "pre_nm": [
+              740024,
+              515416,
+              933240
+            ]
+          },
+          "pinned_pre_root_id": "864691135257669039",
+          "pinned_post_root_id": "864691135210134905",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/16/contacts/0"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:21"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/31"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        },
+        "T2": {
+          "contact_id": "T2",
+          "synapse_id": "174314313",
+          "role": "inhibitory",
+          "source_nucleus_id": "330372",
+          "recipient_nucleus_id": "294667",
+          "source_class": "I",
+          "current_source_class": "inhibitory_neuron",
+          "source_type_provenance": "member-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              740440,
+              515912,
+              933600
+            ],
+            "post_nm": [
+              740432,
+              515816,
+              933600
+            ],
+            "pre_nm": [
+              740664,
+              516080,
+              933280
+            ]
+          },
+          "pinned_pre_root_id": "864691135869457430",
+          "pinned_post_root_id": "864691135210134905",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/16/contacts/1"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:22"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/32"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        }
+      }
+    },
+    "R021": {
+      "case_id": "R021",
+      "case_role": "control",
+      "original_case": "FV03C1",
+      "recipient_nucleus_id": "292685",
+      "contacts": {
+        "T1": {
+          "contact_id": "T1",
+          "synapse_id": "164843104",
+          "role": "excitatory",
+          "source_nucleus_id": "262893",
+          "recipient_nucleus_id": "292685",
+          "source_class": "E",
+          "current_source_class": "excitatory_neuron",
+          "source_type_provenance": "current-functional-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              733560,
+              525656,
+              815520
+            ],
+            "post_nm": [
+              733800,
+              525704,
+              815680
+            ],
+            "pre_nm": [
+              733872,
+              525536,
+              815360
+            ]
+          },
+          "pinned_pre_root_id": "864691135563017953",
+          "pinned_post_root_id": "864691135410116041",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/20/contacts/0"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:27"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/11"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        }
+      }
+    },
+    "R024": {
+      "case_id": "R024",
+      "case_role": "EI",
+      "original_case": "FV10EI",
+      "recipient_nucleus_id": "296401",
+      "contacts": {
+        "T1": {
+          "contact_id": "T1",
+          "synapse_id": "174044251",
+          "role": "excitatory",
+          "source_nucleus_id": "332773",
+          "recipient_nucleus_id": "296401",
+          "source_class": "E",
+          "current_source_class": "excitatory_neuron",
+          "source_type_provenance": "../expansion-validation/current-functional-types.json;member-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              747880,
+              616120,
+              844000
+            ],
+            "post_nm": [
+              747608,
+              616224,
+              844000
+            ],
+            "pre_nm": [
+              747952,
+              616096,
+              843720
+            ]
+          },
+          "pinned_pre_root_id": "864691135877951571",
+          "pinned_post_root_id": "864691135584008045",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/23/contacts/0"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:30"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/41"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        },
+        "T2": {
+          "contact_id": "T2",
+          "synapse_id": "174044274",
+          "role": "inhibitory",
+          "source_nucleus_id": "225935",
+          "recipient_nucleus_id": "296401",
+          "source_class": "I",
+          "current_source_class": "inhibitory_neuron",
+          "source_type_provenance": "member-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              747944,
+              615796,
+              844200
+            ],
+            "post_nm": [
+              747768,
+              615800,
+              844040
+            ],
+            "pre_nm": [
+              748088,
+              616168,
+              844600
+            ]
+          },
+          "pinned_pre_root_id": "864691135726773419",
+          "pinned_post_root_id": "864691135584008045",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/23/contacts/1"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:31"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/42"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        }
+      }
+    },
+    "R032": {
+      "case_id": "R032",
+      "case_role": "EI",
+      "original_case": "FV02EI",
+      "recipient_nucleus_id": "255117",
+      "contacts": {
+        "T1": {
+          "contact_id": "T1",
+          "synapse_id": "137089560",
+          "role": "inhibitory",
+          "source_nucleus_id": "226321",
+          "recipient_nucleus_id": "255117",
+          "source_class": "I",
+          "current_source_class": "inhibitory_neuron",
+          "source_type_provenance": "companion-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              658292,
+              470128,
+              864120
+            ],
+            "post_nm": [
+              658560,
+              469840,
+              864080
+            ],
+            "pre_nm": [
+              658544,
+              469888,
+              863960
+            ]
+          },
+          "pinned_pre_root_id": "864691136007393994",
+          "pinned_post_root_id": "864691135741458324",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/31/contacts/0"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:40"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/5"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        },
+        "T2": {
+          "contact_id": "T2",
+          "synapse_id": "137089677",
+          "role": "excitatory",
+          "source_nucleus_id": "298912",
+          "recipient_nucleus_id": "255117",
+          "source_class": "E",
+          "current_source_class": "excitatory_neuron",
+          "source_type_provenance": "current-functional-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              659044,
+              469972,
+              864280
+            ],
+            "post_nm": [
+              658936,
+              469736,
+              864440
+            ],
+            "pre_nm": [
+              659208,
+              470080,
+              864720
+            ]
+          },
+          "pinned_pre_root_id": "864691135858298670",
+          "pinned_post_root_id": "864691135741458324",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/31/contacts/1"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:41"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/4"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        }
+      }
+    },
+    "R036": {
+      "case_id": "R036",
+      "case_role": "EI",
+      "original_case": "FV07EI",
+      "recipient_nucleus_id": "554775",
+      "contacts": {
+        "T1": {
+          "contact_id": "T1",
+          "synapse_id": "389636843",
+          "role": "inhibitory",
+          "source_nucleus_id": "518253",
+          "recipient_nucleus_id": "554775",
+          "source_class": "I",
+          "current_source_class": "inhibitory_neuron",
+          "source_type_provenance": "member-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              1272244,
+              445120,
+              798600
+            ],
+            "post_nm": [
+              1272368,
+              445000,
+              798320
+            ],
+            "pre_nm": [
+              1272080,
+              445120,
+              798720
+            ]
+          },
+          "pinned_pre_root_id": "864691135865543557",
+          "pinned_post_root_id": "864691135654715586",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/35/contacts/0"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:45"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/27"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        },
+        "T2": {
+          "contact_id": "T2",
+          "synapse_id": "389636858",
+          "role": "excitatory",
+          "source_nucleus_id": "558388",
+          "recipient_nucleus_id": "554775",
+          "source_class": "E",
+          "current_source_class": "excitatory_neuron",
+          "source_type_provenance": "../expansion-validation/current-functional-types.json;member-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              1272320,
+              444976,
+              798360
+            ],
+            "post_nm": [
+              1272424,
+              445232,
+              798560
+            ],
+            "pre_nm": [
+              1272048,
+              444816,
+              798000
+            ]
+          },
+          "pinned_pre_root_id": "864691136311106650",
+          "pinned_post_root_id": "864691135654715586",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/35/contacts/1"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:46"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/26"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        }
+      }
+    },
+    "R037": {
+      "case_id": "R037",
+      "case_role": "EI",
+      "original_case": "FV09EI",
+      "recipient_nucleus_id": "262925",
+      "contacts": {
+        "T1": {
+          "contact_id": "T1",
+          "synapse_id": "147623890",
+          "role": "inhibitory",
+          "source_nucleus_id": "301107",
+          "recipient_nucleus_id": "262925",
+          "source_class": "I",
+          "current_source_class": "inhibitory_neuron",
+          "source_type_provenance": "member-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              672608,
+              635592,
+              887920
+            ],
+            "post_nm": [
+              672640,
+              635712,
+              887960
+            ],
+            "pre_nm": [
+              672824,
+              635408,
+              888160
+            ]
+          },
+          "pinned_pre_root_id": "864691136118878116",
+          "pinned_post_root_id": "864691135719900721",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/36/contacts/0"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:47"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/37"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        },
+        "T2": {
+          "contact_id": "T2",
+          "synapse_id": "147623852",
+          "role": "excitatory",
+          "source_nucleus_id": "258289",
+          "recipient_nucleus_id": "262925",
+          "source_class": "E",
+          "current_source_class": "excitatory_neuron",
+          "source_type_provenance": "../expansion-validation/current-functional-types.json;member-types.json",
+          "coordinates_nm": {
+            "ctr_nm": [
+              672560,
+              635880,
+              887560
+            ],
+            "post_nm": [
+              672584,
+              635800,
+              887280
+            ],
+            "pre_nm": [
+              672696,
+              636024,
+              887560
+            ]
+          },
+          "pinned_pre_root_id": "864691135281252001",
+          "pinned_post_root_id": "864691135719900721",
+          "pinned_seed_ownership_supported": true,
+          "historical_contact_audit_current_root_ownership_validated": false,
+          "source_refs": [
+            {
+              "source": "linkage",
+              "pointer": "/cases/36/contacts/1"
+            },
+            {
+              "source": "contact_audit",
+              "pointer": "csv-row:48"
+            },
+            {
+              "source": "pinned_ownership",
+              "pointer": "/records/36"
+            },
+            {
+              "source": "post_uniqueness",
+              "pointer": "response by synapse_id"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "volumes": {
+    "R002-main": {
+      "case_id": "R002",
+      "volume_id": "R002-main",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691134948899324",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "260697",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T2",
+              "point": "pre",
+              "synapse_id": "154351686",
+              "pinned_root_id": "864691135886130288",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X-",
+            "Z-"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R002/volume:R002-main/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R002-main/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R002/R002-main-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135697260698",
+          "role": "inhibitory",
+          "palette_role": "inhibitory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "300520",
+          "labels": {
+            "ru": "Тормозный аксон (по контакту)",
+            "en": "Inhibitory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "154351692",
+              "pinned_root_id": "864691135474490930",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Z-",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R002/volume:R002-main/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R002-main/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R002/R002-main-provenance.json"
+            }
+          ]
+        },
+        "O3": {
+          "object_id": "O3",
+          "segment_id": "864691135941300993",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "262800",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "154351692",
+              "pinned_root_id": "864691136197127756",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "154351686",
+              "pinned_root_id": "864691136197127756",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X+",
+            "Y-",
+            "Z-"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R002/volume:R002-main/object:O3"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R002-main/seed_object:O3"
+            },
+            {
+              "public_path": "models3d/R002/R002-main-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R004-main": {
+      "case_id": "R004",
+      "volume_id": "R004-main",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691135555539396",
+          "role": "inhibitory",
+          "palette_role": "inhibitory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "265129",
+          "labels": {
+            "ru": "Тормозный аксон (по контакту)",
+            "en": "Inhibitory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "178325732",
+              "pinned_root_id": "864691135618332265",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Y+",
+            "Z-"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R004/volume:R004-main/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R004-main/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R004/R004-main-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135384135130",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "300817",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "178325732",
+              "pinned_root_id": "864691136268898292",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "178325731",
+              "pinned_root_id": "864691136268898292",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 2,
+          "clipped_faces": [
+            "X+",
+            "Y-",
+            "Z-",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R004/volume:R004-main/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R004-main/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R004/R004-main-provenance.json"
+            }
+          ]
+        },
+        "O3": {
+          "object_id": "O3",
+          "segment_id": "864691135342541509",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "260555",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T2",
+              "point": "pre",
+              "synapse_id": "178325731",
+              "pinned_root_id": "864691136238801935",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Y+",
+            "Z-",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R004/volume:R004-main/object:O3"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R004-main/seed_object:O3"
+            },
+            {
+              "public_path": "models3d/R004/R004-main-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R009-main": {
+      "case_id": "R009",
+      "volume_id": "R009-main",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691136176681222",
+          "role": "inhibitory",
+          "palette_role": "inhibitory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "260896",
+          "labels": {
+            "ru": "Тормозный аксон (по контакту)",
+            "en": "Inhibitory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T2",
+              "point": "pre",
+              "synapse_id": "158756501",
+              "pinned_root_id": "864691136139158397",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 3,
+          "clipped_faces": [
+            "X+",
+            "Y-",
+            "Y+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R009/volume:R009-main/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R009-main/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R009/R009-main-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135782048080",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "258590",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "158756444",
+              "pinned_root_id": "864691136034084795",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "158756501",
+              "pinned_root_id": "864691136034084795",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 2,
+          "clipped_faces": [
+            "X+",
+            "Y-"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R009/volume:R009-main/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R009-main/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R009/R009-main-provenance.json"
+            }
+          ]
+        },
+        "O3": {
+          "object_id": "O3",
+          "segment_id": "864691135339351014",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "262893",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "158756444",
+              "pinned_root_id": "864691135563017953",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Y-",
+            "Y+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R009/volume:R009-main/object:O3"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R009-main/seed_object:O3"
+            },
+            {
+              "public_path": "models3d/R009/R009-main-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R009-extension-01": {
+      "case_id": "R009",
+      "volume_id": "R009-extension-01",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691136176681222",
+          "role": "inhibitory",
+          "palette_role": "inhibitory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "260896",
+          "labels": {
+            "ru": "Тормозный аксон (по контакту)",
+            "en": "Inhibitory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T2",
+              "point": "pre",
+              "synapse_id": "158756501",
+              "pinned_root_id": "864691136139158397",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 3,
+          "clipped_faces": [
+            "X-",
+            "Y+",
+            "Z-",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R009/volume:R009-extension-01/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R009-extension-01/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R009/R009-extension-01-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135782048080",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "258590",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "158756444",
+              "pinned_root_id": "864691136034084795",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "158756501",
+              "pinned_root_id": "864691136034084795",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 2,
+          "clipped_faces": [
+            "X+",
+            "Y-",
+            "Y+",
+            "Z-",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R009/volume:R009-extension-01/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R009-extension-01/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R009/R009-extension-01-provenance.json"
+            }
+          ]
+        },
+        "O3": {
+          "object_id": "O3",
+          "segment_id": "864691135339351014",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "262893",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "158756444",
+              "pinned_root_id": "864691135563017953",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X-",
+            "Y+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R009/volume:R009-extension-01/object:O3"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R009-extension-01/seed_object:O3"
+            },
+            {
+              "public_path": "models3d/R009/R009-extension-01-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R017-main": {
+      "case_id": "R017",
+      "volume_id": "R017-main",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691136445296003",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "294667",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "174313428",
+              "pinned_root_id": "864691135210134905",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "174314313",
+              "pinned_root_id": "864691135210134905",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X-",
+            "X+",
+            "Y-",
+            "Z-",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R017/volume:R017-main/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R017-main/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R017/R017-main-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135257669039",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "258377",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "174313428",
+              "pinned_root_id": "864691135257669039",
+              "displayed_segment_equals_pinned_root_id": true,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Y-",
+            "Y+",
+            "Z-"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R017/volume:R017-main/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R017-main/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R017/R017-main-provenance.json"
+            }
+          ]
+        },
+        "O3": {
+          "object_id": "O3",
+          "segment_id": "864691135731785145",
+          "role": "inhibitory",
+          "palette_role": "inhibitory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "330372",
+          "labels": {
+            "ru": "Тормозный аксон (по контакту)",
+            "en": "Inhibitory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T2",
+              "point": "pre",
+              "synapse_id": "174314313",
+              "pinned_root_id": "864691135869457430",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X-",
+            "X+",
+            "Y+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R017/volume:R017-main/object:O3"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R017-main/seed_object:O3"
+            },
+            {
+              "public_path": "models3d/R017/R017-main-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R021-main": {
+      "case_id": "R021",
+      "volume_id": "R021-main",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691135441799752",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "292685",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "164843104",
+              "pinned_root_id": "864691135410116041",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Y+",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R021/volume:R021-main/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R021-main/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R021/R021-main-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135001569534",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "262893",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "164843104",
+              "pinned_root_id": "864691135563017953",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Y+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R021/volume:R021-main/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R021-main/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R021/R021-main-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R024-main": {
+      "case_id": "R024",
+      "volume_id": "R024-main",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691135572814885",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "296401",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "174044251",
+              "pinned_root_id": "864691135584008045",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "174044274",
+              "pinned_root_id": "864691135584008045",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 2,
+          "clipped_faces": [
+            "X-",
+            "Y-",
+            "Y+",
+            "Z-"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R024/volume:R024-main/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R024-main/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R024/R024-main-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135566422615",
+          "role": "inhibitory",
+          "palette_role": "inhibitory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "225935",
+          "labels": {
+            "ru": "Тормозный аксон (по контакту)",
+            "en": "Inhibitory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T2",
+              "point": "pre",
+              "synapse_id": "174044274",
+              "pinned_root_id": "864691135726773419",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X+",
+            "Y-"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R024/volume:R024-main/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R024-main/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R024/R024-main-provenance.json"
+            }
+          ]
+        },
+        "O3": {
+          "object_id": "O3",
+          "segment_id": "864691135877951571",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "332773",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "174044251",
+              "pinned_root_id": "864691135877951571",
+              "displayed_segment_equals_pinned_root_id": true,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Y+",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R024/volume:R024-main/object:O3"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R024-main/seed_object:O3"
+            },
+            {
+              "public_path": "models3d/R024/R024-main-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R024-extension-01": {
+      "case_id": "R024",
+      "volume_id": "R024-extension-01",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691135572814885",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "296401",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "174044251",
+              "pinned_root_id": "864691135584008045",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "outside_crop"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "174044274",
+              "pinned_root_id": "864691135584008045",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "outside_crop"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X-",
+            "Y-",
+            "Y+",
+            "Z-",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R024/volume:R024-extension-01/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R024-extension-01/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R024/R024-extension-01-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R032-main": {
+      "case_id": "R032",
+      "volume_id": "R032-main",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691135469724242",
+          "role": "inhibitory",
+          "palette_role": "inhibitory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "226321",
+          "labels": {
+            "ru": "Тормозный аксон (по контакту)",
+            "en": "Inhibitory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "137089560",
+              "pinned_root_id": "864691136007393994",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X-",
+            "X+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R032/volume:R032-main/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R032-main/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R032/R032-main-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135257638831",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "255117",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "137089560",
+              "pinned_root_id": "864691135741458324",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "137089677",
+              "pinned_root_id": "864691135741458324",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 2,
+          "clipped_faces": [
+            "X-",
+            "Y-",
+            "Y+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R032/volume:R032-main/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R032-main/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R032/R032-main-provenance.json"
+            }
+          ]
+        },
+        "O3": {
+          "object_id": "O3",
+          "segment_id": "864691136817284718",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "298912",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T2",
+              "point": "pre",
+              "synapse_id": "137089677",
+              "pinned_root_id": "864691135858298670",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X-",
+            "X+",
+            "Y+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R032/volume:R032-main/object:O3"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R032-main/seed_object:O3"
+            },
+            {
+              "public_path": "models3d/R032/R032-main-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R036-main": {
+      "case_id": "R036",
+      "volume_id": "R036-main",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691136311106650",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "558388",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T2",
+              "point": "pre",
+              "synapse_id": "389636858",
+              "pinned_root_id": "864691136311106650",
+              "displayed_segment_equals_pinned_root_id": true,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X-",
+            "Z-",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R036/volume:R036-main/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R036-main/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R036/R036-main-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135865543557",
+          "role": "inhibitory",
+          "palette_role": "inhibitory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "518253",
+          "labels": {
+            "ru": "Тормозный аксон (по контакту)",
+            "en": "Inhibitory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "389636843",
+              "pinned_root_id": "864691135865543557",
+              "displayed_segment_equals_pinned_root_id": true,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Y-",
+            "Y+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R036/volume:R036-main/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R036-main/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R036/R036-main-provenance.json"
+            }
+          ]
+        },
+        "O3": {
+          "object_id": "O3",
+          "segment_id": "864691135654715586",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "554775",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "389636843",
+              "pinned_root_id": "864691135654715586",
+              "displayed_segment_equals_pinned_root_id": true,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "389636858",
+              "pinned_root_id": "864691135654715586",
+              "displayed_segment_equals_pinned_root_id": true,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X+",
+            "Y-",
+            "Y+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R036/volume:R036-main/object:O3"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R036-main/seed_object:O3"
+            },
+            {
+              "public_path": "models3d/R036/R036-main-provenance.json"
+            }
+          ]
+        }
+      }
+    },
+    "R037-main": {
+      "case_id": "R037",
+      "volume_id": "R037-main",
+      "objects": {
+        "O1": {
+          "object_id": "O1",
+          "segment_id": "864691135655526082",
+          "role": "excitatory",
+          "palette_role": "excitatory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "258289",
+          "labels": {
+            "ru": "Возбуждающий аксон (по контакту)",
+            "en": "Excitatory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T2",
+              "point": "pre",
+              "synapse_id": "147623852",
+              "pinned_root_id": "864691135281252001",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "Y+",
+            "Z+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R037/volume:R037-main/object:O1"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R037-main/seed_object:O1"
+            },
+            {
+              "public_path": "models3d/R037/R037-main-provenance.json"
+            }
+          ]
+        },
+        "O2": {
+          "object_id": "O2",
+          "segment_id": "864691135719900721",
+          "role": "recipient",
+          "palette_role": "recipient",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "262925",
+          "labels": {
+            "ru": "Шипик / дендрит (по постконтакту)",
+            "en": "Spine / dendrite (postsynaptic annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "post",
+              "synapse_id": "147623890",
+              "pinned_root_id": "864691135719900721",
+              "displayed_segment_equals_pinned_root_id": true,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            },
+            {
+              "contact_id": "T2",
+              "point": "post",
+              "synapse_id": "147623852",
+              "pinned_root_id": "864691135719900721",
+              "displayed_segment_equals_pinned_root_id": true,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 2,
+          "clipped_faces": [
+            "X+",
+            "Y+",
+            "Z-"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R037/volume:R037-main/object:O2"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R037-main/seed_object:O2"
+            },
+            {
+              "public_path": "models3d/R037/R037-main-provenance.json"
+            }
+          ]
+        },
+        "O3": {
+          "object_id": "O3",
+          "segment_id": "864691135725448619",
+          "role": "inhibitory",
+          "palette_role": "inhibitory",
+          "status": "source_annotation_unresolved",
+          "identity_verified": false,
+          "nucleus_id": "301107",
+          "labels": {
+            "ru": "Тормозный аксон (по контакту)",
+            "en": "Inhibitory axon (contact annotation)"
+          },
+          "status_label": {
+            "ru": "Объект не подтверждён",
+            "en": "Object identity unverified"
+          },
+          "limitation": {
+            "ru": "Роль указана по исходной аннотации контакта. Принадлежность всего объекта seg_m1300 не подтверждена; цвет не подтверждает тип клетки.",
+            "en": "The role comes from the source contact annotation. Ownership of the whole seg_m1300 object is unverified; color does not establish cell type."
+          },
+          "contact_refs": [
+            {
+              "contact_id": "T1",
+              "point": "pre",
+              "synapse_id": "147623890",
+              "pinned_root_id": "864691136118878116",
+              "displayed_segment_equals_pinned_root_id": false,
+              "pinned_seed_ownership_supported": true,
+              "local_seed_check": "sampled"
+            }
+          ],
+          "component_count_6connected": 1,
+          "clipped_faces": [
+            "X-",
+            "X+"
+          ],
+          "source_refs": [
+            {
+              "source": "model_index",
+              "pointer": "case:R037/volume:R037-main/object:O3"
+            },
+            {
+              "source": "context_index",
+              "pointer": "volume:R037-main/seed_object:O3"
+            },
+            {
+              "public_path": "models3d/R037/R037-main-provenance.json"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cross_case_cautions": [
+    {
+      "case_ids": [
+        "R009",
+        "R021"
+      ],
+      "source_nucleus_id": "262893",
+      "displayed_segment_ids_differ": true,
+      "pinned_v1822_source_root_id": "864691135563017953",
+      "meaning": "Same annotated source nucleus and pinned source root; different historical displayed segments. Do not equate displayed meshes across cases."
+    }
+  ]
+}

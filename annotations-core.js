@@ -11,7 +11,7 @@
   for(const key of ['head_fully_included','neck_to_shaft_fully_included','all_relevant_available_sections_inspected','complete_membrane_inspected','continuous_boundary_resolved',...EXTRA_FIELDS.CASE_REVIEW])ENUM_FIELDS[key]=['','yes','no','uncertain'];
   for(const key of ['prior_verdicts_seen','functional_results_seen','independent_initial_assessment'])ENUM_FIELDS[key]=['','yes','no'];
   ENUM_FIELDS.location_head_neck_shaft=['','head','neck','shaft','other','uncertain'];ENUM_FIELDS.confidence=['','high','moderate','low'];
-  const drawingKinds=['trace','freehand','arrow','ellipse','roi','distance'];
+  const drawingKinds=['trace','freehand','vesicle','arrow','ellipse','roi','distance'];
   const kinds=['contact','point','object','region',...drawingKinds], statuses=['uncertain','supported','rejected','note'], locations=['head','neck','shaft','other','uncertain'];
   const observationCategories=['unclassified','suspected_synapse','possible_adhesion','unresolved_other'];
   const encoder=new TextEncoder();
@@ -42,13 +42,14 @@
     if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!keys.includes(k)))fail('Неверная геометрия рисунка.');
     if(value.plane!=='xy'||!Number.isSafeInteger(value.slice_index)||value.slice_index<v.begin_vox_xyz[2]||value.slice_index>=v.begin_vox_xyz[2]+v.shape_xyz[2])fail('Рисунок должен быть привязан к срезу XY указанного объёма.');
     const points=value.points_nm,z=(value.slice_index+.5)*res[2];
-    if(!Array.isArray(points)||points.length<(kind==='freehand'?1:2)||points.length>MAX_DRAWING_POINTS||points.some(p=>!point(p)||p.some((n,i)=>n<min[i]||n>=max[i])||Math.abs(p[2]-z)>1e-6))fail('Вершины рисунка должны находиться на одном срезе внутри объёма (не более 4096 точек).');
+    if(!Array.isArray(points)||points.length<(['freehand','vesicle'].includes(kind)?1:2)||points.length>MAX_DRAWING_POINTS||points.some(p=>!point(p)||p.some((n,i)=>n<min[i]||n>=max[i])||Math.abs(p[2]-z)>1e-6))fail('Вершины рисунка должны находиться на одном срезе внутри объёма (не более 4096 точек).');
     if(['arrow','ellipse','roi','distance'].includes(kind)&&points.length!==2)fail('Для этой фигуры нужны ровно две точки.');
+    if(kind==='vesicle'&&points.length!==1)fail('Для везикулы нужна ровно одна точка.');
     const distinct=new Set(points.map(p=>p.join(',')));
-    if(distinct.size<2&&!(kind==='freehand'&&points.length===1))fail('Рисунок должен содержать разные точки.');
+    if(distinct.size<2&&!(['freehand','vesicle'].includes(kind)&&points.length===1))fail('Рисунок должен содержать разные точки.');
     if(['ellipse','roi'].includes(kind)&&[0,1].some(i=>Math.abs(points[0][i]-points[1][i])<=1e-6))fail('У области должны быть ненулевые ширина и высота.');
     const closed=value.closed??['ellipse','roi'].includes(kind);
-    if(typeof closed!=='boolean'||['freehand','arrow','distance'].includes(kind)&&closed||['ellipse','roi'].includes(kind)&&!closed||kind==='trace'&&closed&&distinct.size<3)fail('Неверное замыкание рисунка: замкнутой трассе нужны минимум три разные точки.');
+    if(typeof closed!=='boolean'||['freehand','vesicle','arrow','distance'].includes(kind)&&closed||['ellipse','roi'].includes(kind)&&!closed||kind==='trace'&&closed&&distinct.size<3)fail('Неверное замыкание рисунка: замкнутой трассе нужны минимум три разные точки.');
     const color=value.color??'#ffd166',stroke_width=value.stroke_width??2;
     if(typeof color!=='string'||!/^#[0-9a-f]{6}$/i.test(color)||typeof stroke_width!=='number'||!Number.isFinite(stroke_width)||stroke_width<1||stroke_width>12)fail('Неверные цвет или толщина линии рисунка.');
     const opacity=value.opacity===undefined?1:value.opacity;
@@ -90,8 +91,8 @@
     const s=value,keys=['schema_version','source_version','case_id','structures','scope','fill','borders','opacity'];
     if(!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(k=>!keys.includes(k))||s.schema_version!==1||s.source_version!=='seg_m1300'||s.case_id!==caseId||!Array.isArray(s.structures)||s.structures.length>256||!['selected','nearby','all'].includes(s.scope)||typeof s.fill!=='boolean'||typeof s.borders!=='boolean'||typeof s.opacity!=='number'||!Number.isFinite(s.opacity)||s.opacity<0||s.opacity>.7)fail('Неверные настройки выбранных структур seg_m1300.');
     const seen=new Set(),structures=s.structures.map(o=>{
-      if(!o||typeof o!=='object'||Array.isArray(o)||Object.keys(o).some(k=>!['segment_id','color','visible'].includes(k))||typeof o.segment_id!=='string'||!/^[1-9]\d{0,19}$/.test(o.segment_id)||BigInt(o.segment_id)>18446744073709551615n||seen.has(o.segment_id)||typeof o.visible!=='boolean'||typeof o.color!=='string'||!/^#[\da-f]{6}$/i.test(o.color))fail('Неверные настройки выбранных структур seg_m1300.');
-      seen.add(o.segment_id);return{segment_id:o.segment_id,color:o.color.toLowerCase(),visible:o.visible};
+      if(!o||typeof o!=='object'||Array.isArray(o)||Object.keys(o).some(k=>!['segment_id','color','visible','color_mode'].includes(k))||typeof o.segment_id!=='string'||!/^[1-9]\d{0,19}$/.test(o.segment_id)||BigInt(o.segment_id)>18446744073709551615n||seen.has(o.segment_id)||typeof o.visible!=='boolean'||o.color_mode!==undefined&&!['role','individual'].includes(o.color_mode)||typeof o.color!=='string'||!/^#[\da-f]{6}$/i.test(o.color))fail('Неверные настройки выбранных структур seg_m1300.');
+      seen.add(o.segment_id);return{segment_id:o.segment_id,color:o.color.toLowerCase(),visible:o.visible,color_mode:o.color_mode??'individual'};
     });
     return{schema_version:1,source_version:'seg_m1300',case_id:caseId,structures,scope:s.scope,fill:s.fill,borders:s.borders,opacity:s.opacity};
   }
@@ -146,7 +147,7 @@
   }
   function validateSettings(value,ctx){
     if(!value||typeof value!=='object'||Array.isArray(value))fail('Неверные настройки интерфейса.');
-    const allowed=['preferences','last_view','annotation_mode','drawing_style','display','surface_view'],result={};
+    const allowed=['preferences','last_view','annotation_mode','drawing_style','role_palette','display','surface_view'],result={};
     if(Object.keys(value).some(k=>!allowed.includes(k)))fail('Неизвестный раздел настроек.');
     if(value.preferences!==undefined){
       const prefs=value.preferences,keys=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','drawingNumbers','surfaceContext','segmentation2D','segmentationBorders','surfaceSegmentation'],numbers={segmentationOpacity:70,surfaceContextOpacity:100,surfaceSegmentationOpacity:100};
@@ -154,7 +155,8 @@
     }
     if(value.last_view!==undefined){const v=value.last_view;if(!v||typeof v!=='object')fail('Неверный последний вид.');const {v:volume}=volumeInfo(ctx,v.case_id,v.volume_id);if(!Number.isSafeInteger(v.z)||v.z<0||v.z>=volume.shape_xyz[2])fail('Последний срез вне объёма.');result.last_view={case_id:v.case_id,volume_id:v.volume_id,z:v.z};}
     if(value.annotation_mode!==undefined)result.annotation_mode=choice(value.annotation_mode,['navigate','contact2d','point2d','point3d','object3d','select','edit',...drawingKinds],'инструмент');
-    if(value.drawing_style!==undefined){const d=value.drawing_style;if(!d||typeof d!=='object'||Array.isArray(d)||Object.keys(d).some(k=>!['color','stroke_width','opacity'].includes(k))||typeof d.color!=='string'||!/^#[0-9a-f]{6}$/i.test(d.color)||!Number.isInteger(d.stroke_width)||d.stroke_width<1||d.stroke_width>12||typeof d.opacity!=='number'||!Number.isFinite(d.opacity)||d.opacity<0||d.opacity>1)fail('Неверные настройки кисти.');result.drawing_style={color:d.color,stroke_width:d.stroke_width,opacity:d.opacity};}
+    if(value.drawing_style!==undefined){const d=value.drawing_style;if(!d||typeof d!=='object'||Array.isArray(d)||Object.keys(d).some(k=>!['color','stroke_width','opacity','vesicle_color'].includes(k))||typeof d.color!=='string'||!/^#[0-9a-f]{6}$/i.test(d.color)||!Number.isInteger(d.stroke_width)||d.stroke_width<1||d.stroke_width>12||typeof d.opacity!=='number'||!Number.isFinite(d.opacity)||d.opacity<0||d.opacity>1)fail('Неверные настройки кисти.');if(d.vesicle_color!==undefined&&(typeof d.vesicle_color!=='string'||!/^#[0-9a-f]{6}$/i.test(d.vesicle_color)))fail('Неверный цвет везикул.');result.drawing_style={color:d.color,stroke_width:d.stroke_width,opacity:d.opacity,...(d.vesicle_color!==undefined?{vesicle_color:d.vesicle_color.toLowerCase()}: {})};}
+    if(value.role_palette!==undefined){const p=value.role_palette,roles=['excitatory','inhibitory','recipient'];if(!p||typeof p!=='object'||Array.isArray(p)||Object.keys(p).some(k=>!['schema_version','enabled','colors'].includes(k))||p.schema_version!==1||typeof p.enabled!=='boolean'||!p.colors||typeof p.colors!=='object'||Array.isArray(p.colors)||Object.keys(p.colors).length!==3||Object.keys(p.colors).some(k=>!roles.includes(k))||roles.some(k=>typeof p.colors[k]!=='string'||!/^#[0-9a-f]{6}$/i.test(p.colors[k])))fail('Неверная палитра ролей.');result.role_palette={schema_version:1,enabled:p.enabled,colors:Object.fromEntries(roles.map(k=>[k,p.colors[k].toLowerCase()]))};}
     if(value.display!==undefined){const d=value.display;if(!d||typeof d!=='object'||Object.keys(d).some(k=>!['zoom','black','white'].includes(k))||Object.values(d).some(n=>typeof n!=='number'||!Number.isFinite(n)))fail('Неверные настройки изображения.');if(d.zoom!==undefined&&(d.zoom<=0||d.zoom>128)||d.black!==undefined&&(d.black<0||d.black>255)||d.white!==undefined&&(d.white<0||d.white>255)||d.black!==undefined&&d.white!==undefined&&d.black>=d.white)fail('Настройки изображения вне диапазона.');result.display={...d};}
     if(value.surface_view!==undefined){const view=safeJSON(value.surface_view);if(!view||typeof view!=='object'||Array.isArray(view))fail('Неверный сохранённый 3D-вид.');const {v}=volumeInfo(ctx,view.case_id,view.volume_id);if(view.local_z!==undefined&&(!Number.isSafeInteger(view.local_z)||view.local_z<0||view.local_z>=v.shape_xyz[2]))fail('Срез 3D-вида вне объёма.');validateCameraBasis(view);result.surface_view=view;}
     if(result.last_view&&result.surface_view){const last=result.last_view,view=result.surface_view;if(view.case_id!==last.case_id||view.volume_id!==last.volume_id||view.local_z!==undefined&&view.local_z!==last.z)delete result.surface_view;}
@@ -332,7 +334,7 @@
         if(ids.size!==1||!this.context.cases.has([...ids][0]))fail('Выберите файл одного случая. Для общего архива используйте «Загрузить все результаты».');
         importCaseId=[...ids][0];data.reviewer={};data.reviewer_updated_at=null;
         const settings=data.settings;
-        data.settings={...(typeof settings.preferences?.drawingNumbers==='boolean'?{preferences:{drawingNumbers:settings.preferences.drawingNumbers}}:{}),...(settings.drawing_style?{drawing_style:settings.drawing_style}:{}),...(settings.last_view?.case_id===importCaseId?Object.fromEntries(['last_view','display','surface_view'].filter(k=>settings[k]!==undefined&&(k!=='surface_view'||settings[k].case_id===importCaseId)).map(k=>[k,settings[k]])): {})};
+        data.settings={...(typeof settings.preferences?.drawingNumbers==='boolean'?{preferences:{drawingNumbers:settings.preferences.drawingNumbers}}:{}),...(settings.drawing_style?{drawing_style:settings.drawing_style}:{}),...(settings.role_palette?{role_palette:settings.role_palette}:{}),...(settings.last_view?.case_id===importCaseId?Object.fromEntries(['last_view','display','surface_view'].filter(k=>settings[k]!==undefined&&(k!=='surface_view'||settings[k].case_id===importCaseId)).map(k=>[k,settings[k]])): {})};
       }
       for(const row of data.evidence){const blobs=evidenceFiles.get(row.id);if(blobs){await validatePNG(blobs.annotated);if(row.source_view==='2d')await validatePNG(blobs.raw);}}
       return transaction(this.db,['annotations','cases','counters','deleted','reviews','evidence','meta'],'readwrite',async tx=>{
@@ -394,6 +396,10 @@
           if(old&&Object.keys(data.reviewer).some(k=>k in old.value&&old.value[k]!==data.reviewer[k]))report.conflicts.push({reason:incomingIsNewer?'newer_reviewer_used':'reviewer_kept'});
         }
         if(Object.keys(data.settings).length){const s=tx.objectStore('meta'),old=await request(s.get('settings'));
+          // Old archives predate role palettes and the separate vesicle color.
+          // Their absence does not ask to erase the reviewer's current palette.
+          if(old?.value.role_palette&&data.settings.role_palette===undefined)data.settings.role_palette=clone(old.value.role_palette);
+          if(old?.value.drawing_style?.vesicle_color&&data.settings.drawing_style&&data.settings.drawing_style.vesicle_color===undefined)data.settings.drawing_style.vesicle_color=old.value.drawing_style.vesicle_color;
           if(!old||!Object.keys(old.value||{}).length){await request(s.put({key:'settings',value:data.settings,updated_at:data.settings_updated_at||now()}));report.settings_updated++;}
           else if(!identical(old.value,data.settings)){
             if(policy==='restore'||policy==='newer'&&data.settings_updated_at&&Date.parse(data.settings_updated_at)>Date.parse(old.updated_at)){await request(s.put({key:'settings',value:caseOnly?{...old.value,...data.settings,...(data.settings.preferences?{preferences:{...old.value.preferences,...data.settings.preferences}}:{})}:data.settings,updated_at:data.settings_updated_at}));report.settings_updated++;report.conflicts.push({reason:'newer_settings_used'});}
@@ -427,7 +433,7 @@
     }
     async exportFiles(filter={}, {backup,extraEvidence=[],includeImages=true}={}){
       const data=backup?validatePackage(backup,this.context):await this.exportData(filter);
-      const headers=['Случай','Метка','Тип метки','Категория наблюдения','Уверенность в синаптической природе','Часть структуры','Ссылки на доказательства','Заметка','Объём','Срез Z','X нм','Y нм','Z нм','Геометрия (глобальные нм)'],types={contact:'Контакт',point:'Особенность',object:'Объект',region:'Область',trace:'Трасса',freehand:'Свободная линия',arrow:'Стрелка',ellipse:'Эллипс',roi:'Рамка',distance:'Расстояние'},categories={unclassified:'Не классифицировано',suspected_synapse:'Предполагаемый синапс',possible_adhesion:'Возможная адгезия',unresolved_other:'Другое / не разрешено'},certainty={supported:'Признаки синапса поддержаны',uncertain:'Неопределённо',rejected:'Признаки против синапса',note:'Не оценено'},locations={head:'Головка',neck:'Шейка',shaft:'Ствол дендрита',other:'Другое',uncertain:'Не определено'};
+      const headers=['Случай','Метка','Тип метки','Категория наблюдения','Уверенность в синаптической природе','Часть структуры','Ссылки на доказательства','Заметка','Объём','Срез Z','X нм','Y нм','Z нм','Геометрия (глобальные нм)'],types={contact:'Контакт',point:'Особенность',object:'Объект',region:'Область',trace:'Трасса',freehand:'Свободная линия',vesicle:'Везикулы',arrow:'Стрелка',ellipse:'Эллипс',roi:'Рамка',distance:'Расстояние'},categories={unclassified:'Не классифицировано',suspected_synapse:'Предполагаемый синапс',possible_adhesion:'Возможная адгезия',unresolved_other:'Другое / не разрешено'},certainty={supported:'Признаки синапса поддержаны',uncertain:'Неопределённо',rejected:'Признаки против синапса',note:'Не оценено'},locations={head:'Головка',neck:'Шейка',shaft:'Ствол дендрита',other:'Другое',uncertain:'Не определено'};
       const rows=data.annotations.map(r=>{const {v,res}=volumeInfo(this.context,r.case_id,r.volume_id);return{'Случай':r.case_id,'Метка':r.number,'Тип метки':types[r.kind],'Категория наблюдения':categories[r.observation_category],'Уверенность в синаптической природе':certainty[r.status],'Часть структуры':locations[r.location],'Ссылки на доказательства':r.evidence_refs,'Заметка':[r.properties,r.notes].filter(Boolean).join('\n'),'Объём':r.volume_id,'Срез Z':Math.floor(r.point_nm[2]/res[2])-v.begin_vox_xyz[2],'X нм':r.point_nm[0],'Y нм':r.point_nm[1],'Z нм':r.point_nm[2],'Геометрия (глобальные нм)':r.geometry?JSON.stringify(r.geometry):''};});
       const files=[{name:'results.csv',text:makeCSV(headers,rows)}];
       if(!includeImages){data.evidence=[];delete data.raw_images;files.push({name:'backup.json',text:JSON.stringify(data)});return files;}
