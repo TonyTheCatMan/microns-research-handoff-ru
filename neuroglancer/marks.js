@@ -26,7 +26,7 @@
         }
         const number=Number(annotation.properties?.[0]||annotation.description?.match(/^№(\d+)/)?.[1]);
         if(!Number.isSafeInteger(number)||number<1)continue;
-        result.push({id:annotation.id,number,kind,point:annotation.point,managed,...(drawing?{drawing:true,dab:managed.name.endsWith(' · Точки кисти'),segments:paths.get(annotation.id)||[],color:managed.name.match(/#[\da-f]{6}/i)?.[0]||'#ffd166',opacity:Number.isFinite(annotation.properties?.[4])?Math.max(0,Math.min(1,annotation.properties[4])):1,showNumber:annotation.properties?.[5]===1}:{})});
+        result.push({id:annotation.id,number,kind,point:annotation.point,managed,...(drawing?{drawing:true,dab:managed.name.endsWith(' · Точки кисти'),segments:paths.get(annotation.id)||[],color:managed.name.match(/#[\da-f]{6}/i)?.[0]||'#ffd166',opacity:Number.isFinite(annotation.properties?.[4])?Math.max(0,Math.min(1,annotation.properties[4])):1,showNumber:annotation.properties?.[5]===1,show3D:annotation.properties?.[6]!==0}:{})});
       }
     }
     return result;
@@ -71,7 +71,8 @@
       for(const record of rows){
         const ndc=project(projection.viewProjectionMat,record.point);
         if(record.drawing){
-          if(isSlice){const m=projection.viewProjectionMat,depth=Math.abs(m[10]);if(!ndc||Math.abs(m[2])>depth*.001||Math.abs(m[6])>depth*.001||Math.abs(ndc[2])>depth*.5+.00001)continue;}
+          if(!isSlice&&!record.show3D)continue;
+          if(isSlice){const m=projection.viewProjectionMat,depth=Math.abs(m[10]),offset=ndc?.[2]/m[10];if(!ndc||depth<1e-12||Math.abs(m[2])>depth*.001||Math.abs(m[6])>depth*.001||offset>.5+.00001||offset<=-.5+.00001)continue;}
           const screen=p=>[(p[0]+1)*width/2,(1-p[1])*height/2],segments=[];
           for(const segment of record.segments){const projected=segment.map(p=>project(projection.viewProjectionMat,p));if(projected.every(p=>p&&p.every(Number.isFinite)&&Math.abs(p[2])<=1))segments.push(projected.map(screen));}
           if(!segments.length&&!record.dab)continue;

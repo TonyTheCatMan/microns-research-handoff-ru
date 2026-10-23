@@ -5,12 +5,17 @@
   let manifestPromise,worker,entry,labels,colorTable,volumeId=null,generation=0,requestId=0,wantedZ=null,current={ready:false,canvas:null,bordersCanvas:null};
   const waiters=[],volumeColors=new Map();
   let selectionCache=null,displayCache=null;
-  function colorForSegment(id){
+  function colorContext(preferences=window.StructureSelection?.getPreferences(entry?.case_id)){return{selected:new Map((preferences?.structures||[]).map(o=>[o.segment_id,o])),overrides:preferences?.color_overrides||{}};}
+  function colorForSegment(id,context=colorContext()){
+    const segmentId=String(id),selected=context.selected.get(segmentId),remembered=context.overrides[segmentId];
+    if(window.HandoffRoles){
+      const selection=selected||(remembered?{color:remembered,color_mode:'individual'}:null),color=window.HandoffRoles.colorFor(entry?.case_id,volumeId,segmentId,null,selection);
+      return parseColor(color,[154,160,166]);
+    }
     const override=volumeColors.get(volumeId)?.[String(id)];if(override)return [...override];
-    let hash=2166136261;for(const ch of String(id)){hash^=ch.charCodeAt(0);hash=Math.imul(hash,16777619);}
-    const hue=(hash>>>0)%360,s=.63,l=.55,c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((hue/60)%2-1)),m=l-c/2;
-    const rgb=hue<60?[c,x,0]:hue<120?[x,c,0]:hue<180?[0,c,x]:hue<240?[0,x,c]:hue<300?[x,0,c]:[c,0,x];return rgb.map(n=>Math.round((n+m)*255));
+    return [154,160,166];
   }
+  function rebuildColors(){const context=colorContext();return entry.palette.map(id=>colorForSegment(id,context));}
   function canvas(width,height){const c=document.createElement('canvas');c.width=width;c.height=height;return c;}
   function announce(){window.dispatchEvent(new CustomEvent('segmentation:slice',{detail:current}));}
   function status(text,error=false){const target=$('segmentationStatus');if(target){target.textContent=text;target.classList.toggle('save-failed',error);}}
@@ -29,13 +34,14 @@
     const preferences=window.StructureSelection?.getPreferences(entry.case_id),chosen=preferences?.structures||[],visibleChosen=chosen.filter(o=>o.visible),chosenColors=Object.fromEntries(chosen.map(o=>[o.segment_id,o.color]));
     const matches=surface?.caseId===entry.case_id&&surface?.volume?.volume_id===entry.volume_id,point=matches&&surface.contextFocus;
     const focus=Array.isArray(point)&&point.length===3&&point.every(Number.isFinite)?[...point]:[entry.shape_xyz[0]*entry.resolution_nm[0]/2,entry.shape_xyz[1]*entry.resolution_nm[1]/2,(wantedZ+.5)*entry.resolution_nm[2]];
-    const key=JSON.stringify([scope,limit,focus,scope==='selected'?chosen:null]);
+    const key=JSON.stringify([scope,limit,focus,chosen,preferences?.color_overrides]);
     // Zoom and brightness updates reuse the native selection and its painted canvases.
     if(!selectionCache||selectionCache.labels!==labels||selectionCache.key!==key){
       const present=new Set(current.objects.map(o=>o.segment_id)),seeds=entry.seed_objects.map(o=>o.segment_id).filter(id=>present.has(id));
       const neighbors=scope==='nearby'?nearest({point_local_nm:focus,limit,exclude_segment_ids:entry.seed_objects.map(o=>o.segment_id)}):current.objects.filter(o=>!seeds.includes(o.segment_id));
       const ids=scope==='selected'?visibleChosen.map(o=>o.segment_id):scope==='all'?current.objects.map(o=>o.segment_id):[...seeds,...neighbors.map(o=>o.segment_id)];
-      selectionCache={labels,key,settings:{scope,nearby_limit:limit,segment_ids:ids,focus_local_nm:focus,colors:scope==='selected'?chosenColors:{},selected_structures:scope==='selected'?chosen.map(o=>({...o})):undefined},neighborCount:neighbors.length,seedCount:seeds.length,source:null,fillCanvas:null,bordersCanvas:null};
+      const context=colorContext(preferences),colors=scope==='selected'?chosenColors:Object.fromEntries(ids.map(id=>[id,'#'+colorForSegment(id,context).map(n=>n.toString(16).padStart(2,'0')).join('')]));
+      selectionCache={labels,key,settings:{scope,nearby_limit:limit,segment_ids:ids,focus_local_nm:focus,colors,selected_structures:scope==='selected'?chosen.map(o=>({...o})):undefined},neighborCount:neighbors.length,seedCount:seeds.length,source:null,fillCanvas:null,bordersCanvas:null};
     }
     if(selectionCache.source!==current.canvas){
       const ids=selectionCache.settings.segment_ids;selectionCache.source=current.canvas;
@@ -106,7 +112,7 @@
     if(token!==generation||message.token!==generation)return;
     if(message.type==='error'){invalidate({case_id:entry?.case_id,volume_id:volumeId,local_z:wantedZ,error:message.message});status(message.message,true);for(const waiter of waiters.splice(0))waiter.reject(new Error(message.message));return;}
     if(message.type!=='slice'||message.request_id!==requestId||message.local_z!==wantedZ)return;
-    labels=message.labels;colorTable=entry.palette.map(colorForSegment);
+    labels=message.labels;colorTable=rebuildColors();
     current={ready:true,case_id:entry.case_id,volume_id:entry.volume_id,local_z:message.local_z,global_z_center_vox:entry.begin_vox_xyz[2]+message.local_z+.5,shape_xyz:[...entry.shape_xyz],resolution_nm:[...entry.resolution_nm],begin_vox_xyz:[...entry.begin_vox_xyz],source_version:'seg_m1300',canvas:paint(),bordersCanvas:paint({fill:false,borders:true}),objects:objectsInSlice()};
     const count=new Set(labels);count.delete(0);status(`Сегментация · ${count.size} сегментов · ${entry.volume_id} · Z ${message.local_z}`);display();announce();for(const waiter of waiters.splice(0))waiter.resolve(current);
   }
@@ -161,9 +167,9 @@
     const entries=colors instanceof Map?[...colors]:Object.entries(colors),next={};
     for(const [id,value]of entries.sort(([a],[b])=>String(a).localeCompare(String(b))))if(/^\d+$/.test(String(id))){const parsed=parseColor(value,null);if(parsed)next[String(id)]=parsed;}
     if(JSON.stringify(volumeColors.get(forVolume)||{})===JSON.stringify(next))return;volumeColors.set(forVolume,next);
-    if(current.ready&&forVolume===volumeId){colorTable=entry.palette.map(colorForSegment);current={...current,canvas:paint(),bordersCanvas:paint({fill:false,borders:true})};display();announce();}
+    if(current.ready&&forVolume===volumeId){colorTable=rebuildColors();current={...current,canvas:paint(),bordersCanvas:paint({fill:false,borders:true})};display();announce();}
   }
-  function refresh(){selectionCache=null;displayCache=null;display();announce();}
+  function refresh(){selectionCache=null;displayCache=null;if(current.ready&&entry&&labels){colorTable=rebuildColors();current={...current,canvas:paint(),bordersCanvas:paint({fill:false,borders:true})};}display();announce();}
   function availability(segmentId){const id=String(segmentId);return{source_version:'seg_m1300',case_id:entry?.case_id??window.ReviewViewer?.currentCase?.case_id,volume_id:volumeId,ready:current.ready,present_in_volume:entry?entry.palette.includes(id):null,present_in_slice:current.ready?current.objects.some(o=>o.segment_id===id):null};}
   window.SliceSegmentation={get current(){return current;},get selection(){return selection2D()?.settings||null;},get seedObjects(){return entry?entry.seed_objects.map(o=>({...o})):[];},availability,refresh,ensure,render:paint,captureFor,restore,setColors,colorForSegment,segmentAt,lookup:segmentAt,nearest};
   window.addEventListener('review:volume',()=>{worker?.terminate();worker=null;volumeId=null;generation++;for(const waiter of waiters.splice(0))waiter.reject(new Error('Выбран другой объём.'));invalidate();status('Подготавливаем сегментацию…');});

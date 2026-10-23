@@ -55,9 +55,9 @@
     const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
     for(let i=0;i<vertices.length;i++){const axis=i%3;lo[axis]=Math.min(lo[axis],vertices[i]);hi[axis]=Math.max(hi[axis],vertices[i]);}return [lo,hi];
   }
-  const PALETTE=['#80b8c4','#d4ae77','#adb4d8','#95baa1','#c2a0ae','#bbbd81'];
+  const NEUTRAL_COLOR='#9aa0a6';
   const color=s=>{
-    const c=/^#[0-9a-f]{6}$/i.test(s)?s:'#80b8c4';
+    const c=/^#[0-9a-f]{6}$/i.test(s)?s:NEUTRAL_COLOR;
     return [1,3,5].map(i=>parseInt(c.slice(i,i+2),16)/255);
   };
 
@@ -128,7 +128,8 @@
         for(const object of model.objects) {
           if(token!==this.token)return;
           if(typeof object.id!=='string'||seen.has(object.id))throw new Error('Идентификаторы объектов модели должны быть уникальными.');seen.add(object.id);
-          const mesh={id:object.id,segment_id:object.segment_id||null,label:object.label||object.id,color:color(object.color||PALETTE[this.meshes.length%PALETTE.length]),cssColor:object.color||PALETTE[this.meshes.length%PALETTE.length],visible:object.present!==false,clipped:object.clipped_faces||[],geometry:null,faces:0};
+          // Neutral until the version-specific source-role join resolves; ordinal O numbers carry no role.
+          const mesh={id:object.id,segment_id:object.segment_id||null,label:translateUI('Неизвестная структура'),color:color(NEUTRAL_COLOR),cssColor:NEUTRAL_COLOR,visible:object.present!==false,clipped:object.clipped_faces||[],geometry:null,faces:0};
           if(object.present!==false&&object.face_count!==0) {
             const [vb,fb]=await Promise.all([read(this.find(object.vertices_path)),read(this.find(object.faces_path))]);
             if(token!==this.token)return;
@@ -160,9 +161,12 @@
       const label=document.createElement('label');label.className='surface-object';
       const input=document.createElement('input');input.type='checkbox';input.checked=mesh.visible&&(mesh.context||!!mesh.geometry);input.disabled=!mesh.context&&!mesh.geometry;input.dataset.objectId=mesh.id;
       input.addEventListener('change',()=>{if(!window.StructureSelection?.setVisibility(mesh.segment_id,input.checked))mesh.visible=input.checked;if(mesh.context)this.updateNearby();else this.updateSliceTextures();this.visibilityChanged();this.schedule();});
-      const swatch=document.createElement('span');swatch.className='object-swatch';swatch.style.backgroundColor=/^#[0-9a-f]{6}$/i.test(mesh.cssColor)?mesh.cssColor:'#80b8c4';
-      const text=document.createElement('span');text.dataset.objectLabel='';text.textContent=mesh.id+' · '+mesh.label+(mesh.context?'':mesh.geometry?(mesh.clipped.length?' · ограничен границами фрагмента':''):' · отсутствует в этом объёме');
-      label.append(input,swatch,text);label.title=mesh.clipped.length?'Касается граней фрагмента: '+mesh.clipped.join(', '):'Нейтральное обозначение объекта; цвет не указывает на класс клетки.';label.dataset.objectId=mesh.id;
+      const swatch=document.createElement('span');swatch.className='object-swatch';swatch.style.backgroundColor=/^#[0-9a-f]{6}$/i.test(mesh.cssColor)?mesh.cssColor:NEUTRAL_COLOR;
+      const identity=document.createElement('span');identity.className='structure-identity';
+      const text=document.createElement('strong');text.dataset.objectLabel='';text.className='structure-name';text.textContent=mesh.label;
+      const technical=document.createElement('small');technical.dataset.objectTechnical='';technical.className='structure-provenance';technical.textContent=mesh.id;
+      const status=document.createElement('small');status.dataset.objectStatus='';status.className='structure-unresolved';status.hidden=true;identity.append(text,technical,status);
+      label.append(input,swatch,identity);label.title=mesh.id+' · '+(mesh.clipped.length?'Касается граней фрагмента: '+mesh.clipped.join(', '):'Нейтральное обозначение объекта; цвет не указывает на класс клетки.');label.dataset.objectId=mesh.id;
       if(mesh.context){label.dataset.context='true';label.hidden=!this.contextVisible||!this.contextShown.has(mesh.id);label.title+=' Сегмент окружения; класс клетки не установлен.';}
       mesh.control=label;this.objectsUI.append(label);
     }
@@ -193,8 +197,8 @@
       this.contextEntry=entry;for(const seed of entry.seed_objects){const mesh=this.meshes.find(m=>!m.context&&m.id===seed.id);if(mesh&&typeof seed.segment_id==='string')mesh.segment_id=seed.segment_id;}
       // Descriptors also represent exact section footprints, without loading full 3D meshes.
       for(const object of entry.objects)if(!this.meshes.some(m=>m.id===object.id)){
-        const rgb=window.SliceSegmentation?.colorForSegment?.(object.segment_id),cssColor=rgb?'#'+rgb.map(n=>n.toString(16).padStart(2,'0')).join(''):PALETTE[Number(object.id.slice(1))%PALETTE.length];
-        const mesh={id:object.id,segment_id:object.segment_id,label:'Сегмент окружения',color:color(cssColor),cssColor,visible:true,context:true,clipped:object.clipped_faces||[],geometry:null,faces:0};
+        const cssColor=window.HandoffRoles?.colorFor(this.caseId,this.volume.volume_id,object.segment_id,NEUTRAL_COLOR)||NEUTRAL_COLOR;
+        const mesh={id:object.id,segment_id:object.segment_id,label:translateUI('Неизвестная структура'),color:color(cssColor),cssColor,visible:true,context:true,clipped:object.clipped_faces||[],geometry:null,faces:0};
         this.meshes.push(mesh);this.objectControl(mesh);
       }
       window.SliceSegmentation?.setColors?.(Object.fromEntries(this.meshes.filter(m=>m.segment_id).map(m=>[m.segment_id,m.cssColor])),this.volume.volume_id);
@@ -288,12 +292,24 @@
     refreshSelectedObject() {
       const selected=this.annotations.find(a=>a.id===this.selectedAnnotationId);
       this.selectedObjectId=selected?.segment_id?this.meshes.find(m=>m.segment_id===selected.segment_id)?.id||null:selected?.volume_id===this.volume?.volume_id?selected?.object_id||null:null;
+      for(const mesh of this.meshes)if(mesh.control){const active=mesh.id===this.selectedObjectId;mesh.control.classList.toggle('is-selected',active);if(active)mesh.control.setAttribute('aria-current','true');else mesh.control.removeAttribute('aria-current');}
     }
     annotationPosition(annotation) {
       if(!this.volume||!finite3(annotation.point_nm)||(annotation.case_id&&annotation.case_id!==this.caseId))return null;
       if(annotation.geometry&&annotation.volume_id!==this.volume.volume_id)return null;
       const origin=this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]),point=vec.sub(annotation.point_nm,origin);
       return point.every((n,i)=>n>=0&&n<=this.bounds[i])?point:null;
+    }
+    annotationDrawingVisible(annotation) {
+      if(!annotation?.geometry)return true;
+      const g=annotation.geometry,v=this.volume;
+      if(!v||annotation.case_id!==this.caseId||annotation.volume_id!==v.volume_id||g.plane!=='xy'||!Number.isInteger(g.slice_index))return false;
+      if(!this.slicePlane?.enabled)return Number.isInteger(this.slice?.z)&&g.slice_index===v.begin_vox_xyz[2]+this.slice.z;
+      const plane=this.slicePlane,normal=window.HandoffSlicePlane?.planeBasis(plane)?.normal;
+      if(!finite3(normal)||Math.abs(normal[0])>1e-6||Math.abs(normal[1])>1e-6||Math.abs(Math.abs(normal[2])-1)>1e-6||!finite3(plane.center_global_nm))return false;
+      // Acquired-XY drawings never become oblique-plane drawings. The sub-nanometer
+      // tolerance only absorbs Float32 global-center roundoff, not another EM section.
+      return Math.abs((g.slice_index+.5)*v.resolution_nm[2]-plane.center_global_nm[2])<=.25;
     }
     visibleMesh(mesh) {return mesh.geometry&&(mesh.selectionVisible!==undefined?mesh.selectionVisible:mesh.visible&&(!mesh.context||this.contextVisible&&this.contextMode==='full'&&this.contextShown.has(mesh.id)));}
     meshAlpha(mesh) {return mesh.selectionVisible===true?this.alpha:mesh.context?this.contextAlpha:this.alpha;}
@@ -603,7 +619,7 @@
       for(const [ready,texture,alpha]of [[this.segmentationVisible&&this.segmentationReady,this.segmentationTexture,this.segmentationAlpha],[this.contextVisible&&this.contextMode==='slice'&&this.contextSliceReady,this.contextSliceTexture,this.contextAlpha]])if(!oblique&&ready&&alpha>0){gl.bindTexture(gl.TEXTURE_2D,texture);this.drawGeometry(this.planeGeometry,[1,1,1,alpha],2);}
       // Opaque meshes first, then independently translucent target and neighboring meshes.
       const visible=this.meshes.filter(m=>this.visibleMesh(m));
-      for(const opaque of [true,false])for(const mesh of visible){const alpha=this.meshAlpha(mesh);if(alpha<=0||(alpha===1)!==opaque)continue;gl.depthMask(opaque);this.drawGeometry(mesh.geometry,[...(!this.exportHideMarkers&&mesh.id===this.selectedObjectId?[1,.5,.24]:mesh.color),alpha]);}
+      for(const opaque of [true,false])for(const mesh of visible){const alpha=this.meshAlpha(mesh);if(alpha<=0||(alpha===1)!==opaque)continue;gl.depthMask(opaque);this.drawGeometry(mesh.geometry,[...mesh.color,alpha]);}
       gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.DEPTH_TEST);
       if($('surfaceBox').checked&&!this.exportHideMarkers){this.drawGeometry(this.boxGeometry,[.39,.56,.62,1],1,gl.LINES);this.drawGeometry(this.axisGeometry,[.86,.91,.94,1],1,gl.LINES);}
       const targets=this.targetsVisible?[...this.targets]:[];if(this.target&&this.showMarker)targets.push(this.target);
@@ -623,7 +639,7 @@
       this.targetHits=[];for(const target of targets){const [x,y]=this.project(target.position,camera);if(x<0||y<0||x>this.stage.clientWidth||y>this.stage.clientHeight)continue;MarkerStyles.draw(ctx,x,y,6,target.key);if(finite3(target.nm))this.targetHits.push({id:target.id,key:target.key,nm:[...target.nm],x,y});ctx.fillStyle=MarkerStyles.styles[target.key]?.color||'#edc229';ctx.strokeStyle='#13212c';ctx.lineWidth=4;ctx.font='12px system-ui';text(target.label||target.id,x+11,y-10);}
       this.annotationHits=[];
       if(this.annotationsVisible)for(const annotation of this.annotations){
-        const position=this.annotationPosition(annotation);if(!position)continue;const [x,y]=this.project(position,camera);
+        const position=this.annotationPosition(annotation);if(!position||!this.annotationDrawingVisible(annotation))continue;const [x,y]=this.project(position,camera);
         if(annotation.geometry){
           const origin=this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]);
           const G=window.HandoffDrawingGeometry,paths=(G?.pathsNm(annotation)||[]).map(path=>path.map(point=>this.project(vec.sub(point,origin),camera)));
@@ -665,7 +681,7 @@
         context_limit:this.contextLimit,context_focus:this.contextFocus?[...this.contextFocus]:null,context_focus_label:this.contextFocusLabel,context_shown:[...this.contextShown],
         objects:this.meshes.map(m=>({object_id:m.id,segment_id:m.segment_id||null,visible:!!(m.selectionVisible??m.visible)})),annotations_visible:this.annotationsVisible,selected_annotation_id:this.selectedAnnotationId,
         seed_points_visible:this.targetsVisible,seed_filters:{center:!!$('tCenter')?.checked,pre:!!$('tPre')?.checked,post:!!$('tPost')?.checked},
-        viewport_css_px:[this.stage.clientWidth,this.stage.clientHeight],annotation_ids:this.annotationsVisible?this.annotations.filter(a=>this.annotationPosition(a)).map(a=>a.id):[],
+        viewport_css_px:[this.stage.clientWidth,this.stage.clientHeight],annotation_ids:this.annotationsVisible?this.annotations.filter(a=>this.annotationPosition(a)&&this.annotationDrawingVisible(a)).map(a=>a.id):[],
         display_window:this.slice?[this.slice.black,this.slice.white]:null};
     }
     async restoreEvidence(view) {
@@ -699,6 +715,7 @@
       this.annotationsVisible=!!view.annotations_visible;this.targetsVisible=!!view.seed_points_visible;this.selectedAnnotationId=view.selected_annotation_id||null;this.refreshSelectedObject();this.updateSliceTextures();this.draw();this.navigationChanged('restore');this.visibilityChanged();return this.getViewState();
     }
     capturePNG({hideMarkers=true,longEdge=3072}={}) {
+      window.StructureSurface?.apply(this);
       const view=this.getViewState(),cssWidth=this.stage.clientWidth,cssHeight=this.stage.clientHeight;
       if(!cssWidth||!cssHeight)throw new Error('Откройте просмотр 2D / 3D перед сохранением изображения.');
       const gl=this.gl,limits=gl.getParameter(gl.MAX_VIEWPORT_DIMS),maximum=gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),ratio=longEdge/Math.max(cssWidth,cssHeight),width=Math.round(cssWidth*ratio),height=Math.round(cssHeight*ratio);
@@ -717,6 +734,7 @@
       return {view,canvas,width,height,hideMarkers:!!hideMarkers,blob:new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Не удалось создать PNG 3D-вида.')),'image/png'))};
     }
     captureModel() {
+      window.StructureSurface?.apply(this);
       const view=this.getViewState(),meshes=this.meshes.filter(mesh=>this.visibleMesh(mesh)&&this.meshAlpha(mesh)>0).map(mesh=>({...mesh,opacity:this.meshAlpha(mesh)}));
       const result=window.HandoffSurfaceExport.buildGLB(meshes,{case_id:this.caseId,volume_id:this.volume.volume_id,source:'seg_m1300',origin_global_nm:this.volume.begin_vox_xyz.map((n,i)=>n*this.volume.resolution_nm[i]),bounds_local_nm:[[0,0,0],[...this.bounds]],camera:view.camera});
       return {...result,view,blob:new Blob([result.buffer],{type:'model/gltf-binary'})};
@@ -746,13 +764,13 @@
     }
     async exportPNG() {
       if(this.exportBusy)return;this.exportBusy=true;const token=this.token,volume=this.volume;for(const id of ['surfaceExport','surfaceExportModel'])if($(id))$(id).disabled=true;
-      try {await window.StructureSurface?.ensure?.(this);if(token!==this.token||volume!==this.volume)throw new Error('Объём изменился во время экспорта. Повторите сохранение текущего вида.');const capture=this.capturePNG({hideMarkers:$('surfaceExportClean')?.checked??true}),blob=await capture.blob;window.HandoffSurfaceExport.download(blob,capture.view.volume_id+'_3d_local-z'+(capture.view.local_z??'none')+(capture.hideMarkers?'_figure':'_annotated')+'.png');}
+      try {await window.HandoffRoles?.ready;await window.StructureSurface?.ensure?.(this);if(token!==this.token||volume!==this.volume)throw new Error('Объём изменился во время экспорта. Повторите сохранение текущего вида.');const capture=this.capturePNG({hideMarkers:$('surfaceExportClean')?.checked??true}),blob=await capture.blob;window.HandoffSurfaceExport.download(blob,capture.view.volume_id+'_3d_local-z'+(capture.view.local_z??'none')+(capture.hideMarkers?'_figure':'_annotated')+'.png');}
       catch(error){this.setStatus(error.message,'error');}
       finally{this.exportBusy=false;for(const id of ['surfaceExport','surfaceExportModel'])if($(id))$(id).disabled=!this.volume||!this.gl||!this.modelReady;}
     }
     async exportModel() {
       if(this.exportBusy)return;this.exportBusy=true;const token=this.token,volume=this.volume;for(const id of ['surfaceExport','surfaceExportModel'])if($(id))$(id).disabled=true;
-      try {await window.StructureSurface?.ensure?.(this);if(token!==this.token||volume!==this.volume)throw new Error('Объём изменился во время экспорта. Повторите сохранение текущего вида.');const capture=this.captureModel();window.HandoffSurfaceExport.download(capture.blob,capture.view.volume_id+'_seg1300_selected_structures.glb');}
+      try {await window.HandoffRoles?.ready;await window.StructureSurface?.ensure?.(this);if(token!==this.token||volume!==this.volume)throw new Error('Объём изменился во время экспорта. Повторите сохранение текущего вида.');const capture=this.captureModel();window.HandoffSurfaceExport.download(capture.blob,capture.view.volume_id+'_seg1300_selected_structures.glb');}
       catch(error){this.setStatus(error.message,'error');}
       finally{this.exportBusy=false;for(const id of ['surfaceExport','surfaceExportModel'])if($(id))$(id).disabled=!this.volume||!this.gl||!this.modelReady;}
     }

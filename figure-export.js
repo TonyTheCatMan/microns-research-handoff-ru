@@ -53,7 +53,7 @@
     return canvas;
   }
   async function capturePair(){
-    await window.HandoffDrawings?.whenSettled();await window.HandoffAnnotations?.settleForAction();await window.SliceSegmentation?.ensure();
+    await window.HandoffDrawings?.whenSettled();await window.HandoffAnnotations?.settleForAction();await window.HandoffRoles?.ready;await window.SliceSegmentation?.ensure();window.StructureSurface?.apply(window.ReviewViewer?.surface);
     // Freeze image, crop, IDs, colors, marks and toggles together before PNG encoding.
     const snapshot=freeze(),coloredCanvas=render(snapshot,true),plainCanvas=render(snapshot,false);
     const [colored,plain]=await Promise.all([png(coloredCanvas),png(plainCanvas)]);

@@ -8,20 +8,23 @@
   function apply(view=surface()){
     if(applying||!view?.modelReady)return;applying=true;
     try{
-      const selected=new Map(selection(view).map(o=>[o.segment_id,o]));let changed=false,colorChanged=false;
+      const preferences=window.StructureSelection?.getPreferences(view.caseId)||{},selected=new Map((preferences.structures||[]).map(o=>[o.segment_id,o]));let changed=false,colorChanged=false;
       for(const mesh of view.meshes){
         mesh.originalColor??=mesh.cssColor;mesh.originalLabel??=mesh.label;
-        const item=selected.get(mesh.segment_id),info=window.HandoffRoles?.identify(view.caseId,view.volume.volume_id,mesh.segment_id),next=window.HandoffRoles?.colorFor(view.caseId,view.volume.volume_id,mesh.segment_id,mesh.originalColor,item)||item?.color||mesh.originalColor;
+        const item=selected.get(mesh.segment_id),override=preferences.color_overrides?.[mesh.segment_id],colorChoice=item||(override?{color:override,color_mode:'individual'}:undefined),info=window.HandoffRoles?.identify(view.caseId,view.volume.volume_id,mesh.segment_id),next=window.HandoffRoles?.colorFor(view.caseId,view.volume.volume_id,mesh.segment_id,mesh.originalColor,colorChoice)||colorChoice?.color||mesh.originalColor;
         if(mesh.selectionVisible!==item?.visible){mesh.selectionVisible=item?.visible;changed=true;}
         if(mesh.cssColor!==next){mesh.cssColor=next;mesh.color=rgb(next);colorChanged=changed=true;}
         mesh.identity=info?{role:info.role,status:info.status,identity_verified:info.identity_verified,nucleus_id:info.nucleus_id,source_version:'seg_m1300',limitation:info.limitation}:undefined;
-        const name=info?window.HandoffRoles.label(info):mesh.context?'Неизвестная структура':mesh.originalLabel;
+        const name=info?(window.HandoffRoles.shortLabel?.(info)||window.HandoffRoles.label(info)):(window.HandoffI18n?.translate('Неизвестная структура')||'Неизвестная структура');
+        mesh.sourceLabel=info?window.HandoffRoles.label(info):name;
         if(mesh.label!==name){mesh.label=name;changed=true;}
         const control=mesh.control;if(control){
           const swatch=control.querySelector('.object-swatch');if(swatch)swatch.style.backgroundColor=next;
           const input=control.querySelector('input');if(input){input.checked=item?item.visible:mesh.visible&&(mesh.context||!!mesh.geometry);input.disabled=!mesh.geometry&&!mesh.context;}
-          const text=control.querySelector('[data-object-label]');if(text){const label=mesh.id+' · '+name+(info&&!info.identity_verified?' · Объект не подтверждён':'');if(text.textContent!==label)text.textContent=label;}
-          control.title=[window.HandoffRoles?.details(info),'seg_m1300: '+(mesh.segment_id||''),mesh.clipped.length?'Касается граней фрагмента: '+mesh.clipped.join(', '):''].filter(Boolean).join('\n');
+          const text=control.querySelector('[data-object-label]');if(text&&text.textContent!==name)text.textContent=name;
+          const technical=control.querySelector('[data-object-technical]');if(technical)technical.textContent=mesh.id;
+          const status=control.querySelector('[data-object-status]');if(status){status.hidden=!info||info.identity_verified;status.textContent=window.HandoffI18n?.translate('Объект не подтверждён')||'Объект не подтверждён';}
+          control.title=[mesh.sourceLabel,window.HandoffRoles?.details(info),mesh.id+' · seg_m1300: '+(mesh.segment_id||''),mesh.clipped.length?'Касается граней фрагмента: '+mesh.clipped.join(', '):''].filter(Boolean).join('\n');
           if(mesh.context)control.hidden=!item&&(!view.contextVisible||!view.contextShown.has(mesh.id));
         }
       }

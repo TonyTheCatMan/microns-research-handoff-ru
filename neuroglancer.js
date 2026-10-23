@@ -1,7 +1,7 @@
 /* Public MICrONS viewer states use physical coordinates, with no registration offset. */
 (() => {
   'use strict';
-  const HOST = new URL('neuroglancer/?v=20261023-roles1',window.location.href).href;
+  const HOST = new URL('neuroglancer/?v=20261023-rolefix1',window.location.href).href;
   const EM = 'precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em';
   const SEG = 'precomputed://https://storage.googleapis.com/iarpa_microns/minnie/minnie65/seg_m1300';
   const activeCase=id=>window.HandoffCaseSelection?.includes(id)===true;
@@ -60,22 +60,26 @@
       const color=window.HandoffDrawingGeometry?.colorFor?.(record)||record.geometry.color||'#ffd166',width=record.geometry.stroke_width||2,key=color+' · '+width+(dab?' · Точки кисти':'');
       let layer=drawingLayers.get(key);
       if(!layer){layer={type:'annotation',name:'Мои метки · Рисунки · '+key,visible:enabled('annotationsVisible'),source:{url:'local://annotations',transform:{outputDimensions:dimensions}},annotationColor:color,
-        annotationProperties:[{id:'number',type:'uint32',description:'Номер метки',default:0},...['x','y','z'].map(axis=>({id:'anchor_'+axis,type:'float32',description:'Координата '+axis,default:0})),{id:'drawing_opacity',type:'float32',description:'Непрозрачность рисунка',default:1},{id:'show_number',type:'uint32',description:'Показать номер рисунка',default:0}],
-        // Respect the acquired XY section instead of Neuroglancer's usual
-        // two-section fade. The 3D projection still shows all anchored planes.
+        annotationProperties:[{id:'number',type:'uint32',description:'Номер метки',default:0},...['x','y','z'].map(axis=>({id:'anchor_'+axis,type:'float32',description:'Координата '+axis,default:0})),{id:'drawing_opacity',type:'float32',description:'Непрозрачность рисунка',default:1},{id:'show_number',type:'uint32',description:'Показать номер рисунка',default:0},{id:'show_3d',type:'uint32',description:'Рисунок на текущей плоскости',default:0}],
+        // Acquired XY drawings stay on their saved section. The native bridge
+        // updates show_3d when its independent sampling plane or section moves.
         shader:`void main(){
+          if(PROJECTION_VIEW&&prop_show_3d()==0u)discard;
           if(!PROJECTION_VIEW){
             float anchor[3]=float[3](prop_anchor_x(),prop_anchor_y(),prop_anchor_z());
             vec4 center=uModelViewProjection*vec4(projectModelVectorToSubspace(anchor),1.0);
             vec4 dx=uModelViewProjection*vec4(uSubspaceMatrix[0],0.0);
             vec4 dy=uModelViewProjection*vec4(uSubspaceMatrix[1],0.0);
             vec4 dz=uModelViewProjection*vec4(uSubspaceMatrix[2],0.0);
-            if(abs(dx.z)>abs(dz.z)*0.001||abs(dy.z)>abs(dz.z)*0.001||abs(center.z)>abs(dz.z)*0.5+0.00001)discard;
+            if(abs(dz.z)<0.000000000001||abs(dx.z)>abs(dz.z)*0.001||abs(dy.z)>abs(dz.z)*0.001)discard;
+            float sectionOffset=center.z/dz.z;
+            if(sectionOffset>0.5+0.00001||sectionOffset<=-0.5+0.00001)discard;
           }
           setColor(vec4(defaultColor(),prop_drawing_opacity()));setLineWidth(${Number(width).toFixed(1)});setEndpointMarkerSize(0.0);setPointMarkerSize(${Number(dab?width:0).toFixed(1)});setPointMarkerBorderWidth(0.0);
         }`,annotations:[]};drawingLayers.set(key,layer);}
       const description=[`№${record.number} · ${drawingNames[record.kind]||record.kind} · ${record.case_id} · ${record.volume_id}`,`Плоскость XY · Z ${record.geometry.slice_index} · редактирование в основном 2D-виде`,record.notes,record.properties].filter(Boolean).join('\n');
-      const anchor=record.point_nm.map((n,i)=>n/resolution[i]),opacity=window.HandoffDrawingGeometry?.opacityFor?.(record.geometry)??(Number.isFinite(record.geometry.opacity)?Math.max(0,Math.min(1,record.geometry.opacity)):1),props=[record.number,...anchor,opacity,enabled('drawingNumbers',false)?1:0];
+      const visible3D=findings.drawingVisible3D?findings.drawingVisible3D(record):record.geometry.plane==='xy'&&record.geometry.slice_index===begin[2]+localZ;
+      const anchor=record.point_nm.map((n,i)=>n/resolution[i]),opacity=window.HandoffDrawingGeometry?.opacityFor?.(record.geometry)??(Number.isFinite(record.geometry.opacity)?Math.max(0,Math.min(1,record.geometry.opacity)):1),props=[record.number,...anchor,opacity,enabled('drawingNumbers',false)?1:0,visible3D?1:0];
       layer.annotations.push({type:'point',id:record.id,point:anchor,props,description});
       paths.forEach((path,p)=>path.slice(1).forEach((point,i)=>layer.annotations.push({type:'line',id:`${record.id}::draw:${p}:${i}`,pointA:path[i].map((n,axis)=>n/resolution[axis]),pointB:point.map((n,axis)=>n/resolution[axis]),props,description})));
     }
@@ -89,7 +93,7 @@
       projectionOrientation: records.length ? [0.2,0.3,0,Math.sqrt(0.87)] : [0,0,0,1],
       layers: [
         {type: 'image', name: 'ЭМ MICrONS', source: EM, shaderControls: {normalized: {range: [settings.blackInput??0, settings.whiteInput??255]}}},
-        ...[['Объекты · v1300',objects.filter(o=>!o.context),settings.surfaceOpacity??80],['Соседние структуры · v1300',objects.filter(o=>o.context),settings.surfaceContextMode==='slice'?0:settings.surfaceContextOpacity??25]].map(([name,items,alpha])=>({type:'segmentation',name,source:SEG,segments:items.map(o=>o.segment),segmentColors:Object.fromEntries(items.map(o=>[o.segment,o.color])),selectedAlpha:0,notSelectedAlpha:0,objectAlpha:alpha/100})),
+        ...[['Объекты · v1300',objects.filter(o=>!o.context),settings.surfaceOpacity??80],['Соседние структуры · v1300',objects.filter(o=>o.context),settings.surfaceContextMode==='slice'?0:settings.surfaceContextOpacity??25]].map(([name,items,alpha])=>({type:'segmentation',name,source:SEG,segments:items.map(o=>o.segment),segmentColors:Object.fromEntries(items.map(o=>[o.segment,o.color])),ignoreNullVisibleSet:false,selectedAlpha:0,notSelectedAlpha:0,objectAlpha:alpha/100})),
         ...(findings.sectionLayers||[]),
         {type: 'annotation', name: `Границы ${volume.volume_id}`,visible:enabled('surfaceBox'), source: {url: 'local://annotations', transform: {outputDimensions: dimensions}}, annotationColor: '#48d4f2', annotations: [{type: 'axis_aligned_bounding_box', id: 'volume-bounds', pointA: begin, pointB: volume.end_vox_xyz_exclusive, description: volume.volume_id}]},
         {type: 'annotation', name: 'Заданные точки · не проверены', source: {url: 'local://annotations', transform: {outputDimensions: dimensions}}, annotationColor: '#ffca64',
@@ -137,7 +141,7 @@
   function sectionLayers(settings){
     const data=window.SliceSegmentation?.current,selection=window.SliceSegmentation?.selection;
     if(!data?.ready||data.volume_id!==ReviewViewer.volume?.volume_id||data.local_z!==ReviewViewer.z)return[];
-    const make=(name,ids,alpha,visible,customColors={})=>({type:'segmentation',name,source:SEG,segments:ids,segmentColors:Object.fromEntries(ids.map(id=>[id,customColors[id]||color(id)])),selectedAlpha:alpha/100,notSelectedAlpha:0,objectAlpha:0,visible});
+    const make=(name,ids,alpha,visible,customColors={})=>({type:'segmentation',name,source:SEG,segments:ids,segmentColors:Object.fromEntries(ids.map(id=>[id,customColors[id]||color(id)])),ignoreNullVisibleSet:false,selectedAlpha:alpha/100,notSelectedAlpha:0,objectAlpha:0,visible});
     const surface=ReviewViewer.surface,nearby=surface.meshes.filter(m=>m.context&&(m.selectionVisible??m.visible)&&surface.contextShown.has(m.id)).map(m=>m.segment_id);
     return[
       make('Сегментация 2D · v1300',selection?.segment_ids||[],settings.segmentationOpacity,settings.segmentation2D,selection?.colors),
@@ -158,10 +162,12 @@
   function snapshot(){
     const v=window.ReviewViewer,c=v?.currentCase,volume=v?.volume,findings=window.HandoffAnnotations;
     if(!v?.ready||!c||!volume||!findings?.store||!segmentIndex||!v.surface?.modelReady)return null;
-    const fallback=segmentIndex.volumes[volume.volume_id];if(!fallback)return null;
+    const indexed=segmentIndex.volumes[volume.volume_id];if(!indexed)return null;
+    const preferences=window.StructureSelection?.getPreferences(c.case_id);
+    const fallback=indexed.map(object=>{const item=preferences?.structures.find(row=>row.segment_id===object.segment),saved=preferences?.color_overrides?.[object.segment],choice=item||(saved?{color:saved,color_mode:'individual'}:undefined);return{...object,color:window.HandoffRoles?.colorFor(c.case_id,volume.volume_id,object.segment,object.color,choice)||object.color};});
     const surface=v.surface,objects=surface?.caseId===c.case_id&&surface.volume?.volume_id===volume.volume_id?surface.visibleSegments(fallback)??fallback:fallback;
     const settings=controls(),navigation=v.getNavigationState?.(),selection=findings.selectedId;
-    const state=buildState(c,volume,v.z,v.target,objects,null,{records:findings.records,settings,sectionLayers:sectionLayers(settings)});
+    const state=buildState(c,volume,v.z,v.target,objects,null,{records:findings.records,settings,sectionLayers:sectionLayers(settings),drawingVisible3D:record=>surface.annotationDrawingVisible(record)});
     if(navigation?.position_nm)state.position=navigation.position_nm.map((n,i)=>n/volume.resolution_nm[i]);
     state.crossSectionScale=1/v.zoom;
     if(navigationFocus?.point_nm)state.position=navigationFocus.point_nm.map((n,i)=>n/volume.resolution_nm[i]);

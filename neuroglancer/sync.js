@@ -178,7 +178,10 @@
       if('shaderControls'in spec&&!same(before.shaderControls,spec.shaderControls))layer.annotationDisplayState.shaderControls.restoreState(spec.shaderControls);
     }else if(spec.type==='segmentation'){
       const d=layer.displayState,g=d.segmentationGroupState.value,c=d.segmentationColorGroupState.value;
-      for(const key of ['selectedAlpha','notSelectedAlpha','objectAlpha','saturation','hoverHighlight','ignoreNullVisibleSet'])if(key in spec&&!same(before[key],spec[key]))d[key]?.restoreState(spec[key]);
+      // Empty researcher selections mean no structures. The native default
+      // otherwise shows every segment on the section when this set is empty.
+      if(d.ignoreNullVisibleSet?.value!==false)d.ignoreNullVisibleSet?.restoreState(false);
+      for(const key of ['selectedAlpha','notSelectedAlpha','objectAlpha','saturation','hoverHighlight'])if(key in spec&&!same(before[key],spec[key]))d[key]?.restoreState(spec[key]);
       if('segments'in spec&&!same(before.segments||[],spec.segments)){g.selectedSegments.clear();g.visibleSegments.clear();g.restoreState({segments:spec.segments});}
       if('segmentColors'in spec&&!same(before.segmentColors||{},spec.segmentColors)){c.segmentStatedColors.clear();c.restoreState({segmentColors:spec.segmentColors});}
     }else if(spec.type==='image'){
@@ -203,7 +206,7 @@
     const desired=new Set(specs.filter(s=>ownLayer(s.name)).map(s=>s.name));
     const reboundSelections=[];
     // Add new layer types before removing obsolete layers, retaining a constructor template.
-    for(const spec of specs){if(!ownLayer(spec.name))continue;let managed=viewer.layerManager.managedLayers.find(l=>l.name===spec.name);
+    for(const input of specs){if(!ownLayer(input.name))continue;const spec=input.type==='segmentation'?{...input,ignoreNullVisibleSet:false}:input;let managed=viewer.layerManager.managedLayers.find(l=>l.name===spec.name);
       const before=managed?.toJSON(),drawingSchemaChanged=spec.type==='annotation'&&spec.name.startsWith('Мои метки · Рисунки · ')&&!same(before?.annotationProperties||[],spec.annotationProperties||[]);
       if(managed&&drawingSchemaChanged){const selected=viewer.selectionDetailsState?.value?.layers?.find(row=>row.layer===managed.layer)?.state?.annotationId;if(selected)reboundSelections.push({name:spec.name,id:selected});}
       if(managed&&(before.type!==spec.type||drawingSchemaChanged)){viewer.layerManager.removeManagedLayer(managed);managed=null;}
@@ -265,7 +268,7 @@
     normalizationPending=!!window.MicronsViewControls?.constrainOrientation()||normalizationPending;
     if(message.type==='host-state'&&(applyNavigation||p.reason==='clear'))lastNavigationRevision=p.navigationRevision||null;
     if(message.type==='ng-state')lastNavigationRevision=message.source+':'+message.clock;
-    syncSectionPanels();
+    syncSectionPanels();scopeDrawingPlanes();
   }
   function finishWaiters(){if(!applying&&!pending)while(waiters.length)waiters.shift()(applied);window.dispatchEvent(new CustomEvent('microns:view-sync-status'));}
   async function drain(){
@@ -323,6 +326,7 @@
   // and position decouple the physical 3D sampling plane from acquired-XY drawing.
   // Zoom and physical-unit metadata remain shared, as do the volume data chunks.
   const splitSlices=new Map();
+  let reconcilingSections=false;
   const currentCenterNm=()=>Array.from(viewer.position.value,(n,i)=>n*resolution()[i]);
   const planeQuaternion=angles=>HandoffSlicePlane.quaternionFromAngles(angles);
   function getSlicePlane(){
@@ -338,6 +342,7 @@
     if(same(slicePlane,next))return false;
     const visibilityChanged=slicePlane?.enabled!==next.enabled;slicePlane=next;
     for(const [panel,entry]of splitSlices){applySlicePlane(entry);if(visibilityChanged)entry.slice.updateVisibleLayers();panel.scheduleRedraw();}
+    scopeDrawingPlanes();
     window.MicronsViewControls?.render();
     window.dispatchEvent(new CustomEvent('microns:slice-plane-rendered',{detail:{slicePlane:getSlicePlane()}}));
     if(emit)window.dispatchEvent(new CustomEvent('microns:slice-plane',{detail:{slicePlane:getSlicePlane()}}));
@@ -351,6 +356,25 @@
     if(!same(Array.from(pose.orientation.orientation),q))pose.orientation.restoreState(q);
     slice.flushBackendProjectionParameters();
   }
+  function scopeDrawingPlanes(){
+    const plane=getSlicePlane(),res=resolution();if(res.length!==3||!valid3(plane.center_global_nm))return;
+    const normal=plane.enabled?HandoffSlicePlane.planeBasis(plane).normal:[0,0,1];
+    const xy=Math.abs(normal[0])<=1e-6&&Math.abs(normal[1])<=1e-6&&Math.abs(Math.abs(normal[2])-1)<=1e-6;
+    let changed=false;
+    for(const managed of viewer.layerManager.managedLayers){
+      if(!managed.name.startsWith('Мои метки · Рисунки · '))continue;
+      const local=managed.layer?.localAnnotations,spec=managed.toJSON(),properties=spec.annotationProperties||[],index=properties.findIndex(p=>p.id==='show_3d'),zIndex=properties.findIndex(p=>p.id==='anchor_z');
+      if(!local||index<0||zIndex<0)continue;
+      let layerChanged=false;const rows=local.toJSON().map(row=>{
+        const z=row.props?.[zIndex],sameSection=Number.isFinite(z)&&(plane.enabled?Math.abs(z*res[2]-plane.center_global_nm[2])<=.25:Math.floor(z)===Math.floor(plane.center_global_nm[2]/res[2])),value=xy&&sameSection?1:0;
+        if(row.props?.[index]===value)return row;
+        const props=[...(row.props||[])];props[index]=value;layerChanged=true;return{...row,props};
+      });
+      if(layerChanged){local.restoreState(rows);changed=true;}
+    }
+    if(changed)window.MicronsMarkers?.redraw();
+    return changed;
+  }
   function filteredManager(root,threeD){
     const proxy=Object.create(root);proxy.readyRenderLayers=function*(){
       for(const managed of root.managedLayers){if(!managed.visible||!managed.layer)continue;
@@ -363,10 +387,23 @@
     };return proxy;
   }
   function syncSectionPanels(){
+    if(reconcilingSections)return;reconcilingSections=true;
+    try{
     const panels=[...viewer.display.panels],slices=panels.filter(p=>p.sliceView),perspectives=panels.filter(p=>!p.sliceView&&p.sliceViews);
     for(const panel of slices){const original=panel.sliceView;if(original.micronsFiltered)continue;original.layerManager=filteredManager(original.layerManager,false);original.micronsFiltered=true;original.updateVisibleLayers();}
-    for(const panel of perspectives){if(splitSlices.has(panel))continue;
-      const original=[...panel.sliceViews.keys()].find(s=>slices.some(p=>p.sliceView===s));if(!original)continue;
+    for(const panel of perspectives){
+      const existing=splitSlices.get(panel);
+      if(existing&&panel.sliceViews.has(existing.slice)){
+        // Layout reconstruction or a saved native cross-section may add another
+        // EM plane after initialization. Only the current sampling plane belongs
+        // in this research 3D pane; ordinary structure meshes are unaffected.
+        for(const slice of [...panel.sliceViews.keys()])if(slice!==existing.slice)panel.sliceViews.delete(slice);
+        panel.element.dataset.micronsPlaneCount=String(panel.sliceViews.size);
+        panel.element.dataset.micronsPlaneOblique=String(!!slicePlane?.enabled);
+        continue;
+      }
+      if(existing){existing.dispose();splitSlices.delete(panel);}
+      const original=[...panel.sliceViews.keys()].find(s=>slices.some(p=>p.sliceView===s))||slices[0]?.sliceView;if(!original)continue;
       const initial=original.projectionParameters.value;if(![initial.logicalWidth,initial.logicalHeight].every(n=>Number.isFinite(n)&&n>0))continue;
       const source=original.navigationState,oldPose=source.pose;
       const position=new oldPose.position.constructor(oldPose.position.coordinateSpace);position.restoreState(Array.from(oldPose.position.value));
@@ -377,13 +414,16 @@
       const entry={slice,original,dispose:null};
       const matchViewport=()=>{const p=original.projectionParameters.value;if(![p.logicalWidth,p.logicalHeight].every(n=>Number.isFinite(n)&&n>0))return;const width=Math.round(p.logicalWidth),height=Math.round(p.logicalHeight);slice.projectionParameters.setViewport({width,height,logicalWidth:width,logicalHeight:height,visibleLeftFraction:0,visibleTopFraction:0,visibleWidthFraction:1,visibleHeightFraction:1});slice.flushBackendProjectionParameters();};
       entry.dispose=original.projectionParameters.changed.add(matchViewport);matchViewport();applySlicePlane(entry);
-      panel.sliceViews.delete(original);panel.sliceViews.set(slice,false);splitSlices.set(panel,entry);panel.scheduleRedraw();
+      for(const oldSlice of [...panel.sliceViews.keys()])panel.sliceViews.delete(oldSlice);
+      panel.sliceViews.set(slice,false);splitSlices.set(panel,entry);panel.element.dataset.micronsPlaneCount=String(panel.sliceViews.size);panel.element.dataset.micronsPlaneOblique=String(!!slicePlane?.enabled);panel.scheduleRedraw();
     }
     for(const [panel,entry]of splitSlices)if(!panels.includes(panel)){entry.dispose();splitSlices.delete(panel);}
+    }finally{reconcilingSections=false;}
   }
   function start(){
     if(!window.viewer?.display||!window.MicronsMarkers){setTimeout(start,50);return;}
     started=true;
+    for(const managed of viewer.layerManager.managedLayers)if(ownLayer(managed.name)&&managed.toJSON()?.type==='segmentation')managed.layer?.displayState?.ignoreNullVisibleSet?.restoreState(false);
     setSlicePlane(initialState?.micronsSlicePlane||{enabled:false,angles_deg:[0,0,0],center_global_nm:currentCenterNm()},{announce:false});
     syncSectionPanels();markBaseline();installDeselectControls();viewer.state.changed.add(schedule);viewer.display.updateFinished.add(syncSectionPanels);
     let lastPosition=Array.from(viewer.position.value);

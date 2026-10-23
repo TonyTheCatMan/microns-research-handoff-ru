@@ -20,7 +20,7 @@
     "scope": "Sampled synaptic points only; not certification of entire historical mesh objects."
   },
   "role_semantics": "role and palette_role denote the associated contact annotation, not a certified whole-object biological identity.",
-  "palette_policy": "Explicit opt-in source-annotation colors only. Preserve individual colors until the reviewer explicitly applies a palette. Unknown objects receive no inferred role.",
+  "palette_policy": "Default source-annotation colors are display conventions, not proof of whole-object identity. Preserve individual saved colors until the reviewer explicitly applies or resets the role palette. Unknown automatic objects use neutral gray and receive no inferred role.",
   "unknown_structure_policy": "No entry means unknown; never infer from object number, T order, color, proximity, or vesicle shape.",
   "labels": {
     "excitatory": {

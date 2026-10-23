@@ -1,7 +1,7 @@
 /* Deliberate, case-scoped selections of exact seg_m1300 voxel identities. */
 (() => {
   'use strict';
-  const $=id=>document.getElementById(id),source='seg_m1300',cases=new Map(),palette=['#e85d75','#4da3ff','#73c66a','#b28cf5','#f4a340','#35bcb5'];
+  const $=id=>document.getElementById(id),source='seg_m1300',cases=new Map(),neutral='#9aa0a6';
   const clone=value=>structuredClone(value),currentCase=()=>window.ReviewViewer?.currentCase?.case_id||null;
   let picking=false,pointer=null,previousCase=null,applying=false,renderSignature='';
   const defaults=case_id=>({schema_version:1,source_version:source,case_id,structures:[],scope:'selected',fill:false,borders:false,opacity:.25});
@@ -13,7 +13,15 @@
       if(o.color_mode!==undefined&&!['role','individual'].includes(o.color_mode))throw new Error('Неверные настройки выбранных структур seg_m1300.');
       seen.add(o.segment_id);return{segment_id:o.segment_id,color:o.color.toLowerCase(),visible:o.visible,color_mode:o.color_mode??'individual'};
     });
-    return{schema_version:1,source_version:source,case_id:s.case_id,structures,scope:s.scope,fill:s.fill,borders:s.borders,opacity:s.opacity};
+    let overrides;
+    if(s.color_overrides!==undefined){
+      if(!s.color_overrides||typeof s.color_overrides!=='object'||Array.isArray(s.color_overrides)||Object.keys(s.color_overrides).length>256)throw new Error('Неверные настройки выбранных структур seg_m1300.');
+      overrides={};for(const [id,color]of Object.entries(s.color_overrides)){
+        if(!/^[1-9]\d{0,19}$/.test(id)||BigInt(id)>18446744073709551615n||typeof color!=='string'||!/^#[\da-f]{6}$/i.test(color))throw new Error('Неверные настройки выбранных структур seg_m1300.');
+        overrides[id]=color.toLowerCase();
+      }
+    }
+    return{schema_version:1,source_version:source,case_id:s.case_id,structures,scope:s.scope,fill:s.fill,borders:s.borders,opacity:s.opacity,...(overrides?{color_overrides:overrides}:{})};
   }
   function readControls(s){
     if($('segmentationScope')&&['selected','nearby','all'].includes($('segmentationScope').value))s.scope=$('segmentationScope').value;
@@ -60,6 +68,16 @@
     $('viewport')?.classList.toggle('structure-picking',picking);
     if(picking)message('Нажмите на структуру. Esc - завершить.');
   }
+  function rememberColor(s,object){
+    if(object.color_mode==='role')return;
+    s.color_overrides??={};delete s.color_overrides[object.segment_id];s.color_overrides[object.segment_id]=object.color;
+    // Selected objects already retain their own color, so reserve the bounded history for removed objects.
+    while(Object.keys(s.color_overrides).length>256){const keys=Object.keys(s.color_overrides),redundant=keys.find(id=>id!==object.segment_id&&s.structures.some(o=>o.segment_id===id));delete s.color_overrides[redundant||keys[0]];}
+  }
+  function removeSegment(segmentId){
+    const s=getPreferences(),object=s?.structures.find(o=>o.segment_id===String(segmentId));if(!object)return false;
+    rememberColor(s,object);s.structures=s.structures.filter(o=>o.segment_id!==object.segment_id);commit(s);return true;
+  }
   function addSegment(segmentId){
     const id=String(segmentId),s=getPreferences(),availability=window.SliceSegmentation?.availability(id);
     if(!window.HandoffAnnotations?.store)return false;
@@ -67,8 +85,8 @@
     const existing=s.structures.find(o=>o.segment_id===id);
     if(existing){existing.visible=true;message('Структура уже выбрана.');}
     else{
-      const used=new Set(s.structures.map(o=>o.color)),role=window.HandoffRoles?.identifyInCase(s.case_id,id),common=window.HandoffRoles?.getPalette().enabled&&role?.palette_role;
-      s.structures.push({segment_id:id,color:common?window.HandoffRoles.colorFor(s.case_id,null,id):palette.find(color=>!used.has(color))||palette[s.structures.length%palette.length],visible:true,color_mode:common?'role':'individual'});message('Структура выбрана.');
+      const saved=s.color_overrides?.[id];
+      s.structures.push({segment_id:id,color:saved||window.HandoffRoles?.colorFor(s.case_id,null,id)||neutral,visible:true,color_mode:saved?'individual':'role'});message('Структура выбрана.');
     }
     s.scope='selected';s.fill=true;commit(s);return true;
   }
@@ -90,19 +108,19 @@
     const seeds=$('structureSeeds');seeds.replaceChildren();
     const originals=window.SliceSegmentation?.seedObjects||[];
     if(originals.length){for(const object of originals){
-      const info=window.HandoffRoles?.identifyInCase(s?.case_id,object.segment_id),button=element('button','structure-seed',object.id);button.type='button';button.dataset.segmentId=object.segment_id;button.title=[window.HandoffRoles?.label(info),window.HandoffRoles?.details(info),`${source}: ${object.segment_id}`].filter(Boolean).join('\n');button.disabled=!ready;button.addEventListener('click',()=>addSegment(object.segment_id));seeds.append(button);
+      const info=window.HandoffRoles?.identifyInCase(s?.case_id,object.segment_id),button=element('button','structure-seed',window.HandoffRoles?.shortLabel(info)||'Неизвестная структура');button.type='button';button.dataset.segmentId=object.segment_id;button.title=[window.HandoffRoles?.label(info),window.HandoffRoles?.details(info),`${object.id} · ${source}: ${object.segment_id}`].filter(Boolean).join('\n');button.disabled=!ready;button.addEventListener('click',()=>addSegment(object.segment_id));seeds.append(button);
     }}
     const rows=$('structureSelectionList');rows.replaceChildren();
     for(const object of s?.structures||[]){
       const row=element('div','structure-selection-row');row.dataset.segmentId=object.segment_id;
       const visibility=element('label','structure-visibility'),checkbox=element('input');checkbox.type='checkbox';checkbox.checked=object.visible;checkbox.setAttribute('aria-label','Показать структуру');checkbox.addEventListener('change',()=>{const next=getPreferences();next.structures.find(o=>o.segment_id===object.segment_id).visible=checkbox.checked;commit(next,{rerender:false});});visibility.append(checkbox);
-      const color=element('input','structure-color');color.type='color';color.value=object.color;color.setAttribute('aria-label','Цвет структуры');color.addEventListener('input',()=>{const next=getPreferences(),selected=next.structures.find(o=>o.segment_id===object.segment_id);selected.color=color.value;selected.color_mode='individual';commit(next,{rerender:false});});
+      const color=element('input','structure-color');color.type='color';color.value=object.color;color.setAttribute('aria-label','Цвет структуры');color.addEventListener('input',()=>{const next=getPreferences(),selected=next.structures.find(o=>o.segment_id===object.segment_id);selected.color=color.value;selected.color_mode='individual';rememberColor(next,selected);commit(next,{rerender:false});});
       const identity=element('div','structure-identity'),seed=originals.find(o=>o.segment_id===object.segment_id),info=window.HandoffRoles?.identifyInCase(s.case_id,object.segment_id);
-      identity.append(element('span','structure-name',window.HandoffRoles?.label(info)||'Неизвестная структура'));
+      identity.append(element('span','structure-name',window.HandoffRoles?.shortLabel(info)||'Неизвестная структура'));
       if(info&&!info.identity_verified)identity.append(element('span','structure-unresolved','Объект не подтверждён'));
       const technical=element('details','structure-provenance');technical.append(element('summary','',seed?seed.id+' · источник':'ID / источник'));technical.append(element('code','',`${source}: ${object.segment_id}`),element('span','',window.HandoffRoles?.details(info)||''));identity.append(technical);
       const availability=window.SliceSegmentation?.availability(object.segment_id),state=!availability?.ready?'Срез загружается':!availability.present_in_volume?'Нет в этом объёме seg_m1300':availability.present_in_slice?'Есть на этом срезе':'Нет на этом срезе';identity.append(element('span','hint structure-availability',state));
-      const remove=element('button','structure-remove','Убрать');remove.type='button';remove.setAttribute('aria-label','Убрать структуру из выбранных');remove.addEventListener('click',()=>{const next=getPreferences();next.structures=next.structures.filter(o=>o.segment_id!==object.segment_id);commit(next);});
+      const remove=element('button','structure-remove','Убрать');remove.type='button';remove.setAttribute('aria-label','Убрать структуру из выбранных');remove.addEventListener('click',()=>removeSegment(object.segment_id));
       row.append(visibility,color,identity,remove);rows.append(row);
     }
     host.classList.toggle('structure-scope-inactive',s?.scope!=='selected');
@@ -134,7 +152,7 @@
     previousCase=currentCase();if(previousCase)setControls(cases.get(previousCase)||defaults(previousCase));render();
   }
   function setVisibility(segmentId,visible){const s=getPreferences(),object=s?.structures.find(o=>o.segment_id===segmentId);if(object){object.visible=!!visible;commit(s);return true;}return false;}
-  window.StructureSelection={getPreferences,getAllPreferences:()=>[...cases.keys()].map(getPreferences),applyPreferences,normalizePreferences,replaceAllPreferences,clearAllPreferences:options=>replaceAllPreferences([],options),addSegment,setPicking,setVisibility,get picking(){return picking;}};
+  window.StructureSelection={getPreferences,getAllPreferences:()=>[...cases.keys()].map(getPreferences),applyPreferences,normalizePreferences,replaceAllPreferences,clearAllPreferences:options=>replaceAllPreferences([],options),addSegment,removeSegment,setPicking,setVisibility,get picking(){return picking;}};
   window.addEventListener('review:volume',()=>{setPicking(false);previousCase=currentCase();if(previousCase)setControls(cases.get(previousCase)||defaults(previousCase));render();});
   window.addEventListener('segmentation:slice',()=>{if(!applying&&!pointer)render();});
   window.addEventListener('annotations:ready',render);
