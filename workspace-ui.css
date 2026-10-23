@@ -8,6 +8,8 @@
 .surface-panel{grid-column:2}
 .paired-views .pane-heading{align-self:stretch}
 .viewer-panel-controls{min-width:0;align-self:stretch;background:#f6f9fc;border-bottom:1px solid var(--line)}
+/* Keep 3D settings next to the canvas when the paired 2D controls are taller. */
+.surface-controls{display:flex;flex-direction:column;justify-content:flex-end}
 .raw-controls .annotation-toolbar{padding:9px 10px;gap:6px;border-bottom:0}
 .raw-controls .markup-heading{gap:5px;align-items:start}
 .raw-controls .markup-heading>strong{font-size:13px;white-space:nowrap}
