@@ -3,7 +3,7 @@
   'use strict';
   const $=id=>document.getElementById(id),source='seg_m1300',cases=new Map(),neutral='#9aa0a6';
   const clone=value=>structuredClone(value),currentCase=()=>window.ReviewViewer?.currentCase?.case_id||null;
-  let picking=false,pointer=null,previousCase=null,applying=false,renderSignature='';
+  let picking=false,pointer=null,previousCase=null,applying=false,renderSignature='',annotationsReady=false;
   const defaults=case_id=>({schema_version:1,source_version:source,case_id,structures:[],scope:'selected',fill:false,borders:false,opacity:.25});
   function normalizePreferences(value){
     const s=value;
@@ -69,6 +69,18 @@
   function commit(s,{rerender=true}={}){
     const normalized=normalizePreferences(s);cases.set(s.case_id,normalized);setControls(normalized);
     if(rerender)render();applying=true;window.SliceSegmentation?.refresh();applying=false;announce(normalized);return normalized;
+  }
+  function seedDefaults(){
+    const caseId=currentCase(),viewer=window.ReviewViewer,roles=window.HandoffRoles,slice=window.SliceSegmentation?.current;
+    // An open store is not yet hydrated. Never replace a saved choice, including an empty list.
+    if(!annotationsReady||!window.HandoffAnnotations?.store||!caseId||cases.has(caseId)||!roles?.manifest||!slice?.ready||slice.case_id!==caseId||slice.volume_id!==viewer?.volume?.volume_id||$('annotationsImport')?.disabled||$('annotationsImportCase')?.disabled)return false;
+    // Selections belong to the case: starting in an extension must not omit its main-volume roles.
+    const ids=[...new Set(Object.values(roles.manifest.volumes).filter(v=>v.case_id===caseId).flatMap(v=>Object.values(v.objects||{}).map(o=>o.segment_id)))].filter(id=>roles.identifyInCase(caseId,id));
+    if(!ids.length)return false;
+    const order={excitatory:0,inhibitory:1,recipient:2};ids.sort((a,b)=>order[roles.identifyInCase(caseId,a).palette_role]-order[roles.identifyInCase(caseId,b).palette_role]);
+    const preferences=defaults(caseId);preferences.fill=true;
+    preferences.structures=ids.map(segment_id=>({segment_id,color:roles.colorFor(caseId,null,segment_id),visible:true,color_mode:'role'}));
+    commit(preferences);return true;
   }
   function message(text,error=false){const node=$('structureSelectionStatus');if(node){node.textContent=text;node.classList.toggle('save-failed',error);}}
   function setPicking(value){
@@ -182,10 +194,10 @@
   }
   function setVisibility(segmentId,visible){const s=getPreferences(),object=s?.structures.find(o=>o.segment_id===segmentId);if(object){object.visible=!!visible;commit(s);return true;}return false;}
   window.StructureSelection={getPreferences,getAllPreferences:()=>[...cases.keys()].map(getPreferences),applyPreferences,normalizePreferences,replaceAllPreferences,clearAllPreferences:options=>replaceAllPreferences([],options),addSegment,removeSegment,renameSegment,setPicking,setVisibility,get picking(){return picking;}};
-  window.addEventListener('review:volume',()=>{setPicking(false);previousCase=currentCase();if(previousCase)setControls(cases.get(previousCase)||defaults(previousCase));render();});
-  window.addEventListener('segmentation:slice',()=>{if(!applying&&!pointer)render();});
-  window.addEventListener('annotations:ready',render);
+  window.addEventListener('review:volume',()=>{setPicking(false);previousCase=currentCase();if(seedDefaults())return;if(previousCase)setControls(cases.get(previousCase)||defaults(previousCase));render();});
+  window.addEventListener('segmentation:slice',()=>{if(!applying&&!pointer&&!seedDefaults())render();});
+  window.addEventListener('annotations:ready',()=>{annotationsReady=true;if(!seedDefaults())render();});
   window.addEventListener('handoff:languagechange',render);
-  for(const event of ['roles:ready','roles:changed'])window.addEventListener(event,()=>{if(event==='roles:ready')renderSignature='';render();window.SliceSegmentation?.refresh();});
+  for(const event of ['roles:ready','roles:changed'])window.addEventListener(event,()=>{if(event==='roles:ready')renderSignature='';if(seedDefaults())return;render();window.SliceSegmentation?.refresh();});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
