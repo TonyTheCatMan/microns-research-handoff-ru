@@ -8,6 +8,7 @@
   const MIN_ZOOM = .1, MAX_ZOOM = 8;
   const surface = new LocalSurfaceView();
   let navigationMute=0,navigationFrame=0,navigationLast='',navigationPending=null,navigationApplyToken=0;
+  let annotationsHydrated=false,awaitingAnnotationSlice=false;
   const fmt = values => values.map(v => Number.isInteger(v) ? String(v) : Number(v.toFixed(3))).join(', ');
   const triple = (a, predicate) => Array.isArray(a) && a.length === 3 && a.every(predicate);
   const finite = x => typeof x === 'number' && Number.isFinite(x);
@@ -148,6 +149,8 @@
     return loadVolume(wantedZ);
   }
   async function loadVolume(wantedZ) {
+    const explicitZ=wantedZ!==null&&wantedZ!==undefined&&Number.isFinite(Number(wantedZ));
+    awaitingAnnotationSlice=!explicitZ&&!annotationsHydrated;
     state.controller?.abort();state.controller=new AbortController();
     byId('retryLoad').hidden=true;
     const generation = ++state.generation;
@@ -169,7 +172,7 @@
       const tiff = new GrayTiff(buffer);
       const actual = [tiff.width,tiff.height,tiff.depth];
       if (!actual.every((n,i) => n === volume.shape_xyz[i])) throw new Error('Размеры в метаданных и TIFF не совпадают: ожидаемые XYZ ' + fmt(volume.shape_xyz) + ', получены ' + fmt(actual) + '. Не используйте эти координаты для проверки.');
-      state.tiff = tiff; state.z = wantedZ!==null && wantedZ!==undefined && Number.isFinite(Number(wantedZ)) ? Math.max(0,Math.min(tiff.depth-1,Math.floor(Number(wantedZ)))) : defaultSlice(volume); state.target = null;
+      state.tiff = tiff; state.z = explicitZ ? Math.max(0,Math.min(tiff.depth-1,Math.floor(Number(wantedZ)))) : defaultSlice(volume); state.target = null;
       surface.setVolume(volume,state.currentCase.case_id);
       surface.setTiff(tiff);
       resetOrthos();
@@ -235,6 +238,7 @@
     }return false;
   }
   function setZ(value) {
+    awaitingAnnotationSlice=false;
     if (!state.tiff || !Number.isFinite(Number(value))) return;
     const previous=state.z;
     state.z = Math.max(0, Math.min(state.tiff.depth - 1, Math.floor(Number(value))));
@@ -404,7 +408,12 @@
   ui.annotatedSliceSelect.addEventListener('change',e=>navigateAnnotatedSlice(e.target.value));
   ui.prevAnnotatedSlice.addEventListener('click',()=>adjacentAnnotatedSlice(-1));
   ui.nextAnnotatedSlice.addEventListener('click',()=>adjacentAnnotatedSlice(1));
-  for(const name of ['annotations:ready','annotations:changed'])window.addEventListener(name,renderAnnotatedSlices);
+  window.addEventListener('annotations:ready',()=>{
+    annotationsHydrated=true;
+    if(awaitingAnnotationSlice&&state.tiff)setZ(defaultSlice(state.volume));
+    renderAnnotatedSlices();
+  });
+  window.addEventListener('annotations:changed',renderAnnotatedSlices);
   ui.prevButton.addEventListener('click',()=>setZ(state.z-1));ui.nextButton.addEventListener('click',()=>setZ(state.z+1));
   ui.zoomSelect.addEventListener('change',e=>setZoom(Number(e.target.value)));
   ui.fitButton.addEventListener('click',()=>{
