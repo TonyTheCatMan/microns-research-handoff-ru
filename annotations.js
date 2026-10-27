@@ -25,6 +25,12 @@
   const fmt = a => a.map(n=>Number(n.toFixed(2))).join(', ');
   const booleanPreferences=['overlayToggle','tCenter','tPre','tPost','annotationsVisible','drawingNumbers','surfaceContext','segmentation2D','segmentationBorders','surfaceSegmentation'];
   const numberPreferences={segmentationOpacity:70,surfaceContextOpacity:100,surfaceSegmentationOpacity:100};
+  const defaultPreferences=Object.fromEntries([...booleanPreferences,...Object.keys(numberPreferences),'surfaceContextMode','segmentationScope','segmentationLimit'].filter(id=>$(id)).map(id=>{
+    const control=$(id),value=booleanPreferences.includes(id)?control.defaultChecked:control.tagName==='SELECT'?([...control.options].find(option=>option.defaultSelected)||control.options[0]).value:Number(control.defaultValue);
+    return [id,value];
+  }));
+  const defaultDrawingStyle={color:'#ffd166',stroke_width:2,opacity:1,vesicle_color:'#ffd166'};
+  const defaultRolePalette={schema_version:1,enabled:true,colors:{excitatory:'#d55e00',inhibitory:'#0072b2',recipient:'#009e73'}};
   function readPreferences(){
     const result=Object.fromEntries(booleanPreferences.filter(id=>$(id)).map(id=>[id,$(id).checked]));
     for(const [id,max] of Object.entries(numberPreferences))if($(id))result[id]=Math.max(0,Math.min(max,Number($(id).value)));
@@ -415,6 +421,17 @@
   });
   channel?.addEventListener('message',async event=>{
     const message=event.data;if(message?.type==='changed')await refresh();
+    if(message?.type==='restored'){
+      const release=lockImports();try{
+      undoImportAction=null;$('annotationsUndoImport')?.remove();
+      await window.HandoffDrawings?.whenSettled();await whenSettled();
+      resetImportSelection();await refresh();await window.HandoffAssessment?.refresh();await window.HandoffEvidence?.refresh();
+      // Notes follow their main window; every other view restores the same backup preferences.
+      if(notesWindow)await syncFromMain();
+      else try{await applySettings(message.settings||{},{replace:message.replace===true});}catch(error){$('restoreResult').textContent='Данные обновлены; не удалось открыть сохранённый вид: '+error.message;}
+      draw();renderEditor(true);renderCaseNotes(true);
+      }finally{release();}
+    }
     if(message?.type==='main-ready'&&notesWindow)syncFromMain();
   });
   window.addEventListener('focus',()=>{refresh();syncFromMain();});
@@ -481,41 +498,58 @@
   }
   $('annotationsExportAll').addEventListener('click',()=>exportFindings('all'));
   $('annotationsExportCase').addEventListener('click',()=>exportFindings('case'));
+  function resetImportSelection(){
+    window.HandoffDrawings?.resetHistory();earlyStructurePreferences.clear();
+    selectedId=null;lastEditorId=null;deleted=null;$('annotationUndo').hidden=true;
+  }
+  let importLockDepth=0,importLockControls=[];
+  function lockImports(){
+    if(!importLockDepth++){importLockControls=['annotationsImport','annotationsImportCase'].map(id=>[$(id),$(id).disabled]);for(const [control] of importLockControls)control.disabled=true;}
+    let released=false;
+    return ()=>{if(released)return;released=true;if(--importLockDepth===0){for(const [control,disabled] of importLockControls)control.disabled=disabled;importLockControls=[];}};
+  }
   async function importFindings(event,caseOnly=false){
     if(notesWindow)return runOnMain(main=>main.importFindings(event,caseOnly));
     const input=event.target;let file=input.files[0];if(!file||!store)return;
-    const target=$('restoreResult');input.disabled=true;target.classList.remove('save-failed');target.textContent='Загружаем все метки и заметки…';
+    const target=$('restoreResult'),release=lockImports();input.disabled=true;target.classList.remove('save-failed');target.textContent='Загружаем все метки и заметки…';
     const previousSettings={preferences:readPreferences(),annotation_mode:mode()};
     if(window.HandoffDrawings?.getStyle)previousSettings.drawing_style=window.HandoffDrawings.getStyle();
     if(window.HandoffRoles?.getPalette)previousSettings.role_palette=window.HandoffRoles.getPalette();
     if(viewer()?.ready){const v=viewer();previousSettings.last_view={case_id:currentCase,volume_id:v.volume.volume_id,z:v.z};previousSettings.display={zoom:v.zoom,black:v.displayWindow[0],white:v.displayWindow[1]};if(v.surface?.modelReady&&!v.surface.contextLoading)try{previousSettings.surface_view=v.surface.getViewState();}catch{}}
     try{
       await window.HandoffDrawings?.whenSettled();await settleForAction();await settleNotes();
-      window.HandoffDrawings?.resetHistory();
       // File objects selected in the notes window belong to a different JavaScript realm.
       if(!(file instanceof Blob))file=new File([await file.arrayBuffer()],file.name,{type:file.type});
       const result=/\.zip$/i.test(file.name)?await store.importZIP(file,{policy:'restore',caseOnly}):await store.importData(JSON.parse(await file.text()),{policy:'restore',caseOnly});
-      selectedId=null;lastEditorId=null;await refresh();await window.HandoffAssessment?.refresh();await window.HandoffEvidence?.refresh();broadcast({type:'changed'});
+      resetImportSelection();await refresh();await window.HandoffAssessment?.refresh();await window.HandoffEvidence?.refresh();
       const settings=structuredClone(result.settings||{}),first=result.case_ids.find(activeCase),outsideSelection=result.case_ids.some(id=>!activeCase(id));
       if(settings.last_view&&!activeCase(settings.last_view.case_id)||result.case_ids.length&&!first){delete settings.last_view;delete settings.display;delete settings.surface_view;}
       if(settings.surface_view&&!activeCase(settings.surface_view.case_id))delete settings.surface_view;
-      if(!settings.last_view&&first){const c=metadata.cases.find(c=>c.case_id===first);settings.last_view={case_id:first,volume_id:c.volumes[0].volume_id,z:0};}
-      let viewError='';try{await applySettings(settings);}catch(error){viewError=' Не удалось открыть сохранённый вид: '+error.message;}
-      $('annotationsVisible').checked=true;prefsSave();draw();renderEditor(true);renderCaseNotes(true);
-      const firstPoint=caseRecords().find(r=>r.id===settings.surface_view?.selected_annotation_id)||caseRecords()[0];if(firstPoint)select(firstPoint.id,false);
+      if(!settings.last_view&&(first||!caseOnly)){const c=metadata.cases.find(c=>c.case_id===(first||viewer()?.currentCase?.case_id))||metadata.cases.find(c=>activeCase(c.case_id));if(c)settings.last_view={case_id:c.case_id,volume_id:c.volumes[0].volume_id};}
+      let viewError='';try{await applySettings(settings,{replace:!caseOnly});}catch(error){viewError=' Не удалось открыть сохранённый вид: '+error.message;}
+      prefsSave();draw();renderEditor(true);renderCaseNotes(true);
+      const savedPoint=caseRecords().find(r=>r.id===settings.surface_view?.selected_annotation_id);if(savedPoint)select(savedPoint.id,false);
+      broadcast({type:'restored',settings,replace:!caseOnly});
       location.hash='viewer';
-      target.textContent=`Восстановление завершено: меток ${result.annotations_total}, с заметками ${result.notes_total}${result.evidence_total?', снимков '+(result.evidence_total-result.missingEvidence):''}. Все точки и заметки из файла загружены.`+(outsideSelection?' Результаты случаев вне текущей подборки сохранены и входят в «Сохранить все результаты».':'')+(result.missingEvidence?' Для восстановления снимков загрузите исходный ZIP.':'')+viewError;
+      target.textContent=`Загружено: случаев в подборке ${result.case_ids.filter(activeCase).length}, меток и рисунков ${result.annotations_total}, с заметками ${result.notes_total}. `+(caseOnly?'Предыдущие результаты этого случая заменены.':'Предыдущие результаты и настройки заменены.')+(outsideSelection?' Случаи вне подборки также сохранены и входят в общий экспорт.':'')+(result.missingEvidence?' Для восстановления снимков загрузите исходный ZIP.':'')+viewError;
       const undo=document.createElement('button');undo.id='annotationsUndoImport';undo.textContent='Отменить загрузку';target.append(document.createTextNode(' '),undo);
-      undoImportAction=async()=>{undo.disabled=true;try{await settleForAction();await store.undoImport();selectedId=null;lastEditorId=null;await refresh();await window.HandoffEvidence?.refresh();await applySettings(previousSettings);renderEditor(true);renderCaseNotes(true);broadcast({type:'changed'});target.textContent='Загрузка отменена. Восстановлены предыдущие точки и заметки.';}catch(error){target.textContent=error.message;target.classList.add('save-failed');}};undo.addEventListener('click',undoImportAction);
+      undoImportAction=async()=>{undo.disabled=true;const releaseUndo=lockImports();try{await window.HandoffDrawings?.whenSettled();await settleForAction();await settleNotes();await store.undoImport();resetImportSelection();await refresh();await window.HandoffAssessment?.refresh();await window.HandoffEvidence?.refresh();await applySettings(previousSettings,{replace:true});renderEditor(true);renderCaseNotes(true);broadcast({type:'restored',settings:previousSettings,replace:true});target.textContent='Загрузка отменена. Восстановлены предыдущие результаты и настройки.';}catch(error){target.textContent=error.message;target.classList.add('save-failed');}finally{releaseUndo();}};undo.addEventListener('click',undoImportAction);
       target.scrollIntoView({block:'center',behavior:'smooth'});
     }catch(error){target.textContent='Файл не восстановлен: '+error.message;target.classList.add('save-failed');target.scrollIntoView({block:'center',behavior:'smooth'});}
-    finally{input.disabled=false;input.value='';}
+    finally{release();if(input!==$('annotationsImport')&&input!==$('annotationsImportCase'))input.disabled=false;input.value='';}
   }
   $('annotationsImport').addEventListener('change',event=>importFindings(event));
   $('annotationsImportCase').addEventListener('change',event=>importFindings(event,true));
   $('neuroglancerImportCase').addEventListener('click',()=>$('annotationsImportCase').click());
   $('neuroglancerImportAll').addEventListener('click',()=>$('annotationsImport').click());
-  async function applySettings(settings){
+  async function applySettings(settings,{replace=false}={}){
+    if(replace){
+      settings={...settings,preferences:{...defaultPreferences,...settings.preferences},annotation_mode:settings.annotation_mode||'navigate',drawing_style:{...defaultDrawingStyle,...settings.drawing_style},role_palette:settings.role_palette||defaultRolePalette};
+      try{localStorage.removeItem('microns-last-view-v1');}catch{}
+      for(const id of ['surfacePlane','surfaceBox']){$(id).checked=$(id).defaultChecked;$(id).dispatchEvent(new Event('change'));}
+      $('surfaceOpacity').value=$('surfaceOpacity').defaultValue;$('surfaceOpacity').dispatchEvent(new Event('input'));
+      $('contextLimit').value=$('contextLimit').defaultValue;updateNearbyLimit();
+    }
     const allowedView=!settings.last_view||activeCase(settings.last_view.case_id);
     if(settings.preferences){for(const [id,value]of Object.entries(settings.preferences))if($(id)&&!structurePreferenceIds.has(id)){if(typeof value==='boolean')$(id).checked=value;else $(id).value=String(value);$(id).dispatchEvent(new Event('change'));}prefsSave();}
     if(settings.last_view&&allowedView){localStorage.setItem('microns-last-view-v1',JSON.stringify(settings.last_view));await viewer().select(settings.last_view.case_id,settings.last_view.volume_id,settings.last_view.z);}
@@ -524,6 +558,7 @@
     if(settings.role_palette)window.HandoffRoles?.applyPalette(settings.role_palette,{persist:true});
     if(settings.display&&allowedView&&!notesWindow){const zoom=String(settings.display.zoom);if(![...$('zoomSelect').options].some(o=>o.value===zoom))$('zoomSelect').add(new Option('Сохранённый масштаб · '+Math.round(settings.display.zoom*100)+'%',zoom));$('zoomSelect').value=zoom;$('zoomSelect').dispatchEvent(new Event('change'));$('blackInput').value=settings.display.black;$('whiteInput').value=settings.display.white;$('blackInput').dispatchEvent(new Event('change'));}
     if(settings.surface_view&&allowedView&&activeCase(settings.surface_view.case_id)&&!notesWindow&&viewer()?.ready&&settings.surface_view.case_id===viewer().currentCase.case_id&&settings.surface_view.volume_id===viewer().volume.volume_id&&settings.surface_view.local_z===viewer().z)await viewer().surface.restoreEvidence(settings.surface_view);
+    updateNearbyLimit();
     const selectedCase=viewer()?.currentCase?.case_id||currentCase,selection=caseNotes.find(row=>row.case_id===selectedCase)?.segmentation_selection;
     if(selection)window.StructureSelection?.applyPreferences(selection,{emit:false});
     else if(settings.preferences&&window.StructureSelection&&selectedCase&&[...structurePreferenceIds].some(id=>id in settings.preferences)){
@@ -533,7 +568,6 @@
       if(typeof saved.segmentationOpacity==='number')preferences.opacity=saved.segmentationOpacity/100;
       if(['selected','nearby','all'].includes(saved.segmentationScope))preferences.scope=saved.segmentationScope;
       window.StructureSelection.applyPreferences(preferences,{emit:false});
-      saveCaseField(selectedCase,'segmentation_selection',preferences);
     }
     prefsSave();
   }

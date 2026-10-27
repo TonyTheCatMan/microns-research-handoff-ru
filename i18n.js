@@ -6,6 +6,16 @@
   'use strict';
   const STORAGE_KEY = 'microns-interface-language-v1';
   const pairs = [
+    ['Срезы с отметками','Annotated slices'],
+    ['Предыдущий срез с отметками','Previous annotated slice'],
+    ['Следующий срез с отметками','Next annotated slice'],
+    ['Срез Z и число отметок на нём','Z slice and number of annotations'],
+    ['Текущий срез без отметок','Current slice has no annotations'],
+    ['Предыдущие результаты этого случая заменены.','Previous results for this case were replaced.'],
+    ['Предыдущие результаты и настройки заменены.','Previous results and settings were replaced.'],
+    ['Случаи вне подборки также сохранены и входят в общий экспорт.','Cases outside this selection are also stored and included in the full export.'],
+    ['Загрузка отменена. Восстановлены предыдущие результаты и настройки.','Import undone. Previous results and settings were restored.'],
+    ['Для файла одного случая используйте «Загрузить случай».','For a single-case file, use “Load case”.'],
     ['Не все выбранные поверхности загружены. Повторите сохранение.', 'Some selected surfaces are still missing. Try exporting again.'],
     ["Везикулы", "Vesicles"],
     ["Нажмите или коснитесь, чтобы отметить везикулу. Цвет общий для всех везикул.", "Click or tap to mark a vesicle. All vesicle marks share one color."],

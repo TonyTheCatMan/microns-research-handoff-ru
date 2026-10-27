@@ -3,7 +3,7 @@
   'use strict';
   const byId = id => document.getElementById(id);
   const translateUI = text => window.HandoffI18n?.translate(text) ?? text;
-  const ui = Object.fromEntries(['status','caseSelect','volumeSelect','volumeDetails','contacts','targetStatus','overlayToggle','prevButton','nextButton','zSlider','zInput','zReadout','zoomSelect','fitButton','blackInput','whiteInput','rawButton','windowButton','exportButton','viewport','emptyState','canvasWrap','imageCanvas','overlayCanvas','scaleCanvas','scaleNote','cursorReadout'].map(id => [id, byId(id)]));
+  const ui = Object.fromEntries(['status','caseSelect','volumeSelect','volumeDetails','contacts','targetStatus','overlayToggle','prevButton','nextButton','zSlider','zInput','zReadout','annotatedSliceControls','annotatedSliceSelect','prevAnnotatedSlice','nextAnnotatedSlice','zoomSelect','fitButton','blackInput','whiteInput','rawButton','windowButton','exportButton','viewport','emptyState','canvasWrap','imageCanvas','overlayCanvas','scaleCanvas','scaleNote','cursorReadout'].map(id => [id, byId(id)]));
   const state = { files:[], metadata:null, activeCases:[], currentCase:null, volume:null, tiff:null, pixels:null, z:0, zoom:2, black:0, white:255, target:null, generation:0, viewCenter:null };
   const MIN_ZOOM = .1, MAX_ZOOM = 8;
   const surface = new LocalSurfaceView();
@@ -57,6 +57,51 @@
     return data;
   }
   function findFile(relative) { return HandoffAssets.file(relative); }
+  function annotatedSlices(volume=state.volume,caseId=state.currentCase?.case_id,drawingsOnly=false) {
+    const counts=new Map();
+    if(!volume||!caseId)return [];
+    for(const record of window.HandoffAnnotations?.records||[]) {
+      if(record.case_id!==caseId||drawingsOnly&&!record.geometry||!triple(record.point_nm,finite))continue;
+      const local=record.point_nm.map((n,i)=>n/volume.resolution_nm[i]-volume.begin_vox_xyz[i]);
+      if(!local.every((n,i)=>n>=0&&n<volume.shape_xyz[i]))continue;
+      let z=Math.floor(local[2]);
+      if(record.geometry) {
+        if(record.volume_id!==volume.volume_id||record.geometry.plane&&record.geometry.plane!=='xy')continue;
+        z=record.geometry.slice_index-volume.begin_vox_xyz[2];
+      }
+      if(!integer(z)||z<0||z>=volume.shape_xyz[2])continue;
+      counts.set(z,(counts.get(z)||0)+1);
+    }
+    return [...counts].sort((a,b)=>a[0]-b[0]);
+  }
+  function defaultSlice(volume) {
+    const midpoint=Math.floor(volume.shape_xyz[2]/2);
+    const drawings=annotatedSlices(volume,state.currentCase?.case_id,true);
+    const slices=drawings.length?drawings:annotatedSlices(volume);
+    return slices.reduce((nearest,[z])=>nearest===null||Math.abs(z-midpoint)<Math.abs(nearest-midpoint)?z:nearest,null)??midpoint;
+  }
+  function renderAnnotatedSlices() {
+    const slices=state.tiff?annotatedSlices():[];
+    ui.annotatedSliceControls.hidden=!slices.length;
+    if(!slices.length)return;
+    const current=slices.some(([z])=>z===state.z);
+    const options=slices.map(([z,count])=>new Option('Z '+z+' · '+count,String(z)));
+    if(!current)options.unshift(new Option(translateUI('Текущий срез без отметок'),''));
+    ui.annotatedSliceSelect.replaceChildren(...options);
+    ui.annotatedSliceSelect.value=current?String(state.z):'';
+    ui.prevAnnotatedSlice.disabled=!slices.some(([z])=>z<state.z);
+    ui.nextAnnotatedSlice.disabled=!slices.some(([z])=>z>state.z);
+  }
+  function adjacentAnnotatedSlice(direction) {
+    const slices=annotatedSlices().map(([z])=>z);
+    const z=direction<0?slices.filter(z=>z<state.z).pop():slices.find(z=>z>state.z);
+    if(z!==undefined)navigateAnnotatedSlice(z);
+  }
+  function navigateAnnotatedSlice(z) {
+    if(!state.tiff||z==='')return;
+    ui.zSlider.value=String(z);
+    ui.zSlider.dispatchEvent(new Event('input',{bubbles:true}));
+  }
   async function start() {
     byId('retryLoad').hidden=true;
     status('Загрузка списка случаев…');
@@ -79,6 +124,7 @@
     for(const id of ['orthoToggle','orthoX','orthoY','orthoTarget'])byId(id).disabled=true;
     byId('orthoPanel').hidden=true;
     state.tiff = null; state.pixels = null; state.target = null; state.viewCenter = null;
+    ui.annotatedSliceControls.hidden=true;
     for (const name of ['prevButton','nextButton','zSlider','zInput','zoomSelect','fitButton','blackInput','whiteInput','rawButton','windowButton','exportButton','overlayToggle']) ui[name].disabled = true;
     ui.canvasWrap.hidden = true; ui.emptyState.hidden = false;
     ui.contacts.replaceChildren();
@@ -123,7 +169,7 @@
       const tiff = new GrayTiff(buffer);
       const actual = [tiff.width,tiff.height,tiff.depth];
       if (!actual.every((n,i) => n === volume.shape_xyz[i])) throw new Error('Размеры в метаданных и TIFF не совпадают: ожидаемые XYZ ' + fmt(volume.shape_xyz) + ', получены ' + fmt(actual) + '. Не используйте эти координаты для проверки.');
-      state.tiff = tiff; state.z = wantedZ!==null && wantedZ!==undefined && Number.isFinite(Number(wantedZ)) ? Math.max(0,Math.min(tiff.depth-1,Math.floor(Number(wantedZ)))) : Math.floor(tiff.depth / 2); state.target = null;
+      state.tiff = tiff; state.z = wantedZ!==null && wantedZ!==undefined && Number.isFinite(Number(wantedZ)) ? Math.max(0,Math.min(tiff.depth-1,Math.floor(Number(wantedZ)))) : defaultSlice(volume); state.target = null;
       surface.setVolume(volume,state.currentCase.case_id);
       surface.setTiff(tiff);
       resetOrthos();
@@ -216,6 +262,7 @@
     context.putImageData(output,0,0);
     surface.setSlice(ui.imageCanvas,state.z,state.black,state.white);
     ui.zSlider.value = ui.zInput.value = String(state.z);
+    renderAnnotatedSlices();
     ui.prevButton.disabled = state.z === 0; ui.nextButton.disabled = state.z === state.tiff.depth - 1;
     const globalZ = state.volume.begin_vox_xyz[2] + state.z;
     ui.zReadout.textContent = 'из ' + (state.tiff.depth - 1) + ' · глобальная Z ' + globalZ + ' · ' + (globalZ * state.volume.resolution_nm[2]) + ' нм';
@@ -354,6 +401,10 @@
   ui.zSlider.addEventListener('input',e=>setZ(e.target.value));
   ui.zInput.addEventListener('input',e=>{if(e.target.value!=='')setZ(e.target.value);});
   ui.zInput.addEventListener('change',e=>setZ(e.target.value));
+  ui.annotatedSliceSelect.addEventListener('change',e=>navigateAnnotatedSlice(e.target.value));
+  ui.prevAnnotatedSlice.addEventListener('click',()=>adjacentAnnotatedSlice(-1));
+  ui.nextAnnotatedSlice.addEventListener('click',()=>adjacentAnnotatedSlice(1));
+  for(const name of ['annotations:ready','annotations:changed'])window.addEventListener(name,renderAnnotatedSlices);
   ui.prevButton.addEventListener('click',()=>setZ(state.z-1));ui.nextButton.addEventListener('click',()=>setZ(state.z+1));
   ui.zoomSelect.addEventListener('change',e=>setZoom(Number(e.target.value)));
   ui.fitButton.addEventListener('click',()=>{
@@ -420,7 +471,7 @@
     ui.cursorReadout.textContent='Исходное значение пикселя: '+state.pixels[y*state.tiff.width+x]+' / 255\nЛокальные XYZ: '+fmt(local)+' · глобальные координаты вокселя: '+fmt(global)+'\nНачало вокселя (нм): '+fmt(nm);
   });
   ui.viewport.addEventListener('scroll',()=>{rememberViewCenter();navigationChanged('pan');},{passive:true});
-  window.addEventListener('handoff:languagechange',()=>{if(state.tiff){drawScale();renderOrthos();}});
+  window.addEventListener('handoff:languagechange',()=>{if(state.tiff){drawScale();renderOrthos();renderAnnotatedSlices();}});
   window.addEventListener('resize',()=>{if(state.tiff&&!byId('page-viewer').hidden&&ui.viewport.clientWidth&&ui.viewport.clientHeight){if(state.needsFit){ui.fitButton.click();state.needsFit=false;}else{const anchor=viewportCenter(),point=state.viewCenter||imagePointAt(anchor);resizeView();placeImagePoint(point,anchor);}renderOrthos();navigationChanged('resize');}});
   async function applyNavigationState(value,{emit=false,signal}={}){
     const abortError=()=>new DOMException('Синхронизация отменена.','AbortError');

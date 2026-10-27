@@ -339,6 +339,7 @@
     async importData(input,{policy='keep-existing',evidenceFiles=new Map(),caseOnly=false}={}){
       if(!['keep-existing','newer','restore'].includes(policy))fail('Неизвестный режим объединения.');
       const data=validatePackage(typeof input==='string'?JSON.parse(input):input,this.context);
+      if(policy==='restore'&&!caseOnly&&(data.scope?.case_id||data.scope?.volume_id||data.scope?.section))fail('Для файла одного случая используйте «Загрузить случай».');
       let importCaseId=null;
       if(caseOnly){
         const ids=new Set([data.scope?.case_id,...['annotations','cases','counters','deleted','review_records','evidence'].flatMap(key=>data[key].map(r=>r.case_id))].filter(Boolean));
@@ -352,10 +353,34 @@
         const records=tx.objectStore('annotations'),cases=tx.objectStore('cases'),counterStore=tx.objectStore('counters'),deleted=tx.objectStore('deleted');
         const snapshot=async()=>{const value={};for(const name of ['annotations','cases','counters','deleted','reviews','evidence','meta'])value[name]=(await request(tx.objectStore(name).getAll())).filter(r=>name!=='meta'||r.key!=='before-restore');return value;};
         const before=policy==='restore'?await snapshot():null;
+        if(before){
+          // Restore replaces the selected scope in one transaction, including
+          // records absent from the backup. Keep the complete snapshot for undo.
+          const priorAnnotations=new Map([...before.annotations,...before.deleted].map(r=>[r.id,r]));
+          for(const row of [...data.annotations,...data.deleted])if(priorAnnotations.has(row.id)&&priorAnnotations.get(row.id).case_id!==row.case_id)fail('Один ID используется для разных случаев. Импорт отменён.');
+          const priorReviews=new Map(before.reviews.map(r=>[r.id,r]));
+          for(const row of data.review_records){const old=priorReviews.get(row.id);if(old&&(old.case_id!==row.case_id||old.table!==row.table))fail('ID формы относится к другому случаю или таблице.');}
+          for(const name of ['annotations','cases','counters','deleted','reviews','evidence']){
+            const store=tx.objectStore(name);
+            if(caseOnly){for(const row of before[name])if(row.case_id===importCaseId)await request(store.delete(name==='cases'||name==='counters'?row.case_id:row.id));}
+            else await request(store.clear());
+          }
+          const meta=tx.objectStore('meta');
+          if(!caseOnly){await request(meta.delete('settings'));await request(meta.delete('reviewer'));}
+          else{
+            const old=await request(meta.get('settings'));
+            if(old?.value.last_view?.case_id===importCaseId||old?.value.surface_view?.case_id===importCaseId){
+              const value={...old.value};
+              if(value.last_view?.case_id===importCaseId){delete value.last_view;delete value.display;}
+              if(value.surface_view?.case_id===importCaseId)delete value.surface_view;
+              await request(meta.put({...old,value}));
+            }
+          }
+        }
         const current=new Map((await request(records.getAll())).map(r=>[r.id,r]));
         const tombstones=new Map((await request(deleted.getAll())).map(r=>[r.id,r]));
         const counts=new Map((await request(counterStore.getAll())).map(r=>[r.case_id,r.last_number]));
-        const report={evidence_total:data.evidence.length,annotations_total:data.annotations.length,notes_total:data.annotations.filter(r=>r.notes||r.properties).length,case_ids:caseOnly?[importCaseId]:[...new Set([...data.annotations,...data.cases].map(r=>r.case_id))],settings:data.settings,added:0,updated:0,skipped:0,deleted:0,cases_added:0,cases_updated:0,reviews_added:0,reviews_updated:0,evidence_added:0,evidence_updated:0,settings_updated:0,missingEvidence:0,conflicts:[],renumbered:[]};
+        const report={replaced_scope:policy==='restore'?(caseOnly?importCaseId:'all'):null,evidence_total:data.evidence.length,annotations_total:data.annotations.length,notes_total:data.annotations.filter(r=>r.notes||r.properties).length,case_ids:caseOnly?[importCaseId]:[...new Set([...data.annotations,...data.cases].map(r=>r.case_id))],settings:data.settings,added:0,updated:0,skipped:0,deleted:0,cases_added:0,cases_updated:0,reviews_added:0,reviews_updated:0,evidence_added:0,evidence_updated:0,settings_updated:0,missingEvidence:0,conflicts:[],renumbered:[]};
         for(const c of data.counters)counts.set(c.case_id,Math.max(counts.get(c.case_id)||0,c.last_number));
         for(const row of [...data.annotations,...data.deleted])counts.set(row.case_id,Math.max(counts.get(row.case_id)||0,row.number));
         const identical=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -376,7 +401,7 @@
           await request(records.put(row));await request(deleted.delete(row.id));current.set(row.id,row);tombstones.delete(row.id);
           if(old){report.updated++;report.conflicts.push({id:row.id,case_id:row.case_id,reason:policy==='restore'?'backup_used':'newer_import_used'});}else report.added++;
         }
-        for(const row of (policy==='restore'?[]:data.deleted)){
+        for(const row of data.deleted){
           const old=current.get(row.id),tomb=tombstones.get(row.id);
           if(old&&old.case_id!==row.case_id||tomb&&tomb.case_id!==row.case_id)fail('ID удаления не соответствует случаю.');
           if(old&&(policy!=='newer'||Date.parse(row.deleted_at)<=Date.parse(old.updated_at))){report.conflicts.push({id:row.id,case_id:row.case_id,reason:'deletion_skipped'});continue;}
@@ -387,7 +412,8 @@
         for(const row of data.cases){
           const old=await request(cases.get(row.case_id));if(old&&identical(old,row))continue;
           if(old&&policy!=='restore'&&(policy!=='newer'||Date.parse(row.updated_at)<=Date.parse(old.updated_at))){report.conflicts.push({case_id:row.case_id,reason:'case_notes_kept'});continue;}
-          // Backups made before deliberate structure selection cannot erase it.
+          // Merge imports retain settings introduced after legacy backups.
+          // Replacement imports have already removed the previous case row.
           const merged=old?.segmentation_selection&&row.segmentation_selection===undefined?{...row,segmentation_selection:old.segmentation_selection}:row;
           await request(cases.put(merged));if(old){report.cases_updated++;report.conflicts.push({case_id:row.case_id,reason:'newer_case_notes_used'});}else report.cases_added++;
         }
@@ -418,14 +444,16 @@
           }
         }
         const evidence=tx.objectStore('evidence');
+        const priorEvidence=new Map((before?.evidence||[]).map(r=>[r.id,r]));
         for(const row of data.evidence){
           const old=await request(evidence.get(row.id)),blobs=evidenceFiles.get(row.id);
-          if(old&&(old.case_id!==row.case_id||old.volume_id!==row.volume_id||old.local_z!==row.local_z||old.source_view!==row.source_view))fail('ID доказательства относится к другому виду или срезу.');
+          const saved=old||priorEvidence.get(row.id);
+          if(saved&&(saved.case_id!==row.case_id||saved.volume_id!==row.volume_id||saved.local_z!==row.local_z||saved.source_view!==row.source_view))fail('ID доказательства относится к другому виду или срезу.');
           for(const id of [row.annotation_id,...row.annotation_ids||[]].filter(Boolean)){const linked=current.get(id);if(linked&&linked.case_id!==row.case_id)fail('Доказательство связано с аннотацией другого случая.');}
           if(old&&identical(validateEvidence(old,this.context),row))continue;
           if(old&&policy!=='restore'&&(policy!=='newer'||Date.parse(old.updated_at)>=Date.parse(row.updated_at))){report.conflicts.push({id:row.id,reason:'evidence_kept'});continue;}
-          if(!old&&!blobs){report.missingEvidence++;continue;}
-          await request(evidence.put({...row,annotated:blobs?.annotated||old.annotated,raw:row.source_view==='3d'?null:blobs?.raw||old.raw}));if(old)report.evidence_updated++;else report.evidence_added++;
+          if(!saved&&!blobs){report.missingEvidence++;continue;}
+          await request(evidence.put({...row,annotated:blobs?.annotated||saved.annotated,raw:row.source_view==='3d'?null:blobs?.raw||saved.raw}));if(old)report.evidence_updated++;else report.evidence_added++;
         }
         if(before)await request(tx.objectStore('meta').put({key:'before-restore',before,after:await snapshot()}));
         return report;
